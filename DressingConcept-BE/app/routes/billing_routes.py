@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, make_response
 from app.models.billing import Bill, BillItem, Payment
 from app.models.product import Product
 from app.models.current_company import Company
+from app.models.customer_rewards import CustomerRewards
 from app import db
 from sqlalchemy import or_, and_, func, text
 from datetime import datetime, timedelta
@@ -110,19 +111,23 @@ def get_customer_by_phone(phone_number):
         if not phone_number:
             return jsonify({"error": "Phone number is required"}), 400
         
+        # Find existing rewards
+        rewards = CustomerRewards.query.filter_by(phone=phone_number).first()
+        
         # Find existing bills with this phone number (get the most recent)
         existing_customer = Bill.query.filter_by(customer_phone=phone_number).order_by(Bill.created_at.desc()).first()
         
-        if existing_customer:
+        if existing_customer or rewards:
             return jsonify({
                 'exists': True,
                 'customer': {
-                    'name': existing_customer.customer_name,
-                    'phone': existing_customer.customer_phone,
-                    'email': existing_customer.customer_email or '',
-                    'gst': existing_customer.customer_gst or '',
-                    'address': existing_customer.customer_address or '',
-                    'type': existing_customer.customer_type or 'regular'
+                    'name': rewards.name if rewards and rewards.name else (existing_customer.customer_name if existing_customer else 'Walk-in Customer'),
+                    'phone': phone_number,
+                    'email': existing_customer.customer_email if existing_customer else '',
+                    'gst': existing_customer.customer_gst if existing_customer else '',
+                    'address': existing_customer.customer_address if existing_customer else '',
+                    'type': existing_customer.customer_type if existing_customer else 'regular',
+                    'reward_points': rewards.current_balance if rewards else 0.0
                 }
             }), 200
         else:
@@ -134,6 +139,20 @@ def get_customer_by_phone(phone_number):
     except Exception as e:
         print(f"Get customer error: {str(e)}")
         return jsonify({"error": "Failed to fetch customer details"}), 400
+
+
+# ------------------ GET ALL REWARDS ------------------
+@billing_bp.route("/billing/rewards", methods=["GET"])
+def get_all_rewards():
+    """Get all customer rewards mapping phone to points"""
+    try:
+        rewards = CustomerRewards.query.all()
+        return jsonify({
+            r.phone: r.current_balance for r in rewards
+        }), 200
+    except Exception as e:
+        print(f"Get rewards error: {str(e)}")
+        return jsonify({"error": "Failed to fetch rewards"}), 400
 
 
 # ------------------ GET ALL CUSTOMERS (for quick selection) ------------------
@@ -298,6 +317,32 @@ def create_bill():
         # Calculate all totals (including discount and tax)
         bill.calculate_totals()
         
+        # Update or Create CustomerRewards
+        if bill.customer_phone:
+            rewards = CustomerRewards.query.filter_by(phone=bill.customer_phone).first()
+            points_earned = float(data.get('rewardPointsEarned', 0))
+            points_redeemed = float(data.get('rewardPointsRedeemed', 0))
+            
+            if not rewards:
+                rewards = CustomerRewards(
+                    phone=bill.customer_phone,
+                    name=bill.customer_name,
+                    total_points_earned=points_earned,
+                    total_points_redeemed=points_redeemed,
+                    current_balance=points_earned - points_redeemed,
+                    total_spend=bill.total,
+                    bill_count=1
+                )
+                db.session.add(rewards)
+            else:
+                rewards.total_points_earned += points_earned
+                rewards.total_points_redeemed += points_redeemed
+                rewards.current_balance = rewards.total_points_earned - rewards.total_points_redeemed
+                rewards.total_spend += bill.total
+                rewards.bill_count += 1
+                if not rewards.name or rewards.name == 'Walk-in Customer':
+                    rewards.name = bill.customer_name
+
         # Save to database
         db.session.add(bill)
         db.session.commit()

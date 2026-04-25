@@ -2632,7 +2632,7 @@ const Bill = () => {
                 </span>
                 <span>-₹{discountAmount.toFixed(2)}</span>
               </div>
-              
+
               <div className="summary-row">
                 <span>After Discount:</span>
                 <span>₹{(subtotal - discountAmount).toFixed(2)}</span>
