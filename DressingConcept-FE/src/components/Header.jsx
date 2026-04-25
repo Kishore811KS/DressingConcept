@@ -17,6 +17,7 @@ const formatDate = (d) => {
 const Header = ({ toggleSidebar }) => {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user"));
+  const loggedInUserName = user?.full_name || user?.username || user?.name || user?.email || "Admin";
 
   const [notifications, setNotifications] = useState([]);
   const [showPanel, setShowPanel] = useState(false);
@@ -256,7 +257,7 @@ const Header = ({ toggleSidebar }) => {
         {/* User */}
         <div style={styles.userSection}>
           <FaUserCircle />
-          <span style={styles.username}>{user?.username || "Admin"}</span>
+          <span style={styles.username}>{loggedInUserName}</span>
         </div>
 
         {/* Logout */}

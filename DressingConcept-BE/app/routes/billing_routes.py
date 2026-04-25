@@ -49,16 +49,28 @@ def search_products_for_billing():
         # Search in name, model, and type, only show products with stock > 0
         products = Product.query.filter(
             or_(
+                Product.product_code.ilike(f'%{query}%'),
                 Product.name.ilike(f'%{query}%'),
+                Product.description.ilike(f'%{query}%'),
                 Product.model.ilike(f'%{query}%'),
+                Product.size.ilike(f'%{query}%'),
                 Product.type.ilike(f'%{query}%')
             )
         ).filter(Product.quantity > 0).limit(10).all()
         
         result = [{
             'id': p.id,
+            'productCode': p.product_code or '',
             'name': p.name,
+            'description': p.description or '',
             'model': p.model or '',
+            'size': p.size or '',
+            'unit': p.unit or 'PCS',
+            'tax': p.tax or 0,
+            'mrp': p.mrp or p.buy_price or p.sell_price,
+            'discountPercent': p.discount_percent or 0,
+            'netPrice': p.net_price or p.sell_price,
+            'salesPerson': p.sales_person or '',
             'type': p.type or '',
             'sellPrice': p.sell_price,
             'quantity': p.quantity,
@@ -289,8 +301,9 @@ def create_bill():
                 db.session.rollback()
                 return jsonify({"error": f"Insufficient stock for {product.name}. Available: {product.quantity}"}), 400
             
-            # Calculate item total with possible discount
-            item_total = product.sell_price * quantity
+            # Calculate item total from saved product NetPrice.
+            line_price = product.net_price or product.sell_price
+            item_total = line_price * quantity
             
             # Create bill item with status (defaults to 'pending' from model)
             bill_item = BillItem(
@@ -298,7 +311,7 @@ def create_bill():
                 product_name=product.name,
                 product_model=product.model or '',
                 product_type=product.type or '',
-                sell_price=product.sell_price,
+                sell_price=line_price,
                 quantity=quantity,
                 total=item_total
             )

@@ -2409,9 +2409,9 @@ const VisitBillPage = () => {
             <table style={styles.modalTable}>
               <thead>
                 <tr>
-                  <th style={styles.modalTh}>Item</th>
-                  <th style={styles.modalTh}>Model</th>
-                  <th style={styles.modalTh}>Price</th>
+                  <th style={styles.modalTh}>Product_Description</th>
+                  <th style={styles.modalTh}>Size</th>
+                  <th style={styles.modalTh}>Unit_Price</th>
                   <th style={styles.modalTh}>Qty</th>
                   <th style={styles.modalTh}>Total</th>
                 </tr>

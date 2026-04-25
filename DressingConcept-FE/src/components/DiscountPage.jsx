@@ -759,9 +759,7 @@ const CSS = `
   text-align:center; color:var(--muted); font-size:13px; line-height:1.5;
 }
 
-input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; }
-input[type=number] { -moz-appearance: textfield; }
+/* number input spinner styles moved to global App.css */
 
 @media (max-width:680px) {
   .dp-layout { grid-template-columns:1fr; }

@@ -59,8 +59,17 @@ def create_product():
                 watts = data['watts']  # Keep as string if not float
 
         product = Product(
+            product_code=data.get("productCode", "").strip(),
             name=data.get("name", "").strip(),
+            description=data.get("description", "").strip(),
             model=data.get("model", "").strip(),
+            size=data.get("size", "").strip(),
+            unit=data.get("unit", "PCS").strip() or "PCS",
+            tax=float(data.get("tax", 0) or 0),
+            mrp=float(data.get("mrp", data.get("buyPrice", 0)) or 0),
+            discount_percent=float(data.get("discountPercent", 0) or 0),
+            net_price=float(data.get("netPrice", 0) or 0),
+            sales_person=data.get("salesPerson", "").strip(),
             type=data.get("type", "").strip(),
             watts=watts,
             buy_price=float(data.get("buyPrice", 0)),
@@ -143,8 +152,26 @@ def update_product(id):
         # Update only provided fields
         if data.get('name') is not None:
             product.name = data['name'].strip()
+        if data.get('productCode') is not None:
+            product.product_code = data['productCode'].strip()
+        if data.get('description') is not None:
+            product.description = data['description'].strip()
         if data.get('model') is not None:
             product.model = data['model'].strip()
+        if data.get('size') is not None:
+            product.size = data['size'].strip()
+        if data.get('unit') is not None:
+            product.unit = data['unit'].strip() or "PCS"
+        if data.get('tax') is not None:
+            product.tax = float(data['tax'] or 0)
+        if data.get('mrp') is not None:
+            product.mrp = float(data['mrp'] or 0)
+        if data.get('discountPercent') is not None:
+            product.discount_percent = float(data['discountPercent'] or 0)
+        if data.get('netPrice') is not None:
+            product.net_price = float(data['netPrice'] or 0)
+        if data.get('salesPerson') is not None:
+            product.sales_person = data['salesPerson'].strip()
         if data.get('type') is not None:
             product.type = data['type'].strip()
         if data.get('watts') is not None:
@@ -213,8 +240,17 @@ def bulk_create_products():
                 
                 # Create product
                 product = Product(
+                    product_code=product_data.get("productCode", "").strip(),
                     name=product_data.get("name", "").strip(),
+                    description=product_data.get("description", "").strip(),
                     model=product_data.get("model", "").strip(),
+                    size=product_data.get("size", "").strip(),
+                    unit=product_data.get("unit", "PCS").strip() or "PCS",
+                    tax=float(product_data.get("tax", 0) or 0),
+                    mrp=float(product_data.get("mrp", product_data.get("buyPrice", 0)) or 0),
+                    discount_percent=float(product_data.get("discountPercent", 0) or 0),
+                    net_price=float(product_data.get("netPrice", 0) or 0),
+                    sales_person=product_data.get("salesPerson", "").strip(),
                     type=product_data.get("type", "").strip(),
                     watts=product_data.get("watts"),
                     buy_price=float(product_data.get("buyPrice", 0)),
