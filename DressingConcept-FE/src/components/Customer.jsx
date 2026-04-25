@@ -52,25 +52,35 @@ const CustomerDetailsPage = () => {
         hasMore = page < data.pages;
         page++;
       }
+      // Fetch rewards
+      let rewardsData = {};
+      try {
+        const rewardsResponse = await fetch(`${API_BASE_URL}/billing/rewards`);
+        if (rewardsResponse.ok) {
+          rewardsData = await rewardsResponse.json();
+        }
+      } catch (e) {
+        console.error('Error fetching rewards:', e);
+      }
       
       // Extract unique customers by phone number or name combination
       const customerMap = new Map();
       
       allBills.forEach(bill => {
         // Use customer phone as primary key, fallback to name
-        const customerKey = bill.customer?.phone || bill.customer?.name || bill.customerName;
+        const customerPhone = bill.customer?.phone || bill.customerPhone || '';
+        const customerKey = customerPhone || bill.customer?.name || bill.customerName;
         
         if (!customerMap.has(customerKey)) {
           customerMap.set(customerKey, {
             id: bill.id,
             customerName: bill.customer?.name || bill.customerName || 'Unknown',
-            customerPhone: bill.customer?.phone || bill.customerPhone || '',
+            customerPhone: customerPhone,
             customerEmail: bill.customer?.email || bill.customerEmail || '',
             customerGST: bill.customer?.gst || bill.customerGST || '',
             customerAddress: bill.customer?.address || bill.customerAddress || '',
             customerType: bill.customer?.type || bill.customerType || 'regular',
-            vehicleName: bill.vehicle?.name || bill.vehicleName || '',
-            vehicleNumber: bill.vehicle?.number || bill.vehicleNumber || '',
+            rewardPoints: rewardsData[customerPhone] || 0,
             totalSpent: bill.summary?.total || bill.total || 0,
             billCount: 1,
             lastBillDate: bill.createdAt || new Date().toISOString()
@@ -109,7 +119,6 @@ const CustomerDetailsPage = () => {
         (customer.customerName && customer.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (customer.customerPhone && customer.customerPhone.includes(searchTerm)) ||
         (customer.customerEmail && customer.customerEmail.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (customer.vehicleNumber && customer.vehicleNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (customer.customerGST && customer.customerGST.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
@@ -379,7 +388,7 @@ const CustomerDetailsPage = () => {
               </label>
               <input
                 type="text"
-                placeholder="Search by name, phone, email, GST, or vehicle..."
+                placeholder="Search by name, phone, email, or GST..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
@@ -465,7 +474,7 @@ const CustomerDetailsPage = () => {
                   <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#e0e7ff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contact Info</th>
                   <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#e0e7ff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>GST Number</th>
                   <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#e0e7ff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Customer Type</th>
-                  <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#e0e7ff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Vehicle Details</th>
+                  <th style={{ padding: '16px 20px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: '#e0e7ff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Customer Points</th>
                   <th style={{ padding: '16px 20px', textAlign: 'right', fontSize: '13px', fontWeight: '600', color: '#e0e7ff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Spent</th>
                   <th style={{ padding: '16px 20px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: '#e0e7ff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Bill Count</th>
                   <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#e0e7ff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Bill Date</th>
@@ -554,20 +563,22 @@ const CustomerDetailsPage = () => {
                             {customer.customerType === 'regular' ? '👤 Regular' : '🏢 Internal'}
                           </span>
                         </td>
-                        <td style={{ padding: '16px 20px' }}>
-                          {customer.vehicleNumber && (
-                            <div style={{ fontSize: '13px', color: '#ffffff', fontFamily: 'monospace' }}>
-                              🚗 {customer.vehicleNumber}
-                            </div>
-                          )}
-                          {customer.vehicleName && (
-                            <div style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '2px' }}>
-                              {customer.vehicleName}
-                            </div>
-                          )}
-                          {!customer.vehicleNumber && (
-                            <span style={{ fontSize: '13px', color: '#94a3b8' }}>—</span>
-                          )}
+                        <td style={{ padding: '16px 20px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <span style={{ 
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(234, 179, 8, 0.2)',
+                            padding: '6px 16px',
+                            borderRadius: '20px',
+                            fontSize: '14px',
+                            fontWeight: '700',
+                            color: '#fef08a',
+                            border: '1px solid rgba(234, 179, 8, 0.4)',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                          }}>
+                            ⭐ {customer.rewardPoints ? Number(customer.rewardPoints).toFixed(2) : '0.00'}
+                          </span>
                         </td>
                         <td style={{ padding: '16px 20px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                           <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#86efac' }}>
@@ -804,7 +815,7 @@ const CustomerDetailsPage = () => {
                         <th style={{ padding: '14px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Bill ID</th>
                         <th style={{ padding: '14px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Bill Number</th>
                         <th style={{ padding: '14px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Date</th>
-                        <th style={{ padding: '14px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Vehicle</th>
+                        <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Points Earned</th>
                         <th style={{ padding: '14px 12px', textAlign: 'right', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Total</th>
                         <th style={{ padding: '14px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Status</th>
                       </tr>
@@ -818,10 +829,8 @@ const CustomerDetailsPage = () => {
                           <td style={{ padding: '12px', fontSize: '14px', fontWeight: '500', color: '#111827' }}>#{bill.id}</td>
                           <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280' }}>{bill.billNumber || 'N/A'}</td>
                           <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280' }}>{formatDate(bill.createdAt)}</td>
-                          <td style={{ padding: '12px', fontSize: '14px', color: '#6b7280' }}>
-                            {bill.vehicle?.number || bill.vehicleNumber || '—'}
-                            {bill.vehicle?.name && ` (${bill.vehicle.name})`}
-                            {!bill.vehicle?.number && bill.vehicleName && ` (${bill.vehicleName})`}
+                          <td style={{ padding: '12px', fontSize: '14px', color: '#f59e0b', textAlign: 'center', fontWeight: '600' }}>
+                            + {((bill.summary?.total || bill.total || 0) * 0.01).toFixed(2)}
                           </td>
                           <td style={{ padding: '12px', fontSize: '14px', fontWeight: '600', color: '#10b981', textAlign: 'right' }}>
                             {formatCurrency(bill.summary?.total || bill.total || 0)}

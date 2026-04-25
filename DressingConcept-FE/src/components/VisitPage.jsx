@@ -332,6 +332,19 @@ const VisitBillPage = () => {
           customerGst: bill.customerGst || bill.customer_gst || bill.customer?.gst || '',
           customerAddress: bill.customerAddress || bill.customer_address || bill.customer?.address || '',
           customerType: bill.customerType || bill.customer_type || bill.customer?.type || 'external',
+          memberId: bill.memberId || bill.member_id || '',
+          salesPerson: bill.salesPerson || bill.sales_person || '',
+          counter: bill.counter || '',
+          isClassicCustomer: Boolean(bill.isClassicCustomer || bill.is_classic_customer),
+          isSaleReturn: Boolean(bill.isSaleReturn || bill.is_sale_return),
+          isCardBill: Boolean(bill.isCardBill || bill.is_card_bill),
+          noRewards: Boolean(bill.noRewards || bill.no_rewards),
+          rewardPointsAvailable: parseFloat(bill.rewardPointsAvailable || bill.reward_points_available || 0),
+          rewardPointsRedeemed: parseFloat(bill.rewardPointsRedeemed || bill.reward_points_redeemed || 0),
+          rewardPointsEarned: parseFloat(bill.rewardPointsEarned || bill.reward_points_earned || 0),
+          rewardPointsBalance: parseFloat(bill.rewardPointsBalance || bill.reward_points_balance || 0),
+          amountGiven: parseFloat(bill.amountGiven || bill.amount_given || bill.paidAmount || bill.paid_amount || 0),
+          balanceReturned: parseFloat(bill.balanceReturned || bill.balance_returned || bill.changeAmount || bill.change_amount || 0),
           subtotal: subtotal,
           discountValue: discountValue,
           discountAmount: discountAmount,
@@ -351,6 +364,8 @@ const VisitBillPage = () => {
             productName: item.productName || item.product_name || item.name || 'Unknown',
             productModel: item.productModel || item.product_model || item.model || '',
             productType: item.productType || item.product_type || item.type || '',
+            mrp: parseFloat(item.mrp || item.MRP || item.sellPrice || item.sell_price || item.price || 0),
+            unit: item.unit || 'PCS',
             sellPrice: parseFloat(item.sellPrice || item.sell_price || item.price || 0),
             quantity: parseInt(item.quantity || item.qty || 1),
             total: parseFloat(item.total || item.subtotal || 0),
@@ -471,6 +486,19 @@ const VisitBillPage = () => {
         customerGst: billData.customerGst || billData.customer_gst || billData.customer?.gst || '',
         customerAddress: billData.customerAddress || billData.customer_address || billData.customer?.address || '',
         customerType: billData.customerType || billData.customer_type || billData.customer?.type || 'external',
+          memberId: billData.memberId || billData.member_id || '',
+          salesPerson: billData.salesPerson || billData.sales_person || '',
+          counter: billData.counter || '',
+          isClassicCustomer: Boolean(billData.isClassicCustomer || billData.is_classic_customer),
+          isSaleReturn: Boolean(billData.isSaleReturn || billData.is_sale_return),
+          isCardBill: Boolean(billData.isCardBill || billData.is_card_bill),
+          noRewards: Boolean(billData.noRewards || billData.no_rewards),
+          rewardPointsAvailable: parseFloat(billData.rewardPointsAvailable || billData.reward_points_available || 0),
+          rewardPointsRedeemed: parseFloat(billData.rewardPointsRedeemed || billData.reward_points_redeemed || 0),
+          rewardPointsEarned: parseFloat(billData.rewardPointsEarned || billData.reward_points_earned || 0),
+          rewardPointsBalance: parseFloat(billData.rewardPointsBalance || billData.reward_points_balance || 0),
+          amountGiven: parseFloat(billData.amountGiven || billData.amount_given || billData.paidAmount || billData.paid_amount || 0),
+          balanceReturned: parseFloat(billData.balanceReturned || billData.balance_returned || billData.changeAmount || billData.change_amount || 0),
         subtotal: subtotal,
         discountValue: discountValue,
         discountAmount: discountAmount,
@@ -490,6 +518,8 @@ const VisitBillPage = () => {
           productName: item.productName || item.product_name || item.name || 'Unknown',
           productModel: item.productModel || item.product_model || item.model || '',
           productType: item.productType || item.product_type || item.type || '',
+          mrp: parseFloat(item.mrp || item.MRP || item.sellPrice || item.sell_price || item.price || 0),
+          unit: item.unit || 'PCS',
           sellPrice: parseFloat(item.sellPrice || item.sell_price || item.price || 0),
           quantity: parseInt(item.quantity || item.qty || 1),
           total: parseFloat(item.total || item.subtotal || 0),
@@ -968,7 +998,7 @@ const VisitBillPage = () => {
             }
             .item-header { 
               display: grid; 
-              grid-template-columns: 2fr 1fr 1fr 1fr; 
+              grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr; 
               font-weight: bold; 
               font-size: 11px; 
               border-bottom: 1px solid #000; 
@@ -977,7 +1007,7 @@ const VisitBillPage = () => {
             }
             .item { 
               display: grid; 
-              grid-template-columns: 2fr 1fr 1fr 1fr; 
+              grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
               font-size: 11px; 
               padding: 3px 0; 
               border-bottom: 1px dotted #ccc; 
@@ -1034,6 +1064,9 @@ const VisitBillPage = () => {
             <div class="info-row"><span>Bill No:</span><span>${processedBill.billNumber}</span></div>
             <div class="info-row"><span>Date:</span><span>${new Date(processedBill.createdAt).toLocaleDateString()}</span></div>
             <div class="info-row"><span>Time:</span><span>${new Date(processedBill.createdAt).toLocaleTimeString()}</span></div>
+            ${processedBill.counter ? `<div class="info-row"><span>Counter:</span><span>${processedBill.counter}</span></div>` : ''}
+            ${processedBill.memberId ? `<div class="info-row"><span>Member ID:</span><span>${processedBill.memberId}</span></div>` : ''}
+            ${processedBill.salesPerson ? `<div class="info-row"><span>Sales Person:</span><span>${processedBill.salesPerson}</span></div>` : ''}
           </div>
           
           <div class="customer-section">
@@ -1065,11 +1098,17 @@ const VisitBillPage = () => {
               <span><strong>GST:</strong></span>
               <span>${processedBill.customerGst}</span>
             </div>` : ''}
+            <div class="customer-row"><span><strong>Classic Customer:</strong></span><span>${processedBill.isClassicCustomer ? 'Yes' : 'No'}</span></div>
+            <div class="customer-row"><span><strong>Sale Return:</strong></span><span>${processedBill.isSaleReturn ? 'Yes' : 'No'}</span></div>
+            <div class="customer-row"><span><strong>Card Bill:</strong></span><span>${processedBill.isCardBill ? 'Yes' : 'No'}</span></div>
+            <div class="customer-row"><span><strong>No Rewards:</strong></span><span>${processedBill.noRewards ? 'Yes' : 'No'}</span></div>
           </div>
           
           <div class="items">
             <div class="item-header">
               <span>Item</span>
+              <span>Unit</span>
+              <span>MRP</span>
               <span>Price</span>
               <span>Qty</span>
               <span>Total</span>
@@ -1077,6 +1116,8 @@ const VisitBillPage = () => {
             ${processedBill.items && processedBill.items.length > 0 ? processedBill.items.map(item => {
               const productName = item.productName || item.product_name || 'Unknown';
               const productModel = item.productModel || item.product_model || '';
+              const unit = item.unit || 'PCS';
+              const mrp = parseFloat(item.mrp || item.sellPrice || item.sell_price || 0);
               const sellPrice = parseFloat(item.sellPrice || item.sell_price || 0);
               const quantity = item.quantity || 0;
               const total = parseFloat(item.total || 0);
@@ -1084,12 +1125,14 @@ const VisitBillPage = () => {
               return `
                 <div class="item">
                   <span>${productName} ${productModel ? `(${productModel})` : ''}</span>
+                  <span>${unit}</span>
+                  <span>₹${mrp.toFixed(2)}</span>
                   <span>₹${sellPrice.toFixed(2)}</span>
                   <span>${quantity}</span>
                   <span>₹${total.toFixed(2)}</span>
                 </div>
               `;
-            }).join('') : '<div class="item"><span colspan="4">No items found</span></div>'}
+            }).join('') : '<div class="item"><span colspan="6">No items found</span></div>'}
           </div>
           
           <div class="summary">
@@ -1097,10 +1140,16 @@ const VisitBillPage = () => {
             <div class="summary-row"><span>Discount:</span><span>${discountDisplay}</span></div>
             <div class="summary-row"><span>Tax:</span><span>₹${processedBill.tax.toFixed(2)}</span></div>
             <div class="summary-row total"><span>Total:</span><span>₹${processedBill.total.toFixed(2)}</span></div>
-            <div class="summary-row"><span>Paid:</span><span>₹${processedBill.paidAmount.toFixed(2)}</span></div>
-            <div class="summary-row"><span>Change:</span><span>₹${processedBill.changeAmount.toFixed(2)}</span></div>
+            <div class="summary-row"><span>Amount Given:</span><span>₹${(processedBill.amountGiven || processedBill.paidAmount || 0).toFixed(2)}</span></div>
+            <div class="summary-row"><span>Balance Returned:</span><span>₹${(processedBill.balanceReturned || processedBill.changeAmount || 0).toFixed(2)}</span></div>
             <div class="summary-row"><span>Due:</span><span class="amount-due">₹${processedBill.dueAmount.toFixed(2)}</span></div>
             <div class="summary-row"><span>Payment:</span><span>${(processedBill.paymentMethod || 'cash').toUpperCase()}</span></div>
+          </div>
+          <div class="summary">
+            <div class="summary-row"><span>Available Points:</span><span>${(processedBill.rewardPointsAvailable || 0).toFixed(2)}</span></div>
+            <div class="summary-row"><span>Redeemed Points:</span><span>${(processedBill.rewardPointsRedeemed || 0).toFixed(2)}</span></div>
+            <div class="summary-row"><span>Earned Points:</span><span>${(processedBill.rewardPointsEarned || 0).toFixed(2)}</span></div>
+            <div class="summary-row"><span>Remaining Points:</span><span>${(processedBill.rewardPointsBalance || 0).toFixed(2)}</span></div>
           </div>
           
           <div class="footer">
@@ -1921,6 +1970,7 @@ const VisitBillPage = () => {
               <th style={styles.th}>Date & Time</th>
               <th style={styles.th}>Customer</th>
               <th style={styles.th}>Type</th>
+              <th style={styles.th}>Member / Sales</th>
               <th style={styles.th}>Contact</th>
               <th style={styles.th}>Items</th>
               <th style={styles.th}>Subtotal</th>
@@ -1930,13 +1980,14 @@ const VisitBillPage = () => {
               <th style={styles.th}>Paid</th>
               <th style={styles.th}>Due</th>
               <th style={styles.th}>Payment</th>
+              <th style={styles.th}>Flags</th>
               <th style={styles.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {currentBills.length === 0 ? (
               <tr>
-                <td colSpan="14" style={styles.noData}>
+                <td colSpan="16" style={styles.noData}>
                   {searchTerm || filterPaymentMethod !== 'all' || filterCustomerType !== 'all' || dateRange.start 
                     ? <div>
                         <Filter size={30} style={{marginBottom: '10px', opacity: 0.5}} />
@@ -2019,6 +2070,10 @@ const VisitBillPage = () => {
                       </span>
                     </td>
                     <td style={styles.td}>
+                      <div>{bill.memberId || '-'}</div>
+                      <small style={{color: '#9ca3af', fontSize: '10px'}}>{bill.salesPerson || '-'}</small>
+                    </td>
+                    <td style={styles.td}>
                       {bill.customerPhone && (
                         <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
                           <Phone size={10} color="#9ca3af" />
@@ -2045,7 +2100,12 @@ const VisitBillPage = () => {
                     </td>
                     <td style={styles.td}>{formatCurrency(bill.tax)}</td>
                     <td style={styles.td}><strong>{formatCurrency(bill.total)}</strong></td>
-                    <td style={styles.td}>{formatCurrency(bill.paidAmount)}</td>
+                    <td style={styles.td}>
+                      <div>{formatCurrency(bill.amountGiven || bill.paidAmount)}</div>
+                      <small style={{color: '#9ca3af', fontSize: '10px'}}>
+                        Return: {formatCurrency(bill.balanceReturned || bill.changeAmount)}
+                      </small>
+                    </td>
                     <td style={styles.td}>
                       <span style={{
                         color: dueAmount > 0 ? '#f87171' : '#34d399',
@@ -2063,6 +2123,14 @@ const VisitBillPage = () => {
                         {getPaymentIcon(bill.paymentMethod)}
                         <span style={{textTransform: 'capitalize'}}>{bill.paymentMethod}</span>
                       </div>
+                    </td>
+                    <td style={styles.td}>
+                      <div style={{fontSize: '11px'}}>
+                        {bill.isClassicCustomer ? 'Classic' : 'Regular'} / {bill.counter || '-'}
+                      </div>
+                      <small style={{color: '#9ca3af', fontSize: '10px'}}>
+                        {bill.isSaleReturn ? 'SaleReturn ' : ''}{bill.isCardBill ? 'CardBill ' : ''}{bill.noRewards ? 'NoRewards' : ''}
+                      </small>
                     </td>
                     <td style={styles.td}>
                       <button
@@ -2284,6 +2352,21 @@ const VisitBillPage = () => {
                   <p style={styles.modalText}>
                     <strong>Customer:</strong> {selectedBill.customerName || 'Walk-in Customer'}
                   </p>
+                  {selectedBill.memberId && (
+                    <p style={styles.modalText}>
+                      <strong>Member ID:</strong> {selectedBill.memberId}
+                    </p>
+                  )}
+                  {selectedBill.salesPerson && (
+                    <p style={styles.modalText}>
+                      <strong>Sales Person:</strong> {selectedBill.salesPerson}
+                    </p>
+                  )}
+                  {selectedBill.counter && (
+                    <p style={styles.modalText}>
+                      <strong>Counter:</strong> {selectedBill.counter}
+                    </p>
+                  )}
                   {selectedBill.customerPhone && (
                     <p style={styles.modalText}>
                       <strong>Phone:</strong> {selectedBill.customerPhone}
@@ -2307,6 +2390,16 @@ const VisitBillPage = () => {
                   <strong>GST:</strong> {selectedBill.customerGst}
                 </p>
               )}
+              <p style={styles.modalText}>
+                <strong>Flags:</strong> {selectedBill.isClassicCustomer ? 'Classic Customer' : 'Regular'}
+                {selectedBill.isSaleReturn ? ' | Sale Return' : ''}
+                {selectedBill.isCardBill ? ' | Card Bill' : ''}
+                {selectedBill.noRewards ? ' | No Rewards' : ''}
+              </p>
+              <p style={styles.modalText}><strong>Available Points:</strong> {(selectedBill.rewardPointsAvailable || 0).toFixed(2)}</p>
+              <p style={styles.modalText}><strong>Redeemed Points:</strong> {(selectedBill.rewardPointsRedeemed || 0).toFixed(2)}</p>
+              <p style={styles.modalText}><strong>Earned Points:</strong> {(selectedBill.rewardPointsEarned || 0).toFixed(2)}</p>
+              <p style={styles.modalText}><strong>Remaining Points:</strong> {(selectedBill.rewardPointsBalance || 0).toFixed(2)}</p>
             </div>
 
             <h3 style={{color: '#f9fafb', marginBottom: '10px', fontSize: '16px'}}>

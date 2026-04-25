@@ -181,7 +181,7 @@ const Sidebar = ({ isOpen }) => {
       <style>{scrollbarStyles}</style>
       <div style={styles.sidebar} className="sidebar">
         <div style={styles.logoSection}>
-          {isOpen ? "AVVA INVENTORY" : "AVVA"}
+          {isOpen ? "Dressing Concept" : "DC"}
         </div>
 
         <div style={styles.navContainer}>

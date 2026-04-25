@@ -8,12 +8,12 @@ const Bill = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [barcode, setBarcode] = useState('');
-  
+
   // Bill information
   const [billNumber, setBillNumber] = useState('');
   const [currentDate, setCurrentDate] = useState('');
   const [currentTime, setCurrentTime] = useState('');
-  
+
   // Customer information
   const [customerName, setCustomerName] = useState('Walk-in Customer');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -22,33 +22,36 @@ const Bill = () => {
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerType, setCustomerType] = useState('external'); // 'internal' or 'external'
   const [customerDiscount, setCustomerDiscount] = useState(0); // Default discount for customer type
-  
-  // Vehicle information
-  const [vehicleName, setVehicleName] = useState('');
-  const [vehicleNumber, setVehicleNumber] = useState('');
-  
+  const [memberId, setMemberId] = useState('');
+  const [isClassicCustomer, setIsClassicCustomer] = useState(false);
+  const [salesPerson, setSalesPerson] = useState('');
+  const [counter, setCounter] = useState('Counter_1');
+  const [isSaleReturn, setIsSaleReturn] = useState(false);
+  const [isCardBill, setIsCardBill] = useState(false);
+  const [noRewards, setNoRewards] = useState(false);
+
   // Company information (from selected company)
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [companies, setCompanies] = useState([]);
   const [showCompanySelector, setShowCompanySelector] = useState(false);
-  
+
   // User information (bill created by)
   const [createdBy, setCreatedBy] = useState('');
-  
+
   // Discount information
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('percentage'); // 'percentage' or 'fixed'
   const [manualDiscount, setManualDiscount] = useState(false); // Track if discount is manually set
-  
+
   // Tax information
   const [tax, setTax] = useState(0);
   const [taxType, setTaxType] = useState('percentage'); // 'percentage' or 'fixed'
-  
+
   // Payment information
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentStatus, setPaymentStatus] = useState('pending');
-  
+
   // Payment details for different methods
   const [cashReceived, setCashReceived] = useState(0);
   const [cardNumber, setCardNumber] = useState('');
@@ -57,7 +60,7 @@ const Bill = () => {
   const [transactionId, setTransactionId] = useState('');
   const [bankName, setBankName] = useState('');
   const [chequeNumber, setChequeNumber] = useState('');
-  
+
   // UI states
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -71,10 +74,13 @@ const Bill = () => {
   const [showWhatsApp, setShowWhatsApp] = useState(false);
   const [savedBillId, setSavedBillId] = useState(null);
   const [fetchingCustomer, setFetchingCustomer] = useState(false);
+  const [productIdInput, setProductIdInput] = useState('');
+  const [availablePoints, setAvailablePoints] = useState(0);
+  const [redeemedPoints, setRedeemedPoints] = useState(0);
 
   // Shop details (will be overridden by selected company)
   const defaultShopDetails = {
-    name: 'Avva Inventory',
+    name: 'Dressing Concept',
     address: 'No.71, M.T.H.road (Opp padi post office)',
     city: 'Padi, Chennai - 600 050',
     phone: '',
@@ -82,6 +88,7 @@ const Bill = () => {
   };
 
   const [shopDetails, setShopDetails] = useState(defaultShopDetails);
+  const REWARD_POINTS_PER_RUPEE = 0.01;
 
   // Refs
   const billPaperRef = useRef(null);
@@ -125,72 +132,79 @@ const Bill = () => {
   const baseStyles = {
     container: {
       display: 'grid',
-      gridTemplateColumns: '1fr 350px',
-      gap: '20px',
-      padding: '20px',
+      gridTemplateColumns: '1fr 400px',
+      gap: '24px',
+      padding: '24px',
       minHeight: '100vh',
-      background: '#f0f0f0',
-      fontFamily: "'Courier New', monospace",
+      background: '#f4f6f8',
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
     },
     productPanel: {
       background: 'white',
-      padding: '20px',
-      borderRadius: '10px',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+      padding: '24px',
+      borderRadius: '12px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
       overflow: 'auto',
-      maxHeight: 'calc(100vh - 40px)',
+      maxHeight: 'calc(100vh - 48px)',
     },
     productPanelTitle: {
-      marginBottom: '20px',
-      color: '#333',
-      borderBottom: '2px solid #333',
-      paddingBottom: '10px',
+      marginBottom: '24px',
+      color: '#1a1a1a',
+      borderBottom: '2px solid #e9ecef',
+      paddingBottom: '12px',
       fontSize: '24px',
+      fontWeight: '600',
     },
     alert: {
-      padding: '12px',
-      borderRadius: '5px',
-      marginBottom: '20px',
-      fontWeight: 'bold',
-      animation: 'slideIn 0.3s ease',
+      padding: '14px 16px',
+      borderRadius: '8px',
+      marginBottom: '16px',
+      fontWeight: '500',
+      fontSize: '14px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
     },
     alertError: {
-      background: '#f8d7da',
-      color: '#721c24',
-      border: '1px solid #f5c6cb',
+      background: '#fff5f5',
+      color: '#c53030',
+      border: '1px solid #fed7d7',
     },
     alertSuccess: {
-      background: '#d4edda',
-      color: '#155724',
-      border: '1px solid #c3e6cb',
+      background: '#f0fff4',
+      color: '#276749',
+      border: '1px solid #c6f6d5',
     },
     searchSection: {
-      background: '#f8f9fa',
+      background: '#f8faff',
       padding: '20px',
-      borderRadius: '8px',
+      borderRadius: '10px',
       marginBottom: '20px',
-      border: '1px solid #e9ecef',
+      border: '1px solid #e2e8f0',
     },
     searchBox: {
-      marginBottom: '15px',
+      marginBottom: '14px',
       position: 'relative',
     },
     searchLabel: {
       display: 'block',
-      marginBottom: '5px',
-      fontWeight: 'bold',
-      color: '#333',
-      fontSize: '14px',
+      marginBottom: '6px',
+      fontWeight: '600',
+      color: '#2d3748',
+      fontSize: '13px',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px',
     },
     searchInput: {
       width: '100%',
-      padding: '12px',
-      border: '2px solid #ddd',
-      borderRadius: '5px',
-      fontSize: '16px',
-      fontFamily: "'Courier New', monospace",
-      transition: 'border-color 0.3s, box-shadow 0.3s',
+      padding: '12px 16px',
+      border: '1px solid #ced4da',
+      borderRadius: '6px',
+      fontSize: '15px',
+      fontFamily: 'inherit',
+      transition: 'border-color 0.2s',
       outline: 'none',
+      boxSizing: 'border-box',
     },
     searchLoading: {
       position: 'absolute',
@@ -206,25 +220,31 @@ const Bill = () => {
     barcodeInput: {
       display: 'flex',
       gap: '10px',
+      marginBottom: '16px',
+      alignItems: 'stretch',
     },
     barcodeField: {
       flex: 1,
-      padding: '12px',
-      border: '2px solid #ddd',
-      borderRadius: '5px',
-      fontSize: '16px',
-      fontFamily: "'Courier New', monospace",
+      padding: '12px 16px',
+      border: '1px solid #ced4da',
+      borderRadius: '6px',
+      fontSize: '15px',
+      fontFamily: 'inherit',
       outline: 'none',
+      boxSizing: 'border-box',
+      minWidth: 0,
     },
     barcodeButton: {
-      padding: '12px 20px',
+      padding: '0 24px',
       background: '#28a745',
       color: 'white',
       border: 'none',
-      borderRadius: '5px',
+      borderRadius: '6px',
       cursor: 'pointer',
-      fontWeight: 'bold',
-      transition: 'background 0.3s, transform 0.1s',
+      fontWeight: '600',
+      fontSize: '15px',
+      transition: 'background 0.2s',
+      whiteSpace: 'nowrap',
     },
     barcodeButtonDisabled: {
       background: '#6c757d',
@@ -270,112 +290,126 @@ const Bill = () => {
       fontSize: '16px',
     },
     selectedProducts: {
-      marginTop: '20px',
+      marginTop: '24px',
     },
     selectedProductsTitle: {
-      marginBottom: '15px',
-      color: '#333',
-      borderBottom: '1px solid #ddd',
-      paddingBottom: '8px',
-      fontSize: '18px',
+      marginBottom: '14px',
+      color: '#2d3748',
+      borderBottom: '2px solid #e2e8f0',
+      paddingBottom: '10px',
+      fontSize: '16px',
+      fontWeight: '600',
     },
     noItems: {
       textAlign: 'center',
-      color: '#999',
-      padding: '30px',
+      color: '#a0aec0',
+      padding: '36px 20px',
       fontStyle: 'italic',
-      background: '#f8f9fa',
-      borderRadius: '5px',
+      background: '#f7fafc',
+      borderRadius: '8px',
+      border: '1px dashed #e2e8f0',
+      fontSize: '14px',
     },
     selectedItemsList: {
-      maxHeight: '400px',
+      maxHeight: '420px',
       overflowY: 'auto',
     },
     selectedItem: {
       display: 'grid',
-      gridTemplateColumns: '2fr 1fr 80px 100px 40px',
+      gridTemplateColumns: '2fr 80px 80px 90px 36px',
       gap: '10px',
-      padding: '12px',
-      background: '#f8f9fa',
+      padding: '12px 14px',
+      background: '#fff',
       marginBottom: '8px',
-      borderRadius: '5px',
+      borderRadius: '8px',
       alignItems: 'center',
-      border: '1px solid #e9ecef',
-      transition: 'transform 0.2s, box-shadow 0.2s',
+      border: '1px solid #e2e8f0',
+      transition: 'box-shadow 0.15s',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
     },
     itemInfo: {
       display: 'flex',
       flexDirection: 'column',
+      gap: '2px',
     },
     itemName: {
-      fontWeight: 'bold',
-      color: '#333',
+      fontWeight: '600',
+      color: '#2d3748',
+      fontSize: '14px',
     },
     itemModel: {
       fontSize: '11px',
-      color: '#666',
+      color: '#718096',
     },
     itemPrice: {
-      fontWeight: 'bold',
-      color: '#28a745',
+      fontWeight: '600',
+      color: '#2f855a',
+      textAlign: 'right',
+      fontSize: '13px',
     },
     itemTotal: {
-      fontWeight: 'bold',
-      color: '#28a745',
+      fontWeight: '700',
+      color: '#2d3748',
+      textAlign: 'right',
+      fontSize: '14px',
     },
     itemQuantity: {
-      width: '70px',
-      padding: '5px',
-      border: '1px solid #ddd',
-      borderRadius: '3px',
+      width: '100%',
+      padding: '6px 4px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '6px',
       textAlign: 'center',
-      fontFamily: "'Courier New', monospace",
+      fontFamily: 'inherit',
+      fontSize: '14px',
+      fontWeight: '600',
     },
     removeBtn: {
-      background: '#dc3545',
-      color: 'white',
-      border: 'none',
-      width: '30px',
-      height: '30px',
-      borderRadius: '50%',
+      background: '#fff5f5',
+      color: '#e53e3e',
+      border: '1px solid #fed7d7',
+      width: '32px',
+      height: '32px',
+      borderRadius: '8px',
       cursor: 'pointer',
-      fontSize: '18px',
+      fontSize: '16px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      transition: 'background 0.3s, transform 0.1s',
+      transition: 'all 0.15s',
     },
     billPanel: {
-      background: 'white',
-      borderRadius: '10px',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+      background: '#f7f9fc',
+      borderRadius: '12px',
+      boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
       position: 'sticky',
-      top: '20px',
+      top: '24px',
       height: 'fit-content',
-      maxHeight: 'calc(100vh - 40px)',
+      maxHeight: 'calc(100vh - 48px)',
       overflow: 'auto',
+      border: '1px solid #e2e8f0',
     },
     billContainer: {
-      padding: '15px',
+      padding: '16px',
     },
     billPaper: {
       background: 'white',
-      padding: '15px 12px',
-      border: '1px solid #ccc',
-      boxShadow: '0 0 10px rgba(0,0,0,0.1)',
+      padding: '24px 16px',
+      border: '1px solid #e9ecef',
+      boxShadow: '0 4px 15px rgba(0,0,0,0.08)',
       position: 'relative',
-      marginBottom: '15px',
-      borderRadius: '3px',
-      width: '280px',
+      marginBottom: '20px',
+      borderRadius: '8px',
+      width: '100%',
+      maxWidth: '360px',
       margin: '0 auto',
       fontFamily: "'Courier New', monospace",
-      fontSize: '11px',
-      lineHeight: '1.3',
+      fontSize: '12px',
+      lineHeight: '1.4',
     },
     billHeader: {
       textAlign: 'center',
-      marginBottom: '12px',
-      paddingBottom: '8px',
+      marginBottom: '16px',
+      paddingBottom: '12px',
       borderBottom: '1px dashed #333',
     },
     billHeaderH1: {
@@ -446,43 +480,45 @@ const Bill = () => {
     },
     customerInput: {
       width: '100%',
-      padding: '4px 6px',
-      marginBottom: '4px',
-      border: '1px solid #ddd',
-      borderRadius: '2px',
-      fontFamily: "'Courier New', monospace",
-      fontSize: '10px',
-      transition: 'border-color 0.3s',
+      padding: '6px 8px',
+      marginBottom: '5px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '4px',
+      fontFamily: 'inherit',
+      fontSize: '11px',
+      outline: 'none',
+      transition: 'border-color 0.2s',
+      boxSizing: 'border-box',
     },
     customerTypeSelect: {
       width: '100%',
-      padding: '4px',
-      marginBottom: '4px',
-      border: '1px solid #ddd',
-      borderRadius: '2px',
-      fontFamily: "'Courier New', monospace",
-      fontSize: '10px',
+      padding: '6px 8px',
+      marginBottom: '5px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '4px',
+      fontFamily: 'inherit',
+      fontSize: '11px',
+      outline: 'none',
     },
     billItems: {
       margin: '10px 0',
     },
     billItemsHeader: {
       display: 'grid',
-      gridTemplateColumns: '2fr 1fr 1fr 1.5fr',
+      gridTemplateColumns: '3fr 1fr 1.2fr 0.8fr 1.2fr',
       fontWeight: 'bold',
-      padding: '4px 0',
-      borderBottom: '1px solid #333',
-      fontSize: '10px',
-      background: '#f0f0f0',
-      paddingLeft: '2px',
+      padding: '6px 4px',
+      borderBottom: '1px dashed #333',
+      fontSize: '11px',
+      background: '#f8f9fa',
     },
     billItem: {
       display: 'grid',
-      gridTemplateColumns: '2fr 1fr 1fr 1.5fr',
-      padding: '3px 0',
+      gridTemplateColumns: '3fr 1fr 1.2fr 0.8fr 1.2fr',
+      padding: '4px 4px',
       borderBottom: '1px dotted #ccc',
-      fontSize: '9px',
-      paddingLeft: '2px',
+      fontSize: '10px',
+      alignItems: 'center',
     },
     billItemEmpty: {
       textAlign: 'center',
@@ -581,57 +617,61 @@ const Bill = () => {
     },
     paymentSection: {
       margin: '10px 0',
-      padding: '8px',
-      background: '#f0f0f0',
-      borderRadius: '2px',
-      border: '1px solid #ddd',
-      fontSize: '10px',
+      padding: '10px',
+      background: '#fff',
+      borderRadius: '6px',
+      border: '1px solid #e2e8f0',
+      fontSize: '11px',
     },
     paymentRow: {
       display: 'flex',
       justifyContent: 'space-between',
-      marginBottom: '4px',
+      marginBottom: '6px',
       alignItems: 'center',
     },
     paymentSelect: {
-      padding: '4px',
-      width: '100px',
-      border: '1px solid #ddd',
-      borderRadius: '2px',
-      fontFamily: "'Courier New', monospace",
-      fontSize: '9px',
+      padding: '5px 8px',
+      width: '110px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '4px',
+      fontFamily: 'inherit',
+      fontSize: '11px',
+      outline: 'none',
     },
     paymentInput: {
-      width: '80px',
-      padding: '3px',
-      border: '1px solid #ddd',
-      borderRadius: '2px',
+      width: '85px',
+      padding: '4px 6px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '4px',
       textAlign: 'right',
-      fontFamily: "'Courier New', monospace",
-      fontSize: '9px',
+      fontFamily: 'inherit',
+      fontSize: '11px',
+      outline: 'none',
     },
     paymentDetails: {
       marginTop: '8px',
-      padding: '6px',
-      background: 'white',
-      borderRadius: '2px',
-      border: '1px solid #ccc',
+      padding: '8px',
+      background: '#f7fafc',
+      borderRadius: '5px',
+      border: '1px solid #e2e8f0',
     },
     paymentDetailsInput: {
       width: '100%',
-      padding: '4px',
-      marginBottom: '4px',
-      border: '1px solid #ddd',
-      borderRadius: '2px',
-      fontFamily: "'Courier New', monospace",
-      fontSize: '9px',
+      padding: '6px 8px',
+      marginBottom: '5px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '4px',
+      fontFamily: 'inherit',
+      fontSize: '11px',
+      outline: 'none',
+      boxSizing: 'border-box',
     },
     billFooter: {
       textAlign: 'center',
-      marginTop: '15px',
+      marginTop: '12px',
       paddingTop: '10px',
-      borderTop: '1px dashed #333',
-      fontSize: '8px',
+      borderTop: '1px dashed #aaa',
+      fontSize: '9px',
     },
     billFooterP: {
       marginBottom: '2px',
@@ -641,39 +681,39 @@ const Bill = () => {
       display: 'grid',
       gridTemplateColumns: 'repeat(2, 1fr)',
       gap: '8px',
-      marginTop: '15px',
+      marginTop: '16px',
     },
     whatsappButton: {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       gap: '8px',
-      padding: '10px',
+      padding: '11px',
       marginTop: '10px',
       background: '#25D366',
       color: 'white',
       border: 'none',
-      borderRadius: '5px',
-      fontWeight: 'bold',
+      borderRadius: '8px',
+      fontWeight: '600',
       cursor: 'pointer',
       fontSize: '14px',
-      transition: 'background 0.3s',
+      transition: 'background 0.2s',
       textDecoration: 'none',
       width: '100%',
     },
     btn: {
-      padding: '10px',
+      padding: '10px 12px',
       border: 'none',
-      borderRadius: '3px',
-      fontWeight: 'bold',
+      borderRadius: '7px',
+      fontWeight: '600',
       cursor: 'pointer',
-      fontSize: '12px',
-      transition: 'all 0.3s',
-      fontFamily: "'Courier New', monospace",
+      fontSize: '13px',
+      transition: 'all 0.15s',
+      fontFamily: 'inherit',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: '3px',
+      gap: '4px',
     },
     btnDisabled: {
       opacity: 0.5,
@@ -707,34 +747,38 @@ const Bill = () => {
       display: 'none',
     },
     companySelector: {
-      marginBottom: '15px',
-      padding: '10px',
-      background: '#e9ecef',
-      borderRadius: '5px',
+      marginBottom: '16px',
+      padding: '12px 14px',
+      background: '#ebf4ff',
+      borderRadius: '8px',
       cursor: 'pointer',
+      border: '1px solid #bee3f8',
     },
     companyName: {
-      fontWeight: 'bold',
-      color: '#007bff',
+      fontWeight: '700',
+      color: '#2b6cb0',
       fontSize: '14px',
     },
     companyDropdown: {
-      marginTop: '5px',
-      padding: '5px',
+      marginTop: '8px',
+      padding: '4px',
       background: 'white',
-      border: '1px solid #ddd',
-      borderRadius: '3px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '6px',
       maxHeight: '200px',
       overflowY: 'auto',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
     },
     companyOption: {
-      padding: '8px',
+      padding: '10px 12px',
       cursor: 'pointer',
-      borderBottom: '1px solid #eee',
-      transition: 'background 0.2s',
+      borderBottom: '1px solid #f7fafc',
+      transition: 'background 0.15s',
+      fontSize: '14px',
+      borderRadius: '4px',
     },
     companyOptionHover: {
-      background: '#f0f7ff',
+      background: '#ebf8ff',
     },
   };
 
@@ -814,13 +858,13 @@ const Bill = () => {
     const year = now.getFullYear().toString().slice(-2);
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
-    
+
     const randomChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let random = '';
     for (let i = 0; i < 8; i++) {
       random += randomChars.charAt(Math.floor(Math.random() * randomChars.length));
     }
-    
+
     setBillNumber(`BT-${year}${month}${day}-${random}`);
   };
 
@@ -843,7 +887,7 @@ const Bill = () => {
   useEffect(() => {
     generateBillNumber();
     updateDateTime();
-    
+
     const interval = setInterval(updateDateTime, 60000);
     return () => clearInterval(interval);
   }, []);
@@ -871,7 +915,7 @@ const Bill = () => {
     } else if (paidAmount >= total) {
       setPaymentStatus('paid');
     }
-  }, [paidAmount, selectedProducts, discount, tax, discountType, taxType]);
+  }, [paidAmount, selectedProducts, discount, tax, discountType, taxType, redeemedPoints, availablePoints, noRewards]);
 
   // Set discount based on customer type (only if not manually set)
   useEffect(() => {
@@ -1016,7 +1060,7 @@ const Bill = () => {
       }
     `;
     document.head.appendChild(style);
-    
+
     return () => {
       document.head.removeChild(style);
     };
@@ -1025,7 +1069,7 @@ const Bill = () => {
   // Clear payment method specific fields when method changes
   useEffect(() => {
     setShowPaymentDetails(true);
-    switch(paymentMethod) {
+    switch (paymentMethod) {
       case 'cash':
         setCardNumber('');
         setCardHolderName('');
@@ -1063,7 +1107,7 @@ const Bill = () => {
   // Fetch customer by phone
   const fetchCustomerByPhone = async (phone) => {
     if (phone.length < 10) return;
-    
+
     setFetchingCustomer(true);
     try {
       const response = await api.get(`/billing/customer/${phone}`);
@@ -1074,6 +1118,9 @@ const Bill = () => {
         setCustomerAddress(customer.address || '');
         setCustomerGST(customer.gst || '');
         setCustomerType(customer.type || 'external');
+        setMemberId(customer.memberId || customer.member_id || phone);
+        setAvailablePoints(parseFloat(customer.rewardPoints || customer.reward_points || 0) || 0);
+        setRedeemedPoints(0);
         setSuccess('Customer found! Details auto-filled.');
         setTimeout(() => setSuccess(''), 3000);
       }
@@ -1089,6 +1136,8 @@ const Bill = () => {
     const cleanPhone = customerPhone.replace(/\D/g, '');
     if (cleanPhone.length === 10) {
       fetchCustomerByPhone(cleanPhone);
+    } else if (!memberId || memberId.length <= 10) {
+      setMemberId(cleanPhone);
     }
   }, [customerPhone]);
 
@@ -1098,10 +1147,10 @@ const Bill = () => {
   // Search products API call
   const searchProducts = async () => {
     if (!isAuthenticated) return;
-    
+
     setSearchLoading(true);
     setError('');
-    
+
     try {
       const response = await api.get(`/billing/search-products?q=${encodeURIComponent(searchQuery)}`);
       setSearchResults(response.data);
@@ -1122,10 +1171,10 @@ const Bill = () => {
   const getProductByBarcode = async () => {
     if (!isAuthenticated) return;
     if (!barcode.trim()) return;
-    
+
     setLoading(true);
     setError('');
-    
+
     try {
       const response = await api.get(`/billing/product/barcode/${barcode}`);
       addProductToBill(response.data);
@@ -1142,19 +1191,62 @@ const Bill = () => {
     }
   };
 
+  const getProductById = async () => {
+    if (!isAuthenticated) return;
+    if (!productIdInput.trim()) return;
+
+    setLoading(true);
+    setError('');
+    const lookup = productIdInput.trim();
+
+    try {
+      let product = null;
+      try {
+        const response = await api.get(`/billing/product/${encodeURIComponent(lookup)}`);
+        product = response.data;
+      } catch (_) {}
+
+      if (!product) {
+        try {
+          const response = await api.get(`/billing/product/code/${encodeURIComponent(lookup)}`);
+          product = response.data;
+        } catch (_) {}
+      }
+
+      if (!product) {
+        const response = await api.get(`/billing/search-products?q=${encodeURIComponent(lookup)}`);
+        if (Array.isArray(response.data) && response.data.length) {
+          product =
+            response.data.find((p) => String(p.productCode || p.code || '').toLowerCase() === lookup.toLowerCase()) ||
+            response.data.find((p) => String(p.id) === String(lookup)) ||
+            response.data[0];
+        }
+      }
+
+      if (!product) throw new Error('Product not found');
+      addProductToBill(product);
+      setProductIdInput('');
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Product not found by Product ID');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Add product to bill
   const addProductToBill = (product) => {
     const existingProduct = selectedProducts.find(p => p.id === product.id);
-    
+
     if (existingProduct) {
       if (existingProduct.quantity < product.quantity) {
         const updatedProducts = selectedProducts.map(p =>
           p.id === product.id
-            ? { 
-                ...p, 
-                quantity: p.quantity + 1, 
-                total: (p.quantity + 1) * p.sellPrice 
-              }
+            ? {
+              ...p,
+              quantity: p.quantity + 1,
+              total: (p.quantity + 1) * p.sellPrice
+            }
             : p
         );
         setSelectedProducts(updatedProducts);
@@ -1170,9 +1262,17 @@ const Bill = () => {
           ...selectedProducts,
           {
             id: product.id,
+            productCode: product.productCode || product.code || product.id,
             name: product.name,
             model: product.model || '',
+            description: product.description || product.name || '',
+            size: product.size || product.model || '',
+            unit: product.unit || 'PCS',
+            tax: parseFloat(product.tax || 0),
+            mrp: parseFloat(product.mrp || product.sellPrice || 0),
             sellPrice: product.sellPrice,
+            discountPercent: parseFloat(product.discountPercent || 0),
+            netPrice: parseFloat(product.netPrice || product.sellPrice || 0),
             quantity: 1,
             total: product.sellPrice,
             maxQuantity: product.quantity
@@ -1185,7 +1285,7 @@ const Bill = () => {
         setTimeout(() => setError(''), 3000);
       }
     }
-    
+
     setSearchQuery('');
     setSearchResults([]);
   };
@@ -1193,10 +1293,10 @@ const Bill = () => {
   // Update quantity - Now sets to 0 instead of deleting
   const updateQuantity = (productId, newQuantity) => {
     const product = selectedProducts.find(p => p.id === productId);
-    
+
     if (product) {
       newQuantity = parseInt(newQuantity) || 0;
-      
+
       // Allow quantity to be 0 (will show as 0 quantity item)
       if (newQuantity >= 0 && newQuantity <= product.maxQuantity) {
         const updatedProducts = selectedProducts.map(p =>
@@ -1205,7 +1305,7 @@ const Bill = () => {
             : p
         );
         setSelectedProducts(updatedProducts);
-        
+
         if (newQuantity === 0) {
           setSuccess(`${product.name} quantity set to 0`);
         } else {
@@ -1238,7 +1338,7 @@ const Bill = () => {
   const calculateDiscountAmount = () => {
     const subtotal = calculateSubtotal();
     if (subtotal === 0) return 0;
-    
+
     if (discountType === 'percentage') {
       return (subtotal * discount) / 100;
     }
@@ -1250,21 +1350,45 @@ const Bill = () => {
     const subtotal = calculateSubtotal();
     const discountAmount = calculateDiscountAmount();
     const afterDiscount = subtotal - discountAmount;
-    
+
     if (afterDiscount <= 0) return 0;
-    
+
     if (taxType === 'percentage') {
       return (afterDiscount * tax) / 100;
     }
     return Math.min(tax, afterDiscount); // Fixed tax cannot exceed after discount amount
   };
 
-  // Calculate total (subtotal - discount + tax)
-  const calculateTotal = () => {
+  const calculateBaseTotal = () => {
     const subtotal = calculateSubtotal();
     const discountAmount = calculateDiscountAmount();
     const taxAmount = calculateTaxAmount();
     return Math.max(0, subtotal - discountAmount + taxAmount);
+  };
+
+  const calculateRedeemValue = () => {
+    const baseTotal = calculateBaseTotal();
+    const safeAvailable = Math.max(0, parseFloat(availablePoints) || 0);
+    const safeRedeemed = Math.max(0, parseFloat(redeemedPoints) || 0);
+    return Math.min(safeRedeemed, safeAvailable, baseTotal);
+  };
+
+  // Calculate total (subtotal - discount + tax - redeemed points)
+  const calculateTotal = () => {
+    const baseTotal = calculateBaseTotal();
+    const redeemValue = calculateRedeemValue();
+    return Math.max(0, baseTotal - redeemValue);
+  };
+
+  const calculateEarnedPoints = () => {
+    if (noRewards) return 0;
+    return Math.max(0, Math.floor(calculateTotal() * REWARD_POINTS_PER_RUPEE));
+  };
+
+  const calculateRemainingPoints = () => {
+    const safeAvailable = Math.max(0, parseFloat(availablePoints) || 0);
+    const safeRedeemed = Math.max(0, parseFloat(redeemedPoints) || 0);
+    return Math.max(0, safeAvailable - safeRedeemed + calculateEarnedPoints());
   };
 
   // Calculate change
@@ -1284,7 +1408,7 @@ const Bill = () => {
     setManualDiscount(true); // Mark as manually set
     const numValue = parseFloat(value) || 0;
     const subtotal = calculateSubtotal();
-    
+
     // Validate based on discount type
     if (discountType === 'percentage') {
       if (numValue > 100) {
@@ -1305,7 +1429,7 @@ const Bill = () => {
         setDiscount(numValue);
       }
     }
-    
+
     // Clear error after 3 seconds
     setTimeout(() => setError(''), 3000);
   };
@@ -1315,7 +1439,7 @@ const Bill = () => {
     setManualDiscount(true); // Mark as manually set
     const subtotal = calculateSubtotal();
     setDiscountType(type);
-    
+
     // Convert discount value when type changes
     if (type === 'percentage') {
       // If switching to percentage, convert fixed amount to percentage
@@ -1367,7 +1491,7 @@ const Bill = () => {
   // Save bill to database
   const saveBillToDatabase = async () => {
     const activeProducts = selectedProducts.filter(p => p.quantity > 0);
-    
+
     if (activeProducts.length === 0) {
       setError('No items with quantity > 0 to save!');
       return null;
@@ -1385,8 +1509,19 @@ const Bill = () => {
         customerGST: customerGST,
         customerAddress: customerAddress,
         customerType: customerType === 'internal' ? 'internal' : 'regular',
-        vehicleName: vehicleName,
-        vehicleNumber: vehicleNumber,
+        memberId: memberId,
+        isClassicCustomer: isClassicCustomer,
+        salesPerson: salesPerson,
+        counter: counter,
+        isSaleReturn: isSaleReturn,
+        isCardBill: isCardBill,
+        noRewards: noRewards,
+        rewardPointsAvailable: availablePoints,
+        rewardPointsRedeemed: redeemedPoints,
+        rewardPointsEarned: calculateEarnedPoints(),
+        rewardPointsBalance: calculateRemainingPoints(),
+        amountGiven: paidAmount,
+        balanceReturned: calculateChange(),
         companyId: selectedCompany?.id,
         discount: discount,
         discountType: discountType === 'percentage' ? 'percentage' : 'amount',
@@ -1398,7 +1533,13 @@ const Bill = () => {
         createdByName: createdBy, // Using the state variable which now has the correct name
         items: activeProducts.map(p => ({
           productId: p.id,
-          quantity: p.quantity
+          quantity: p.quantity,
+          mrp: p.mrp || p.sellPrice || 0,
+          unit: p.unit || 'PCS',
+          tax: p.tax || 0,
+          size: p.size || p.model || '',
+          discountPercent: p.discountPercent || 0,
+          netPrice: p.netPrice || p.sellPrice || 0
         }))
       };
 
@@ -1417,7 +1558,7 @@ const Bill = () => {
         });
         setShowWhatsApp(true);
         setBillSaved(true);
-        
+
         return {
           billId: response.data.billId,
           billNumber: response.data.billNumber
@@ -1442,6 +1583,8 @@ const Bill = () => {
     const total = calculateTotal();
     const due = calculateDue();
     const change = calculateChange();
+    const earnedPoints = calculateEarnedPoints();
+    const remainingPoints = calculateRemainingPoints();
     const activeProducts = selectedProducts.filter(p => p.quantity > 0);
     // Use provided bill number or fall back to state
     const displayBillNumber = overrideBillNumber || billNumber;
@@ -1460,26 +1603,32 @@ const Bill = () => {
               box-sizing: border-box;
             }
             
+            @page {
+              size: A4 portrait;
+              margin: 12mm;
+            }
+
             body {
               margin: 0;
-              padding: 20px;
-              width: 80mm;
-              font-family: 'Courier New', monospace;
-              font-size: 11px;
-              line-height: 1.3;
+              padding: 0;
+              font-family: 'Segoe UI', Arial, sans-serif;
+              font-size: 14px;
+              line-height: 1.5;
               background: white;
+              color: #1f2937;
             }
             
             #billPaper {
-              width: 280px;
+              width: 100%;
+              max-width: 180mm;
               margin: 0 auto;
-              padding: 12px;
+              padding: 0;
               background: white;
             }
             
             .bill-header {
               text-align: center;
-              margin-bottom: 20px;
+              margin-bottom: 24px;
             }
             .bill-logo {
               max-width: 120px;
@@ -1488,39 +1637,39 @@ const Bill = () => {
               object-fit: contain;
             }
             .bill-header h1 {
-              font-size: 16px;
+              font-size: 24px;
               letter-spacing: 1px;
-              margin-bottom: 3px;
+              margin-bottom: 5px;
               color: #333;
               font-weight: bold;
             }
             
             .bill-header .owner {
-              font-size: 10px;
+              font-size: 12px;
               font-weight: bold;
               color: #333;
-              margin: 2px 0;
+              margin: 4px 0;
             }
             
             .bill-header p {
-              font-size: 9px;
+              font-size: 12px;
               color: #666;
-              margin: 1px 0;
-              line-height: 1.2;
+              margin: 2px 0;
+              line-height: 1.4;
             }
             
             .bill-info {
-              margin: 10px 0;
-              padding: 6px 0;
-              border-top: 1px dashed #000;
-              border-bottom: 1px dashed #000;
+              margin: 15px 0;
+              padding: 10px 0;
+              border-top: 2px solid #000;
+              border-bottom: 2px solid #000;
             }
             
             .bill-info-row {
               display: flex;
               justify-content: space-between;
-              margin-bottom: 2px;
-              font-size: 10px;
+              margin-bottom: 4px;
+              font-size: 12px;
             }
             
             .bill-number {
@@ -1572,51 +1721,38 @@ const Bill = () => {
               color: #856404;
             }
             
-            .vehicle-section {
-              margin: 8px 0;
-              padding: 6px;
-              background: #f0f0f0;
-              border-radius: 2px;
-              border: 1px solid #ddd;
-            }
-            
-            .vehicle-row {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 4px;
-              font-size: 10px;
-            }
-            
             .bill-items {
               margin: 10px 0;
             }
             
             .bill-items-header {
               display: grid;
-              grid-template-columns: 2fr 1fr 1fr 1.5fr;
+              grid-template-columns: 3fr 1fr 1.2fr 0.8fr 1.2fr;
               font-weight: bold;
-              padding: 4px 0;
-              border-bottom: 1px solid #000;
-              font-size: 10px;
-              background: #f0f0f0;
-              padding-left: 2px;
+              padding: 8px 4px;
+              border-bottom: 2px solid #000;
+              font-size: 13px;
+              background: #f8f9fa;
             }
             
             .bill-item {
               display: grid;
-              grid-template-columns: 2fr 1fr 1fr 1.5fr;
-              padding: 3px 0;
-              border-bottom: 1px dotted #ccc;
-              font-size: 9px;
-              padding-left: 2px;
+              grid-template-columns: 3fr 1fr 1.2fr 0.8fr 1.2fr;
+              padding: 6px 4px;
+              border-bottom: 1px solid #e9ecef;
+              font-size: 12px;
+              align-items: center;
             }
+            
+            .text-right { text-align: right; }
+            .text-center { text-align: center; }
             
             .bill-item-empty {
               text-align: center;
               color: #999;
-              padding: 10px;
+              padding: 15px;
               font-style: italic;
-              font-size: 10px;
+              font-size: 12px;
             }
             
             .bill-item-name {
@@ -1625,30 +1761,30 @@ const Bill = () => {
             }
             
             .bill-item-small {
-              font-size: 7px;
+              font-size: 10px;
               color: #666;
             }
             
             .bill-summary {
-              margin: 10px 0;
-              padding: 8px 0;
-              border-top: 1px solid #000;
+              margin: 15px 0;
+              padding: 10px 0;
+              border-top: 2px solid #000;
             }
             
             .summary-row {
               display: flex;
               justify-content: space-between;
-              margin-bottom: 3px;
-              font-size: 10px;
+              margin-bottom: 6px;
+              font-size: 14px;
             }
             
             .summary-row-total {
               font-weight: bold;
-              font-size: 12px;
-              border-top: 1px dashed #000;
-              padding-top: 6px;
-              margin-top: 6px;
-              color: #333;
+              font-size: 18px;
+              border-top: 2px solid #000;
+              padding-top: 10px;
+              margin-top: 10px;
+              color: #000;
             }
             
             .payment-section {
@@ -1657,6 +1793,14 @@ const Bill = () => {
               background: #f0f0f0;
               border-radius: 2px;
               border: 1px solid #ddd;
+              font-size: 10px;
+            }
+            .reward-section {
+              margin: 10px 0;
+              padding: 8px;
+              background: #eef6ff;
+              border-radius: 2px;
+              border: 1px solid #bfdbfe;
               font-size: 10px;
             }
             
@@ -1720,6 +1864,22 @@ const Bill = () => {
                 <span>Time:</span>
                 <span>${currentTime}</span>
               </div>
+              <div class="bill-info-row">
+                <span>Counter:</span>
+                <span>${counter}</span>
+              </div>
+              ${memberId ? `
+              <div class="bill-info-row">
+                <span>Member ID:</span>
+                <span>${memberId}</span>
+              </div>
+              ` : ''}
+              ${salesPerson ? `
+              <div class="bill-info-row">
+                <span>Sales Person:</span>
+                <span>${salesPerson}</span>
+              </div>
+              ` : ''}
             </div>
             
             <div class="customer-section">
@@ -1763,21 +1923,13 @@ const Bill = () => {
               </div>
               ` : ''}
             </div>
-            
-            ${(vehicleName || vehicleNumber) ? `
-            <div class="vehicle-section">
-              <div class="vehicle-row">
-                <span class="customer-label">Vehicle:</span>
-                <span class="customer-value">${vehicleName || ''}</span>
-              </div>
-              ${vehicleNumber ? `
-              <div class="vehicle-row">
-                <span class="customer-label">Vehicle No:</span>
-                <span class="customer-value">${vehicleNumber}</span>
-              </div>
-              ` : ''}
+            <div class="customer-section">
+              <div class="customer-row"><span class="customer-label">Classic Customer:</span><span class="customer-value">${isClassicCustomer ? 'Yes' : 'No'}</span></div>
+              <div class="customer-row"><span class="customer-label">Sale Return:</span><span class="customer-value">${isSaleReturn ? 'Yes' : 'No'}</span></div>
+              <div class="customer-row"><span class="customer-label">Card Bill:</span><span class="customer-value">${isCardBill ? 'Yes' : 'No'}</span></div>
+              <div class="customer-row"><span class="customer-label">No Rewards:</span><span class="customer-value">${noRewards ? 'Yes' : 'No'}</span></div>
             </div>
-            ` : ''}
+            
             
             ${discount > 0 ? `
             <div class="discount-section">
@@ -1791,9 +1943,10 @@ const Bill = () => {
             <div class="bill-items">
               <div class="bill-items-header">
                 <span>Item</span>
-                <span>Price</span>
-                <span>Qty</span>
-                <span>Total</span>
+                <span class="text-right">MRP</span>
+                <span class="text-right">Unit Price</span>
+                <span class="text-center">Qty</span>
+                <span class="text-right">Total</span>
               </div>
               <div>
                 ${activeProducts.length === 0 ? `
@@ -1806,9 +1959,10 @@ const Bill = () => {
                       ${product.name.length > 12 ? product.name.substring(0, 10) + '...' : product.name}
                       ${product.model ? `<small class="bill-item-small">${product.model}</small>` : ''}
                     </span>
-                    <span>₹${product.sellPrice}</span>
-                    <span>${product.quantity}</span>
-                    <span>₹${product.total.toFixed(2)}</span>
+                    <span class="text-right">₹${(parseFloat(product.mrp || product.sellPrice || 0)).toFixed(2)}</span>
+                    <span class="text-right">₹${(parseFloat(product.sellPrice || 0)).toFixed(2)}</span>
+                    <span class="text-center">${product.quantity}</span>
+                    <span class="text-right">₹${product.total.toFixed(2)}</span>
                   </div>
                 `).join('')}
               </div>
@@ -1844,6 +1998,12 @@ const Bill = () => {
                 <span>₹${total.toFixed(2)}</span>
               </div>
             </div>
+            <div class="reward-section">
+              <div class="payment-row"><span>Available Points:</span><span>${availablePoints.toFixed(2)}</span></div>
+              <div class="payment-row"><span>Redeemed Points:</span><span>${redeemedPoints.toFixed(2)}</span></div>
+              <div class="payment-row"><span>Earned Points:</span><span>${earnedPoints.toFixed(2)}</span></div>
+              <div class="payment-row"><span>Remaining Points:</span><span>${remainingPoints.toFixed(2)}</span></div>
+            </div>
             
             <div class="payment-section">
               <div class="payment-row">
@@ -1852,7 +2012,7 @@ const Bill = () => {
               </div>
               
               <div class="payment-row">
-                <span>Paid Amount:</span>
+                <span>Amount Given:</span>
                 <span>₹${paidAmount.toFixed(2)}</span>
               </div>
               
@@ -1872,7 +2032,7 @@ const Bill = () => {
               
               ${paymentMethod === 'cash' && paidAmount >= total ? `
               <div class="payment-row">
-                <span>Change:</span>
+                <span>Balance Returned:</span>
                 <span class="change-amount">₹${change.toFixed(2)}</span>
               </div>
               ` : ''}
@@ -1930,7 +2090,7 @@ const Bill = () => {
 
     // Save to database first
     const savedData = await saveBillToDatabase();
-    
+
     if (savedData) {
       // Then download the bill
       downloadBill();
@@ -1948,51 +2108,29 @@ const Bill = () => {
 
     // Save to database first
     const savedData = await saveBillToDatabase();
-    
+
     if (savedData) {
       // Use the saved bill number from backend response
       const confirmedBillNumber = savedData.billNumber;
-      
+
       // Generate fresh HTML with the confirmed bill number from backend
-      const printHTML = generateBillHTML(confirmedBillNumber);
-      
+      const printHTML = generateBillHTML(confirmedBillNumber).replace(
+        '</body>',
+        `<script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            }, 250);
+          };
+        </script></body>`
+      );
+
       // Create a new window for printing
       const printWindow = window.open('', '_blank');
-      
+
       if (printWindow) {
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>Bill - ${confirmedBillNumber}</title>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                @page {
-                  size: 80mm auto;
-                  margin: 0;
-                }
-                body {
-                  margin: 0;
-                  padding: 0;
-                }
-              </style>
-            </head>
-            <body>
-              ${printHTML.replace('</html>', '')}
-              <script>
-                window.onload = function() {
-                  setTimeout(function() {
-                    window.print();
-                    setTimeout(function() {
-                      window.close();
-                    }, 500);
-                  }, 300);
-                };
-              </script>
-            </body>
-          </html>
-        `);
+        printWindow.document.write(printHTML);
         printWindow.document.close();
       } else {
         setError('Pop-up blocked! Please allow pop-ups for this site to print.');
@@ -2011,7 +2149,7 @@ const Bill = () => {
 
     // Clean phone number (remove non-digits)
     const cleanPhone = customerPhone.replace(/\D/g, '');
-    
+
     // Check if phone number is valid
     if (cleanPhone.length < 10) {
       setError('Please enter a valid 10-digit phone number');
@@ -2038,15 +2176,13 @@ const Bill = () => {
     message += `Date: ${currentDate} ${currentTime}\n`;
     message += `Customer: ${customerName}\n`;
     message += `Type: ${customerType === 'internal' ? 'INTERNAL' : 'EXTERNAL'}\n`;
-    if (vehicleName) message += `Vehicle: ${vehicleName}\n`;
-    if (vehicleNumber) message += `Vehicle No: ${vehicleNumber}\n`;
     message += `================\n`;
     message += `ITEMS:\n`;
-    
+
     activeProducts.forEach(p => {
       message += `${p.name.substring(0, 15)}... ${p.quantity}x ₹${p.sellPrice} = ₹${p.total.toFixed(2)}\n`;
     });
-    
+
     message += `================\n`;
     message += `Subtotal: ₹${subtotal.toFixed(2)}\n`;
     if (discountAmount > 0) message += `Discount: -₹${discountAmount.toFixed(2)}\n`;
@@ -2064,10 +2200,10 @@ const Bill = () => {
 
     // Encode message for URL
     const encodedMessage = encodeURIComponent(message);
-    
+
     // Open WhatsApp with customer's number
     window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
-    
+
     setSuccess('WhatsApp opened with bill details!');
     setTimeout(() => setSuccess(''), 3000);
   };
@@ -2083,8 +2219,16 @@ const Bill = () => {
       setCustomerAddress('');
       setCustomerType('external');
       setCustomerDiscount(0);
-      setVehicleName('');
-      setVehicleNumber('');
+      setMemberId('');
+      setIsClassicCustomer(false);
+      setSalesPerson('');
+      setCounter('Counter_1');
+      setIsSaleReturn(false);
+      setIsCardBill(false);
+      setNoRewards(false);
+      setAvailablePoints(0);
+      setRedeemedPoints(0);
+      setProductIdInput('');
       setDiscount(0);
       setDiscountType('percentage');
       setManualDiscount(false);
@@ -2122,6 +2266,12 @@ const Bill = () => {
     }
   };
 
+  const handleProductIdKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      getProductById();
+    }
+  };
+
   // Test API connection
   const testAPIConnection = async () => {
     try {
@@ -2145,6 +2295,8 @@ const Bill = () => {
   const total = calculateTotal();
   const due = calculateDue();
   const change = calculateChange();
+  const earnedPoints = calculateEarnedPoints();
+  const remainingPoints = calculateRemainingPoints();
 
   // Dynamic styles that depend on state
   const dynamicStyles = {
@@ -2162,12 +2314,12 @@ const Bill = () => {
   // Show login required message if not authenticated
   if (!isAuthenticated) {
     return (
-      <div style={{...baseStyles.container, justifyContent: 'center', alignItems: 'center'}}>
-        <div style={{background: 'white', padding: '40px', borderRadius: '10px', textAlign: 'center'}}>
+      <div style={{ ...baseStyles.container, justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ background: 'white', padding: '40px', borderRadius: '10px', textAlign: 'center' }}>
           <h2>🔒 Authentication Required</h2>
-          <p style={{color: '#dc3545', margin: '20px 0'}}>{error || 'Please login to access billing'}</p>
-          <button 
-            style={{...baseStyles.btn, ...baseStyles.btnPrimary, padding: '10px 30px'}}
+          <p style={{ color: '#dc3545', margin: '20px 0' }}>{error || 'Please login to access billing'}</p>
+          <button
+            style={{ ...baseStyles.btn, ...baseStyles.btnPrimary, padding: '10px 30px' }}
             onClick={() => window.location.href = '/login'}
           >
             Go to Login
@@ -2182,6 +2334,7 @@ const Bill = () => {
     const value = e.target.value.replace(/\D/g, ''); // Only allow digits
     if (value.length <= 10) {
       setCustomerPhone(value);
+      setMemberId(value);
     }
   };
 
@@ -2190,12 +2343,12 @@ const Bill = () => {
       {/* Left Panel - Product Selection */}
       <div style={baseStyles.productPanel} className="no-print">
         <h2 style={baseStyles.productPanelTitle}>🧾 Create New Bill</h2>
-        
+
         {/* Company Selector */}
         {companies.length > 0 && (
           <div style={baseStyles.companySelector}>
-            <div 
-              style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
               onClick={() => setShowCompanySelector(!showCompanySelector)}
             >
               <span>
@@ -2203,7 +2356,7 @@ const Bill = () => {
                   {selectedCompany ? selectedCompany.name : 'Select Company'}
                 </span>
               </span>
-              <span style={{fontSize: '12px'}}>{showCompanySelector ? '▲' : '▼'}</span>
+              <span style={{ fontSize: '12px' }}>{showCompanySelector ? '▲' : '▼'}</span>
             </div>
             {showCompanySelector && (
               <div style={baseStyles.companyDropdown}>
@@ -2222,19 +2375,19 @@ const Bill = () => {
             )}
           </div>
         )}
-        
+
         {error && (
-          <div style={{...baseStyles.alert, ...baseStyles.alertError}}>
+          <div style={{ ...baseStyles.alert, ...baseStyles.alertError }}>
             ⚠️ {error}
           </div>
         )}
-        
+
         {success && (
-          <div style={{...baseStyles.alert, ...baseStyles.alertSuccess}}>
+          <div style={{ ...baseStyles.alert, ...baseStyles.alertSuccess }}>
             ✅ {success}
           </div>
         )}
-        
+
         <div style={baseStyles.searchSection}>
           <div style={baseStyles.searchBox}>
             <label style={baseStyles.searchLabel}>🔍 Search Products:</label>
@@ -2250,7 +2403,7 @@ const Bill = () => {
             />
             {searchLoading && <div style={baseStyles.searchLoading}>Searching...</div>}
           </div>
-          
+
           <div style={baseStyles.barcodeInput}>
             <input
               type="text"
@@ -2273,7 +2426,30 @@ const Bill = () => {
               {loading ? 'Adding...' : 'Add'}
             </button>
           </div>
-          
+
+          <div style={baseStyles.barcodeInput}>
+            <input
+              type="text"
+              style={baseStyles.barcodeField}
+              value={productIdInput}
+              onChange={(e) => setProductIdInput(e.target.value)}
+              onKeyPress={handleProductIdKeyPress}
+              placeholder="🔢 Enter Product ID / Product Code..."
+              onFocus={(e) => e.target.style.borderColor = '#28a745'}
+              onBlur={(e) => e.target.style.borderColor = '#ddd'}
+            />
+            <button
+              style={{
+                ...baseStyles.barcodeButton,
+                ...(loading ? baseStyles.barcodeButtonDisabled : {})
+              }}
+              onClick={getProductById}
+              disabled={loading}
+            >
+              {loading ? 'Adding...' : 'Add by ID'}
+            </button>
+          </div>
+
           {searchResults.length > 0 && (
             <div style={baseStyles.searchResults}>
               {searchResults.map(product => (
@@ -2287,7 +2463,7 @@ const Bill = () => {
                   <div style={baseStyles.resultInfo}>
                     <div style={baseStyles.resultName}>{product.name}</div>
                     <div style={baseStyles.resultDetails}>
-                      {product.model || ''} | Stock: {product.quantity}
+                      {(product.productCode || product.code || product.id)} | {product.model || ''} | Stock: {product.quantity}
                     </div>
                   </div>
                   <div style={baseStyles.resultPrice}>₹{product.sellPrice}</div>
@@ -2296,7 +2472,7 @@ const Bill = () => {
             </div>
           )}
         </div>
-        
+
         <div style={baseStyles.selectedProducts}>
           <h3 style={baseStyles.selectedProductsTitle}>
             🛒 Current Bill Items ({activeProducts.length} active / {selectedProducts.length} total)
@@ -2306,8 +2482,8 @@ const Bill = () => {
               <p style={baseStyles.noItems}>No items added yet. Search or scan products to add.</p>
             ) : (
               selectedProducts.map(product => (
-                <div 
-                  key={product.id} 
+                <div
+                  key={product.id}
                   style={{
                     ...baseStyles.selectedItem,
                     ...(product.quantity === 0 ? dynamicStyles.zeroQuantity : {})
@@ -2319,7 +2495,7 @@ const Bill = () => {
                       <span style={baseStyles.itemModel}>{product.model}</span>
                     )}
                     {product.quantity === 0 && (
-                      <span style={{fontSize: '9px', color: '#856404'}}>(Zero quantity)</span>
+                      <span style={{ fontSize: '9px', color: '#856404' }}>(Zero quantity)</span>
                     )}
                   </div>
                   <div style={baseStyles.itemPrice}>₹{product.sellPrice}</div>
@@ -2346,19 +2522,19 @@ const Bill = () => {
             )}
           </div>
           {selectedProducts.length > 0 && (
-            <p style={{fontSize: '11px', color: '#666', marginTop: '10px', textAlign: 'center'}}>
+            <p style={{ fontSize: '11px', color: '#666', marginTop: '10px', textAlign: 'center' }}>
               💡 Set quantity to 0 to keep item in list (will not be billed)
             </p>
           )}
         </div>
       </div>
-      
+
       {/* Right Panel - Thermal Bill */}
       <div style={baseStyles.billPanel} className="no-print">
         <div style={baseStyles.billContainer}>
-          <div 
-            style={baseStyles.billPaper} 
-            id="billPaper" 
+          <div
+            style={baseStyles.billPaper}
+            id="billPaper"
             ref={billPaperRef}
           >
             <div className="bill-header">
@@ -2369,7 +2545,7 @@ const Bill = () => {
               {shopDetails.phone && <p style={baseStyles.billHeaderP}>Ph: {shopDetails.phone}</p>}
               {shopDetails.gst && <p style={baseStyles.billHeaderP}>GST: {shopDetails.gst}</p>}
             </div>
-            
+
             <div className="bill-info">
               <div style={baseStyles.billInfoRow}>
                 <span>Bill No:</span>
@@ -2383,12 +2559,31 @@ const Bill = () => {
                 <span>Time:</span>
                 <span>{currentTime}</span>
               </div>
+              <div style={baseStyles.billInfoRow}>
+                <span>Counter:</span>
+                <span>{counter}</span>
+              </div>
             </div>
-            
+
+            <div style={{ ...baseStyles.customerSection, marginTop: '5px', padding: '8px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', fontSize: '10px' }}>
+                <span>{isSaleReturn ? '☑' : '☐'} SALE RETURN</span>
+                <span>{isCardBill ? '☑' : '☐'} CARD BILL</span>
+                <span>{noRewards ? '☑' : '☐'} NO REWARDS</span>
+                <span>{isClassicCustomer ? '☑' : '☐'} CLASSIC CUSTOMER</span>
+              </div>
+              {(memberId || salesPerson) && (
+                <div style={{ marginTop: '5px', fontSize: '10px', display: 'grid', gap: '2px' }}>
+                  {memberId && <div><strong>Member ID:</strong> {memberId}</div>}
+                  {salesPerson && <div><strong>Sales Person:</strong> {salesPerson}</div>}
+                </div>
+              )}
+            </div>
+
             <div className="customer-section">
               <div style={baseStyles.customerRow}>
                 <span style={baseStyles.customerLabel}>Customer Type:</span>
-                <span 
+                <span
                   style={{
                     ...baseStyles.customerTypeBadge,
                     ...(customerType === 'internal' ? baseStyles.internalBadge : baseStyles.externalBadge)
@@ -2397,33 +2592,33 @@ const Bill = () => {
                   {customerType === 'internal' ? '🏢 INTERNAL' : '👤 EXTERNAL'}
                 </span>
               </div>
-              
+
               <div style={baseStyles.customerRow}>
                 <span style={baseStyles.customerLabel}>Name:</span>
                 <span style={baseStyles.customerValue}>{customerName}</span>
               </div>
-              
+
               {customerPhone && (
                 <div style={baseStyles.customerRow}>
-                  <span style={{...baseStyles.customerLabel, color: '#007bff'}}>Phone Number:</span>
+                  <span style={{ ...baseStyles.customerLabel, color: '#007bff' }}>Phone Number:</span>
                   <span style={baseStyles.customerValue}>{customerPhone}</span>
                 </div>
               )}
-              
+
               {customerEmail && (
                 <div style={baseStyles.customerRow}>
                   <span style={baseStyles.customerLabel}>Email:</span>
                   <span style={baseStyles.customerValue}>{customerEmail}</span>
                 </div>
               )}
-              
+
               {customerAddress && (
                 <div style={baseStyles.customerRow}>
                   <span style={baseStyles.customerLabel}>Address:</span>
                   <span style={baseStyles.customerValue}>{customerAddress}</span>
                 </div>
               )}
-              
+
               {customerGST && (
                 <div style={baseStyles.customerRow}>
                   <span style={baseStyles.customerLabel}>GST:</span>
@@ -2431,35 +2626,16 @@ const Bill = () => {
                 </div>
               )}
             </div>
-            
-            {/* Vehicle Section */}
+
             <div style={baseStyles.customerSection} className="no-print">
               <input
                 type="text"
                 style={baseStyles.customerInput}
-                value={vehicleName}
-                onChange={(e) => setVehicleName(e.target.value)}
-                placeholder="Vehicle Name (e.g., Honda City)"
+                value={counter}
+                onChange={(e) => setCounter(e.target.value)}
+                placeholder="Counter (e.g., Counter_1)"
               />
-              
-              <input
-                type="text"
-                style={baseStyles.customerInput}
-                value={vehicleNumber}
-                onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
-                placeholder="Vehicle Number (e.g., TN01AB1234)"
-              />
-            </div>
-            
-            {/* Display vehicle info in print version */}
-            {(vehicleName || vehicleNumber) && (
-              <div style={{margin: '5px 0', padding: '3px', background: '#f0f0f0', fontSize: '9px'}} className="no-print-visible">
-                <div><strong>Vehicle:</strong> {vehicleName || '-'}</div>
-                {vehicleNumber && <div><strong>Reg No:</strong> {vehicleNumber}</div>}
-              </div>
-            )}
-            
-            <div style={baseStyles.customerSection} className="no-print">
+
               <select
                 style={baseStyles.customerTypeSelect}
                 value={customerType}
@@ -2471,7 +2647,7 @@ const Bill = () => {
                 <option value="external">👤 External Customer</option>
                 <option value="internal">🏢 Internal (Staff)</option>
               </select>
-              
+
               <input
                 type="text"
                 style={baseStyles.customerInput}
@@ -2479,7 +2655,7 @@ const Bill = () => {
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="Customer Name"
               />
-              
+
               <input
                 type="text"
                 style={{
@@ -2492,7 +2668,7 @@ const Bill = () => {
                 placeholder={fetchingCustomer ? "Searching..." : "Phone Number"}
                 maxLength="10"
               />
-              
+
               <input
                 type="email"
                 style={baseStyles.customerInput}
@@ -2500,7 +2676,7 @@ const Bill = () => {
                 onChange={(e) => setCustomerEmail(e.target.value)}
                 placeholder="Email Address"
               />
-              
+
               <input
                 type="text"
                 style={baseStyles.customerInput}
@@ -2508,7 +2684,7 @@ const Bill = () => {
                 onChange={(e) => setCustomerAddress(e.target.value)}
                 placeholder="Address"
               />
-              
+
               <input
                 type="text"
                 style={baseStyles.customerInput}
@@ -2516,11 +2692,42 @@ const Bill = () => {
                 onChange={(e) => setCustomerGST(e.target.value)}
                 placeholder="GST Number (if applicable)"
               />
+
+              <input
+                type="text"
+                style={baseStyles.customerInput}
+                value={memberId}
+                onChange={(e) => setMemberId(e.target.value)}
+                placeholder="Member ID"
+              />
+
+              <input
+                type="text"
+                style={baseStyles.customerInput}
+                value={salesPerson}
+                onChange={(e) => setSalesPerson(e.target.value)}
+                placeholder="Sales Person"
+              />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginTop: '4px' }}>
+                <label style={{ fontSize: '10px' }}>
+                  <input type="checkbox" checked={isClassicCustomer} onChange={(e) => setIsClassicCustomer(e.target.checked)} /> Classic Customer
+                </label>
+                <label style={{ fontSize: '10px' }}>
+                  <input type="checkbox" checked={isSaleReturn} onChange={(e) => setIsSaleReturn(e.target.checked)} /> Sale Return
+                </label>
+                <label style={{ fontSize: '10px' }}>
+                  <input type="checkbox" checked={isCardBill} onChange={(e) => setIsCardBill(e.target.checked)} /> Card Bill
+                </label>
+                <label style={{ fontSize: '10px' }}>
+                  <input type="checkbox" checked={noRewards} onChange={(e) => setNoRewards(e.target.checked)} /> No Rewards
+                </label>
+              </div>
             </div>
-            
+
             {/* Discount Section - Enhanced */}
             <div style={baseStyles.discountSection} className="no-print">
-              <div 
+              <div
                 style={baseStyles.discountHeader}
                 onClick={() => setShowDiscountInput(!showDiscountInput)}
               >
@@ -2531,7 +2738,7 @@ const Bill = () => {
                   {showDiscountInput ? '▼' : '▶'}
                 </span>
               </div>
-              
+
               {showDiscountInput && (
                 <div style={baseStyles.discountControls}>
                   <select
@@ -2542,7 +2749,7 @@ const Bill = () => {
                     <option value="percentage">Percentage (%)</option>
                     <option value="fixed">Fixed Amount (₹)</option>
                   </select>
-                  
+
                   <input
                     type="number"
                     style={baseStyles.discountInput}
@@ -2555,16 +2762,16 @@ const Bill = () => {
                   />
                 </div>
               )}
-              
+
               <div style={baseStyles.discountAmount}>
                 Discount Amount: -₹{discountAmount.toFixed(2)}
                 {!manualDiscount && customerType === 'internal' && (
-                  <span style={{fontSize: '8px', marginLeft: '5px', color: '#666'}}>
+                  <span style={{ fontSize: '8px', marginLeft: '5px', color: '#666' }}>
                     (Staff discount)
                   </span>
                 )}
               </div>
-              
+
               {manualDiscount && (
                 <button
                   style={{
@@ -2581,13 +2788,14 @@ const Bill = () => {
                 </button>
               )}
             </div>
-            
-            <div className="bill-items">
-              <div className="bill-items-header">
+
+            <div className="bill-items" style={baseStyles.billItems}>
+              <div className="bill-items-header" style={baseStyles.billItemsHeader}>
                 <span>Item</span>
-                <span>Price</span>
-                <span>Qty</span>
-                <span>Total</span>
+                <span style={{ textAlign: 'right' }}>MRP</span>
+                <span style={{ textAlign: 'right' }}>Unit Price</span>
+                <span style={{ textAlign: 'center' }}>Qty</span>
+                <span style={{ textAlign: 'right' }}>Total</span>
               </div>
               <div>
                 {activeProducts.length === 0 ? (
@@ -2596,36 +2804,37 @@ const Bill = () => {
                   </div>
                 ) : (
                   activeProducts.map(product => (
-                    <div key={product.id} className="bill-item">
+                    <div key={product.id} className="bill-item" style={baseStyles.billItem}>
                       <span style={baseStyles.billItemName}>
-                        {product.name.length > 12 
-                          ? product.name.substring(0, 10) + '...' 
+                        {product.name.length > 12
+                          ? product.name.substring(0, 10) + '...'
                           : product.name
                         }
                         {product.model && (
                           <small style={baseStyles.billItemSmall}>{product.model}</small>
                         )}
                       </span>
-                      <span>₹{product.sellPrice}</span>
-                      <span>{product.quantity}</span>
-                      <span>₹{product.total.toFixed(2)}</span>
+                      <span style={{ textAlign: 'right' }}>₹{parseFloat(product.mrp || product.sellPrice || 0).toFixed(2)}</span>
+                      <span style={{ textAlign: 'right' }}>₹{parseFloat(product.sellPrice || 0).toFixed(2)}</span>
+                      <span style={{ textAlign: 'center' }}>{product.quantity}</span>
+                      <span style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{product.total.toFixed(2)}</span>
                     </div>
                   ))
                 )}
               </div>
             </div>
-            
+
             <div className="bill-summary">
               <div className="summary-row">
                 <span>Subtotal:</span>
                 <span>₹{subtotal.toFixed(2)}</span>
               </div>
-              
+
               <div className="summary-row">
                 <span>
-                  Discount 
+                  Discount
                   {discount > 0 && (
-                    <span style={{fontSize: '8px', color: '#666'}}>
+                    <span style={{ fontSize: '8px', color: '#666' }}>
                       {' '}({discount}{discountType === 'percentage' ? '%' : '₹'})
                     </span>
                   )}:
@@ -2637,13 +2846,13 @@ const Bill = () => {
                 <span>After Discount:</span>
                 <span>₹{(subtotal - discountAmount).toFixed(2)}</span>
               </div>
-              
+
               {tax > 0 && (
                 <div className="summary-row">
                   <span>
-                    Tax 
+                    Tax
                     {tax > 0 && (
-                      <span style={{fontSize: '8px', color: '#666'}}>
+                      <span style={{ fontSize: '8px', color: '#666' }}>
                         {' '}({tax}{taxType === 'percentage' ? '%' : '₹'})
                       </span>
                     )}:
@@ -2651,13 +2860,13 @@ const Bill = () => {
                   <span>+₹{taxAmount.toFixed(2)}</span>
                 </div>
               )}
-              
+
               <div className="summary-row summary-row-total">
                 <span>Total:</span>
                 <span>₹{total.toFixed(2)}</span>
               </div>
             </div>
-            
+
             <div className="payment-section">
               <div style={baseStyles.paymentRow}>
                 <span>Payment Method:</span>
@@ -2673,7 +2882,7 @@ const Bill = () => {
                   <option value="mixed">🔄 Mixed</option>
                 </select>
               </div>
-              
+
               {showPaymentDetails && (
                 <div style={baseStyles.paymentDetails}>
                   {paymentMethod === 'cash' && (
@@ -2690,12 +2899,12 @@ const Bill = () => {
                         />
                       </div>
                       <div style={baseStyles.paymentRow}>
-                        <span>Change:</span>
+                        <span>Balance Returned:</span>
                         <span style={dynamicStyles.changeAmount}>₹{change.toFixed(2)}</span>
                       </div>
                     </>
                   )}
-                  
+
                   {paymentMethod === 'card' && (
                     <>
                       <input
@@ -2722,7 +2931,7 @@ const Bill = () => {
                       />
                     </>
                   )}
-                  
+
                   {paymentMethod === 'upi' && (
                     <>
                       <input
@@ -2741,7 +2950,7 @@ const Bill = () => {
                       />
                     </>
                   )}
-                  
+
                   {paymentMethod === 'cheque' && (
                     <>
                       <input
@@ -2760,17 +2969,17 @@ const Bill = () => {
                       />
                     </>
                   )}
-                  
+
                   {paymentMethod === 'mixed' && (
-                    <div style={{fontSize: '9px', color: '#666'}}>
+                    <div style={{ fontSize: '9px', color: '#666' }}>
                       <p>Mixed payment - Please enter details in POS</p>
                     </div>
                   )}
                 </div>
               )}
-              
+
               <div style={baseStyles.paymentRow}>
-                <span>Paid Amount:</span>
+                <span>Amount Given:</span>
                 <input
                   type="number"
                   style={baseStyles.paymentInput}
@@ -2780,25 +2989,30 @@ const Bill = () => {
                   step="0.01"
                 />
               </div>
-              
+
+              <div style={baseStyles.paymentRow}>
+                <span>Total Amount:</span>
+                <span style={{ fontWeight: 'bold' }}>₹{total.toFixed(2)}</span>
+              </div>
+
               <div style={baseStyles.paymentRow}>
                 <span>Payment Status:</span>
                 <span style={{
-                  color: paymentStatus === 'paid' ? '#28a745' : 
-                         paymentStatus === 'partial' ? '#ffc107' : '#dc3545',
+                  color: paymentStatus === 'paid' ? '#28a745' :
+                    paymentStatus === 'partial' ? '#ffc107' : '#dc3545',
                   fontWeight: 'bold'
                 }}>
                   {paymentStatus.toUpperCase()}
                 </span>
               </div>
-              
+
               {due > 0 && paymentStatus !== 'pending' && (
                 <div style={baseStyles.paymentRow}>
                   <span>Due Amount:</span>
                   <span>₹{due.toFixed(2)}</span>
                 </div>
               )}
-              
+
               <button
                 style={{
                   ...baseStyles.btn,
@@ -2812,7 +3026,42 @@ const Bill = () => {
                 Exact Amount
               </button>
             </div>
-            
+
+            <div style={{ ...baseStyles.paymentSection, background: '#eef6ff', border: '1px solid #bfdbfe' }}>
+              <div style={{ ...baseStyles.paymentRow, fontWeight: 'bold' }}>
+                <span>Reward Points Details</span>
+                <span />
+              </div>
+              <div style={baseStyles.paymentRow}>
+                <span>Available Points:</span>
+                <span>{availablePoints.toFixed(2)}</span>
+              </div>
+              <div style={baseStyles.paymentRow}>
+                <span>Redeemed Points:</span>
+                <input
+                  type="number"
+                  style={baseStyles.paymentInput}
+                  value={redeemedPoints}
+                  min="0"
+                  max={availablePoints}
+                  step="1"
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value) || 0;
+                    setRedeemedPoints(Math.max(0, Math.min(value, availablePoints)));
+                  }}
+                  disabled={noRewards}
+                />
+              </div>
+              <div style={baseStyles.paymentRow}>
+                <span>Earned Points:</span>
+                <span>{earnedPoints.toFixed(2)}</span>
+              </div>
+              <div style={baseStyles.paymentRow}>
+                <span>Remaining Balance Points:</span>
+                <span style={{ fontWeight: 'bold' }}>{remainingPoints.toFixed(2)}</span>
+              </div>
+            </div>
+
             <div className="bill-footer">
               <p style={baseStyles.billFooterP}>Thank you for your purchase!</p>
               <p style={baseStyles.billFooterP}>Goods once sold not returnable</p>
@@ -2822,12 +3071,12 @@ const Bill = () => {
                   {paymentMethod.toUpperCase()}: {transactionId}
                 </p>
               )}
-              <div style={{marginTop: '5px', paddingTop: '3px', borderTop: '1px dotted #ccc', fontSize: '8px', color: '#666'}}>
+              <div style={{ marginTop: '5px', paddingTop: '3px', borderTop: '1px dotted #ccc', fontSize: '8px', color: '#666' }}>
                 Bill created by: {createdBy}
               </div>
             </div>
           </div>
-          
+
           <div style={baseStyles.actionButtons} className="no-print">
             <button
               style={{
@@ -2889,13 +3138,13 @@ const Bill = () => {
           )}
 
           {billSaved && (
-            <p style={{fontSize: '10px', color: '#28a745', textAlign: 'center', marginTop: '5px'}}>
+            <p style={{ fontSize: '10px', color: '#28a745', textAlign: 'center', marginTop: '5px' }}>
               ✓ Bill saved to database
             </p>
           )}
         </div>
       </div>
-      
+
       {/* Hidden download link */}
       <a ref={downloadLinkRef} style={baseStyles.downloadLink}></a>
     </div>

@@ -227,7 +227,13 @@ export default function ItemsPage() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 name: existingItem.name,
+                productCode: existingItem.productCode || "",
+                description: existingItem.description || "",
                 model: existingItem.model || "",
+                size: existingItem.size || "",
+                unit: existingItem.unit || "PCS",
+                tax: parseFloat(existingItem.tax) || 0,
+                mrp: parseFloat(existingItem.mrp) || 0,
                 type: existingItem.type || "",
                 watts: existingItem.watts || "",
                 buyPrice: existingItem.buyPrice || 0,
@@ -496,8 +502,14 @@ export default function ItemsPage() {
     try {
       // Prepare the data for API - ensure all fields are properly formatted
       const productData = {
+        productCode: editingItem.productCode?.toString().trim() || "",
         name: editingItem.name.trim(),
+        description: editingItem.description?.trim() || "",
         model: editingItem.model?.trim() || "",
+        size: editingItem.size?.trim() || "",
+        unit: editingItem.unit?.trim() || "PCS",
+        tax: parseFloat(editingItem.tax) || 0,
+        mrp: parseFloat(editingItem.mrp) || 0,
         type: editingItem.type?.trim() || "",
         watts: editingItem.watts?.toString() || "", // Keep as watts in API
         buyPrice: parseFloat(editingItem.buyPrice) || 0,
@@ -553,8 +565,14 @@ export default function ItemsPage() {
     // Create a new empty item with default values
     const newItem = calculateAmount({
       id: `new-${Date.now()}`,
+      productCode: "",
       name: "",
+      description: "",
       model: "",
+      size: "",
+      unit: "PCS",
+      tax: "",
+      mrp: "",
       type: "",
       watts: "", // This will be displayed as Warranty
       buyPrice: "",
@@ -615,8 +633,14 @@ export default function ItemsPage() {
 
       const exportData = productsArray.map(item => ({
         'ID': item.id || '',
+        'Product Code': item.productCode || '',
         'Name': item.name || '',
+        'Description': item.description || '',
         'Model': item.model || '',
+        'Size': item.size || '',
+        'Unit': item.unit || 'PCS',
+        'Tax %': item.tax || 0,
+        'MRP': item.mrp || 0,
         'Type': item.type || '',
         'Warranty': item.watts || '', // Changed from 'Watts' to 'Warranty'
         'Buy Price': item.buyPrice || 0,
@@ -631,8 +655,14 @@ export default function ItemsPage() {
 
       const wscols = [
         { wch: 8 },  // ID
+        { wch: 14 }, // Product Code
         { wch: 20 }, // Name
+        { wch: 24 }, // Description
         { wch: 15 }, // Model
+        { wch: 10 }, // Size
+        { wch: 8 },  // Unit
+        { wch: 10 }, // Tax
+        { wch: 10 }, // MRP
         { wch: 15 }, // Type
         { wch: 12 }, // Warranty (was Watts)
         { wch: 12 }, // Buy Price
@@ -686,7 +716,13 @@ export default function ItemsPage() {
         const processedItems = jsonData.map((row, index) => {
           // Try different possible column names
           const name = row['Name'] || row['name'] || row['Product'] || row['product'] || '';
+          const productCode = row['Product Code'] || row['Code'] || row['productCode'] || '';
+          const description = row['Description'] || row['description'] || '';
           const model = row['Model'] || row['model'] || '';
+          const size = row['Size'] || row['size'] || '';
+          const unit = row['Unit'] || row['unit'] || 'PCS';
+          const tax = parseFloat(row['Tax %'] || row['tax'] || row['Tax'] || 0);
+          const mrp = parseFloat(row['MRP'] || row['mrp'] || 0);
           const type = row['Type'] || row['type'] || '';
           const warranty = row['Warranty'] || row['watts'] || row['Warranty'] || row['Warranty Period'] || '';
           const buyPrice = parseFloat(row['Buy Price'] || row['buyPrice'] || row['Buy Price'] || row['BuyPrice'] || 0);
@@ -696,7 +732,13 @@ export default function ItemsPage() {
           return {
             id: `import-${Date.now()}-${index}`,
             name,
+            productCode,
+            description,
             model,
+            size,
+            unit,
+            tax,
+            mrp,
             type,
             watts: warranty,
             buyPrice,
@@ -775,7 +817,13 @@ export default function ItemsPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   name: existingItem.name,
+                  productCode: existingItem.productCode || "",
+                  description: existingItem.description || "",
                   model: existingItem.model || "",
+                  size: existingItem.size || "",
+                  unit: existingItem.unit || "PCS",
+                  tax: parseFloat(existingItem.tax) || 0,
+                  mrp: parseFloat(existingItem.mrp) || 0,
                   type: existingItem.type || "",
                   watts: existingItem.watts || "",
                   buyPrice: existingItem.buyPrice || 0,
@@ -793,7 +841,13 @@ export default function ItemsPage() {
               // Different sell price - create as new item
               const newItem = {
                 name: importItem.name,
+                productCode: importItem.productCode || "",
+                description: importItem.description || "",
                 model: importItem.model || "",
+                size: importItem.size || "",
+                unit: importItem.unit || "PCS",
+                tax: parseFloat(importItem.tax) || 0,
+                mrp: parseFloat(importItem.mrp) || 0,
                 type: importItem.type || "",
                 watts: importItem.watts || "",
                 buyPrice: parseFloat(importItem.buyPrice) || 0,
@@ -817,7 +871,13 @@ export default function ItemsPage() {
             // Create new product
             const newItem = {
               name: importItem.name,
+              productCode: importItem.productCode || "",
+              description: importItem.description || "",
               model: importItem.model || "",
+              size: importItem.size || "",
+              unit: importItem.unit || "PCS",
+              tax: parseFloat(importItem.tax) || 0,
+              mrp: parseFloat(importItem.mrp) || 0,
               type: importItem.type || "",
               watts: importItem.watts || "",
               buyPrice: parseFloat(importItem.buyPrice) || 0,
@@ -891,6 +951,8 @@ export default function ItemsPage() {
     if (search) {
       return items.filter(
         (item) =>
+          String(item.productCode || '').toLowerCase().includes(search.toLowerCase()) ||
+          String(item.description || '').toLowerCase().includes(search.toLowerCase()) ||
           item.name?.toLowerCase().includes(search.toLowerCase()) ||
           item.model?.toLowerCase().includes(search.toLowerCase()) ||
           item.type?.toLowerCase().includes(search.toLowerCase()) ||
@@ -926,6 +988,8 @@ export default function ItemsPage() {
   // ================= SEARCH =================
   const filteredItems = items.filter(
     (item) =>
+      String(item.productCode || '').toLowerCase().includes(search.toLowerCase()) ||
+      String(item.description || '').toLowerCase().includes(search.toLowerCase()) ||
       item.name?.toLowerCase().includes(search.toLowerCase()) ||
       item.model?.toLowerCase().includes(search.toLowerCase()) ||
       item.type?.toLowerCase().includes(search.toLowerCase()) ||
@@ -1347,6 +1411,16 @@ export default function ItemsPage() {
             </div>
 
             <div style={modalStyles.formGroup}>
+              <label style={modalStyles.label}>Product ID / Code</label>
+              <input
+                style={modalStyles.input}
+                value={editingItem.productCode || ""}
+                onChange={(e) => handleEditChange("productCode", e.target.value)}
+                placeholder="Enter product code"
+              />
+            </div>
+
+            <div style={modalStyles.formGroup}>
               <label style={modalStyles.label}>Product Name *</label>
               <input
                 style={modalStyles.input}
@@ -1357,12 +1431,68 @@ export default function ItemsPage() {
             </div>
 
             <div style={modalStyles.formGroup}>
+              <label style={modalStyles.label}>Description</label>
+              <input
+                style={modalStyles.input}
+                value={editingItem.description || ""}
+                onChange={(e) => handleEditChange("description", e.target.value)}
+                placeholder="Enter product description"
+              />
+            </div>
+
+            <div style={modalStyles.formGroup}>
               <label style={modalStyles.label}>Model</label>
               <input
                 style={modalStyles.input}
                 value={editingItem.model || ""}
                 onChange={(e) => handleEditChange("model", e.target.value)}
                 placeholder="Enter model"
+              />
+            </div>
+
+            <div style={modalStyles.formGroup}>
+              <label style={modalStyles.label}>Size</label>
+              <input
+                style={modalStyles.input}
+                value={editingItem.size || ""}
+                onChange={(e) => handleEditChange("size", e.target.value)}
+                placeholder="Enter size"
+              />
+            </div>
+
+            <div style={modalStyles.formGroup}>
+              <label style={modalStyles.label}>Unit</label>
+              <input
+                style={modalStyles.input}
+                value={editingItem.unit || ""}
+                onChange={(e) => handleEditChange("unit", e.target.value)}
+                placeholder="PCS / NOS"
+              />
+            </div>
+
+            <div style={modalStyles.formGroup}>
+              <label style={modalStyles.label}>Tax (%)</label>
+              <input
+                style={modalStyles.input}
+                type="number"
+                min="0"
+                step="0.01"
+                value={editingItem.tax || ""}
+                onChange={(e) => handleEditChange("tax", e.target.value)}
+                placeholder="0"
+              />
+            </div>
+
+            <div style={modalStyles.formGroup}>
+              <label style={modalStyles.label}>MRP (₹)</label>
+              <input
+                style={modalStyles.input}
+                type="number"
+                min="0"
+                step="0.01"
+                value={editingItem.mrp || ""}
+                onChange={(e) => handleEditChange("mrp", e.target.value)}
+                placeholder="0.00"
               />
             </div>
 
@@ -1764,7 +1894,7 @@ export default function ItemsPage() {
           <Search size={16} style={styles.searchIcon} />
           <input
             type="text"
-            placeholder="Search by ID, name, model, type..."
+            placeholder="Search by Product ID/Code, name, description, model, type..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={styles.searchInput}
@@ -1787,7 +1917,12 @@ export default function ItemsPage() {
                   ID
                 </th>
                 <th style={styles.th}>Name</th>
+                <th style={styles.th}>Description</th>
                 <th style={styles.th}>Model</th>
+                <th style={styles.th}>Size</th>
+                <th style={styles.th}>Unit</th>
+                <th style={styles.th}>Tax %</th>
+                <th style={styles.th}>MRP (₹)</th>
                 <th style={styles.th}>Type</th>
                 <th style={styles.th}>Warranty</th>
                 <th style={styles.th}>Buy Price (₹)</th>
@@ -1801,7 +1936,7 @@ export default function ItemsPage() {
             <tbody>
               {currentItems.length === 0 ? (
                 <tr>
-                  <td colSpan="10" style={styles.emptyState}>
+                  <td colSpan="15" style={styles.emptyState}>
                     {search ? "No products match your search on this page" : "No products found. Click 'Add New' to get started."}
                   </td>
                 </tr>
@@ -1816,8 +1951,17 @@ export default function ItemsPage() {
                     </td>
                     
                     <td style={styles.td}>{item.name || '-'}</td>
+                    <td style={styles.td}>{item.description || '-'}</td>
                     
                     <td style={styles.td}>{item.model || '-'}</td>
+                    
+                    <td style={styles.td}>{item.size || '-'}</td>
+                    
+                    <td style={styles.td}>{item.unit || 'PCS'}</td>
+                    
+                    <td style={styles.td}>{parseFloat(item.tax || 0).toFixed(2)}</td>
+                    
+                    <td style={styles.td}>₹{parseFloat(item.mrp || 0).toFixed(2)}</td>
                     
                     <td style={styles.td}>{item.type || '-'}</td>
                     
