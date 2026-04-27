@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Download, Edit, Hash, Plus, RefreshCw, Search, Trash2, Upload, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import axios from "axios";
 
 const API_URL = "http://localhost:5000/api/products";
 
@@ -83,13 +84,13 @@ export default function Products() {
   const loadProducts = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}?page=1&per_page=1000`);
-      if (!response.ok) throw new Error("Failed to load products");
-      const data = await response.json();
-      const list = Array.isArray(data.items) ? data.items : Array.isArray(data) ? data : [];
+      const response = await axios.get(`${API_URL}?page=1&per_page=1000`, { withCredentials: true });
+      const data = response.data;
+      const list = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
       setItems(list.map(normalizeFromApi));
     } catch (error) {
-      showMessage("error", error.message || "Failed to load products");
+      const msg = error.response?.data?.error || error.response?.data?.errors?.join(", ") || error.message || "Failed to load products";
+      showMessage("error", msg);
     } finally {
       setLoading(false);
     }
@@ -124,6 +125,7 @@ export default function Products() {
 
       // When unit price / mrp or discount changes, auto-update netPrice unless user set it manually
       if (!next.manualNet && (field === "discountPercent" || field === "sellPrice" || field === "mrp")) {
+        next.netPrice = ""; // Force recalculation
         const calculated = calculateProduct(next);
         next.netPrice = calculated.netPrice;
         next.amount = calculated.amount;
@@ -169,22 +171,19 @@ export default function Products() {
     try {
       const payload = buildPayload(editingItem);
       const url = editingItem.isNew ? API_URL : `${API_URL}/${editingItem.id}`;
-      const response = await fetch(url, {
+      const response = await axios({
+        url,
         method: editingItem.isNew ? "POST" : "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        data: payload,
+        withCredentials: true
       });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || data.errors?.join(", ") || "Failed to save product");
-      }
 
       setEditingItem(null);
       showMessage("success", `Product ${editingItem.isNew ? "created" : "updated"} successfully`);
       await loadProducts();
     } catch (error) {
-      showMessage("error", error.message || "Failed to save product");
+      const msg = error.response?.data?.error || error.response?.data?.errors?.join(", ") || error.message || "Failed to save product";
+      showMessage("error", msg);
     } finally {
       setSaving(false);
     }
@@ -194,12 +193,12 @@ export default function Products() {
     if (!window.confirm("Are you sure you want to delete this product?")) return;
 
     try {
-      const response = await fetch(`${API_URL}/${item.id}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Failed to delete product");
+      await axios.delete(`${API_URL}/${item.id}`, { withCredentials: true });
       showMessage("success", "Product deleted successfully");
       await loadProducts();
     } catch (error) {
-      showMessage("error", error.message || "Failed to delete product");
+      const msg = error.response?.data?.error || error.message || "Failed to delete product";
+      showMessage("error", msg);
     }
   };
 
@@ -257,11 +256,7 @@ export default function Products() {
           });
           if (!product.name) continue;
 
-          await fetch(API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(buildPayload(product)),
-          });
+          await axios.post(API_URL, buildPayload(product), { withCredentials: true });
         }
 
         showMessage("success", "Import completed");

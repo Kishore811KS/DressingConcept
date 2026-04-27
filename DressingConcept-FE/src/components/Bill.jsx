@@ -56,6 +56,9 @@ export default function Bill() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [now, setNow] = useState(new Date());
+  
+  const [customers, setCustomers] = useState([]);
+  const [availablePoints, setAvailablePoints] = useState(0);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -65,6 +68,7 @@ export default function Bill() {
   useEffect(() => {
     setBillNo(String(Math.floor(100 + Math.random() * 900)));
     loadProducts();
+    loadCustomers();
   }, []);
 
   useEffect(() => {
@@ -83,6 +87,36 @@ export default function Bill() {
     } catch (err) {
       setProducts([]);
       setError("Products not loaded. Please start backend and refresh.");
+    }
+  };
+
+  const loadCustomers = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/billing/customers`);
+      setCustomers(response.data?.customers || []);
+    } catch (err) {
+      console.error("Customers not loaded", err);
+    }
+  };
+
+  const handleMobileChange = async (value) => {
+    setMobileNumber(value);
+    if (value.length >= 10) {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/billing/customer/${value}`);
+        if (response.data?.exists) {
+          const cust = response.data.customer;
+          if (cust.name && cust.name !== 'Walk-in Customer') setCustomerName(cust.name);
+          if (cust.address) setAddress(cust.address);
+          setAvailablePoints(cust.reward_points || 0);
+        } else {
+          setAvailablePoints(0);
+        }
+      } catch (err) {
+        console.error("Could not fetch customer details", err);
+      }
+    } else {
+      setAvailablePoints(0);
     }
   };
 
@@ -348,7 +382,7 @@ export default function Bill() {
         <div className="sale-header">
           <div className="header-left">
             <label>Date <input value={formatDate(now)} readOnly /></label>
-            <label>Counter <select value={counter} onChange={(event) => setCounter(event.target.value)}><option>counter_1</option><option>counter_2</option></select></label>
+            <label>Counter <select value={counter} onChange={(event) => setCounter(event.target.value)}><option>counter_1</option></select></label>
             <label>Bill_No <input value={billNo} onChange={(event) => setBillNo(event.target.value)} /></label>
             <label className="check"><input type="checkbox" checked={saleReturn} onChange={(event) => setSaleReturn(event.target.checked)} /> SALE RETURN</label>
             <label className="check"><input type="checkbox" checked={cardBill} onChange={(event) => setCardBill(event.target.checked)} /> CARD BILL</label>
@@ -360,8 +394,22 @@ export default function Bill() {
           <div className="header-middle">
             <label className="check"><input type="checkbox" checked={classicCustomer} onChange={(event) => setClassicCustomer(event.target.checked)} /> Classic Customer</label>
             <label>Member ID <input value={memberId} onChange={(event) => setMemberId(event.target.value)} /></label>
-            <label>Mobile Number <input value={mobileNumber} onChange={(event) => setMobileNumber(event.target.value)} /></label>
-            <label>Sales Person <input value={salesPerson} onChange={(event) => setSalesPerson(event.target.value)} /></label>
+            <label>Mobile Number 
+              <input list="customer-phones" value={mobileNumber} onChange={(event) => handleMobileChange(event.target.value)} />
+            </label>
+            <datalist id="customer-phones">
+              {customers.map((c, idx) => (
+                <option key={idx} value={c.phone}>{c.name}</option>
+              ))}
+            </datalist>
+            <label>Sales Person 
+              <input list="sales-persons" value={salesPerson} onChange={(event) => setSalesPerson(event.target.value)} />
+            </label>
+            <datalist id="sales-persons">
+              {[...new Set(products.map(p => p.salesPerson).filter(Boolean))].map((sp, idx) => (
+                <option key={idx} value={sp} />
+              ))}
+            </datalist>
           </div>
 
           <div className="header-right">
@@ -380,7 +428,6 @@ export default function Bill() {
 
         <div className="quick-add no-print">
           <input
-            list="product-options"
             placeholder="Enter Product_Id or Product_Description and press Enter"
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -389,13 +436,8 @@ export default function Bill() {
               }
             }}
           />
-          <datalist id="product-options">
-            {products.map((product) => (
-              <option key={product.id} value={product.id}>{product.name}</option>
-            ))}
-          </datalist>
           <button type="button" onClick={saveBill} disabled={loading}>{loading ? "Saving..." : "Save Bill"}</button>
-          <button type="button" onClick={printBill} disabled={loading}>Print</button>
+          <button type="button" className="printer" onClick={printBill} disabled={loading}>Print</button>
           <button type="button" onClick={clearBill}>Clear</button>
         </div>
 
@@ -479,6 +521,14 @@ export default function Bill() {
             <label>UPI Amount [Alt+C] <input value={upiAmount} onChange={(event) => setUpiAmount(event.target.value)} /></label>
           </div>
 
+          <div className="reward-entry">
+            <b>Reward Details</b>
+            <label>Available <input value={availablePoints} readOnly /></label>
+            <label>To Redeem <input readOnly /></label>
+            <label>Amount <input readOnly /></label>
+            <label>Balance <input value={availablePoints} readOnly /></label>
+          </div>
+
           <div className="payment-details">
             <b>Payment Details</b>
             <label>Bill Amount <input value={totals.billValue} readOnly /></label>
@@ -494,6 +544,90 @@ export default function Bill() {
             <label>TOTAL BILL VALUE <strong>{Math.round(totals.billValue)}</strong></label>
             <label>AMOUNT TO PAY <strong>{Math.round(totals.amountToPay)}</strong></label>
             <label>AMOUNT TO RETURN <strong>{String(Math.round(totals.amountToReturn)).padStart(3, "0")}</strong></label>
+          </div>
+        </div>
+      </div>
+
+      {/* Print Only Thermal Receipt */}
+      <div className="print-only">
+        <div className="print-header">
+          <h2>DRESSING CONCEPTS</h2>
+          <p>NO.88/70 S.R.P KOVIL STREET,</p>
+          <p>AGARAM,PERAMBUR,</p>
+          <p>CHENNAI-600 082.</p>
+          <p>PH: 9840669687</p>
+          <p>GSTIN: </p>
+          <div className="print-row">
+            <span>Bill No:{billNo}</span>
+            <span>{formatDateTime(now)}</span>
+          </div>
+          <div className="print-row">
+            <span>{counter}</span>
+            <span>User: {loggedInUserName}</span>
+          </div>
+        </div>
+
+        <table className="print-table">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Rate</th>
+              <th>Amt</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={index}>
+                <td>{row.description}</td>
+                <td>{row.quantity}</td>
+                <td>{row.unitPrice}</td>
+                <td>{money(row.unitPrice * row.quantity)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="print-pay">
+          Pay Amount: {Math.round(totals.amountToPay)}/-
+        </div>
+
+        <div className="print-summary">
+          <div className="print-row">
+            <span>Total Pieces:</span>
+            <span>{totals.totalQuantity}</span>
+          </div>
+          <div className="print-row">
+            <span>MRP Total:</span>
+            <span>{Math.round(totals.mrpTotal)}</span>
+          </div>
+          <div className="print-row">
+            <span>Coupon Amt:</span>
+            <span>{Math.round(totals.billValue)}</span>
+          </div>
+        </div>
+
+        <div className="print-summary">
+          <div style={{ textDecoration: 'underline', marginBottom: '4px' }}>Customer Details:</div>
+          <div>{customerName || 'Walk-in'}</div>
+          <div>{mobileNumber}</div>
+        </div>
+
+        <div className="print-summary" style={{ borderBottom: 'none' }}>
+          <div>Points Used: {noRewards ? 0 : '0'}</div>
+          <div>Points Available: {53.25 /* Hardcoded for now until points logic */}</div>
+        </div>
+
+        <div className="print-qr-section">
+          <div className="print-qr">
+            <div>
+              <p>JOIN US</p>
+              <img src="/image3.jpg" alt="WhatsApp QR" />
+            </div>
+            <div>
+              <p>VISIT US</p>
+              <img src="/image4.jpg" alt="Instagram QR" />
+            </div>
           </div>
         </div>
       </div>
@@ -723,7 +857,7 @@ const saleStyles = `
 
   .footer-panel {
     display: grid;
-    grid-template-columns: 1.25fr 1fr 1fr 1.2fr 0.95fr;
+    grid-template-columns: 1.25fr 1fr 1.1fr 1.1fr 1.2fr 1fr;
     gap: 16px;
     padding: 8px 12px 10px;
     font-size: 12px;
@@ -769,14 +903,26 @@ const saleStyles = `
   }
 
   .amount-entry input,
+  .reward-entry input,
   .payment-details input {
-    width: 110px;
+    width: 100px;
     margin-left: auto;
   }
 
-  .payment-details {
+  .payment-details,
+  .reward-entry {
     border: 1px solid rgba(255, 255, 255, 0.35);
     padding: 5px 12px;
+  }
+
+  .reward-entry label,
+  .amount-entry label,
+  .payment-details label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    white-space: nowrap;
   }
 
   .printer {
@@ -811,20 +957,41 @@ const saleStyles = `
     }
   }
 
+  .print-only {
+    display: none;
+  }
+
   @media print {
-    .no-print,
-    .row-delete {
-      display: none !important;
+    body * {
+      visibility: hidden;
     }
-
-    body,
-    .sale-page {
-      background: #fff !important;
+    .print-only, .print-only * {
+      visibility: visible;
     }
-
-    .sale-window {
-      box-shadow: none;
-      min-width: 0;
+    .print-only {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 80mm; /* 3 inch thermal */
+      font-family: monospace;
+      padding: 0;
+      margin: 0;
+      color: #000;
+      background: #fff;
     }
+    .print-header { text-align: center; margin-bottom: 10px; }
+    .print-header img { max-width: 60px; margin-bottom: 5px; }
+    .print-header h2 { margin: 0; font-size: 16px; text-transform: uppercase; }
+    .print-header p { margin: 2px 0; font-size: 12px; }
+    .print-row { display: flex; justify-content: space-between; font-size: 12px; margin: 2px 0; }
+    .print-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; border-top: 1px dashed #000; border-bottom: 1px dashed #000; }
+    .print-table th, .print-table td { padding: 4px 0; text-align: right; }
+    .print-table th:first-child, .print-table td:first-child { text-align: left; }
+    .print-pay { font-size: 16px; font-weight: bold; text-align: center; margin: 10px 0; border-bottom: 1px dashed #000; padding-bottom: 10px; }
+    .print-summary { font-size: 12px; border-bottom: 1px dashed #000; padding: 10px 0; }
+    .print-qr-section { text-align: center; margin-top: 15px; }
+    .print-qr { display: flex; justify-content: space-around; margin-top: 10px; }
+    .print-qr div { text-align: center; font-size: 10px; }
+    .print-qr img { width: 60px; height: 60px; margin-bottom: 5px; }
   }
 `;

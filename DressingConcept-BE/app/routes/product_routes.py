@@ -1,11 +1,10 @@
 from flask import Blueprint, request, jsonify
 from app.models.product import Product
 from app import db
-from flask_cors import CORS
+from sqlalchemy.exc import IntegrityError
 
 
 product_bp = Blueprint("product_bp", __name__)
-CORS(product_bp)
 
 
 # Validation function
@@ -205,11 +204,24 @@ def delete_product(id):
 
         db.session.delete(product)
         db.session.commit()
-
         return jsonify({"message": "Product deleted successfully"}), 200
 
     except Exception as e:
         db.session.rollback()
+        # If it throws a constraint error, we use a Soft Delete strategy
+        # by hiding the product from the UI instead of deleting its bill history!
+        if 'IntegrityError' in str(e) or 'foreign key constraint' in str(e) or 'constraint' in str(e).lower():
+            try:
+                if not product.name.startswith("___DELETED___"):
+                    product.name = f"___DELETED___{product.name}"
+                    product.product_code = f"DEL-{product.id}"
+                    product.quantity = 0
+                    db.session.commit()
+                return jsonify({"message": "Product successfully deleted (archived to preserve bill history)."}), 200
+            except Exception as inner_e:
+                db.session.rollback()
+                return jsonify({"error": str(inner_e)}), 400
+                
         return jsonify({"error": str(e)}), 400
 
 

@@ -112,6 +112,7 @@ const VisitBillPage = () => {
   const api = axios.create({
     baseURL: API_BASE_URL,
     withCredentials: true,
+    timeout: 10000, // Important: 10 seconds timeout
     headers: {
       'Content-Type': 'application/json'
     }
@@ -122,6 +123,8 @@ const VisitBillPage = () => {
     cash: { icon: <DollarSign size={14} />, color: '#059669', label: 'Cash' },
     card: { icon: <CreditCard size={14} />, color: '#3b82f6', label: 'Card' },
     upi: { icon: <Smartphone size={14} />, color: '#8b5cf6', label: 'UPI' },
+    online: { icon: <Globe size={14} />, color: '#10b981', label: 'Online' },
+    netbanking: { icon: <Landmark size={14} />, color: '#0284c7', label: 'Netbanking' },
     cheque: { icon: <FileText size={14} />, color: '#f59e0b', label: 'Cheque' },
     mixed: { icon: <Filter size={14} />, color: '#6b7280', label: 'Mixed' }
   };
@@ -208,6 +211,7 @@ const VisitBillPage = () => {
         logoUrl: null
       });
     } finally {
+      setSelectedCompanyId((current) => current || 'default');
       setLoadingCompany(false);
     }
   };
@@ -389,17 +393,12 @@ const VisitBillPage = () => {
         bill.dueAmount = bill.total - bill.paidAmount;
       });
       
-      // Filter to show only bills with bill numbers starting with "BT"
-      const btBills = processedBills.filter(bill => 
-        bill.billNumber && bill.billNumber.toUpperCase().startsWith('BT')
-      );
+      console.log('Processed Bills:', processedBills);
       
-      console.log('Processed Bills (BT only):', btBills);
+      setBills(processedBills);
+      setFilteredBills(processedBills);
       
-      setBills(btBills);
-      setFilteredBills(btBills);
-      
-      showMessage("success", `✅ Loaded ${btBills.length} BT bills successfully!`);
+      showMessage("success", `✅ Loaded ${processedBills.length} bills successfully!`);
     } catch (err) {
       console.error('Error fetching bills:', err);
       setError(err.response?.data?.message || err.message || 'Failed to load bills. Please try again.');
@@ -1227,11 +1226,15 @@ const VisitBillPage = () => {
   // Dark Theme Styles
   const styles = {
     container: {
-      padding: "30px 40px",
-      backgroundColor: "#0a0c10",
+      padding: "20px",
       minHeight: "100vh",
-      color: "#e5e7eb",
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      backgroundColor: "#111827",
+      backgroundImage: "url('/image1.jpg')",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundAttachment: "fixed",
+      color: "#f9fafb",
+      fontFamily: "Inter, Arial, sans-serif",
     },
     shopHeader: {
       backgroundColor: "#1f2937",
@@ -1710,7 +1713,7 @@ const VisitBillPage = () => {
       <div style={styles.container}>
         <div style={styles.loadingSpinner}>
           <RefreshCw size={30} style={{ animation: 'spin 1s linear infinite', marginBottom: '10px' }} />
-          <div>Loading BT bills...</div>
+          <div>Loading Bills...</div>
         </div>
       </div>
     );
@@ -1898,6 +1901,8 @@ const VisitBillPage = () => {
           <option value="cash">Cash</option>
           <option value="card">Card</option>
           <option value="upi">UPI</option>
+          <option value="online">Online</option>
+          <option value="netbanking">Netbanking</option>
           <option value="cheque">Cheque</option>
           <option value="mixed">Mixed</option>
         </select>
@@ -1991,7 +1996,7 @@ const VisitBillPage = () => {
                   {searchTerm || filterPaymentMethod !== 'all' || filterCustomerType !== 'all' || dateRange.start 
                     ? <div>
                         <Filter size={30} style={{marginBottom: '10px', opacity: 0.5}} />
-                        <div>No BT bills match your filters</div>
+                        <div>No bills match your filters</div>
                         <button 
                           onClick={resetFilters}
                           style={{...styles.button, marginTop: '15px', display: 'inline-flex'}}
@@ -2009,7 +2014,7 @@ const VisitBillPage = () => {
                       </div>
                     : <div>
                         <Receipt size={30} style={{marginBottom: '10px', opacity: 0.5}} />
-                        <div>No BT bills found</div>
+                        <div>No bills found</div>
                       </div>}
                 </td>
               </tr>
