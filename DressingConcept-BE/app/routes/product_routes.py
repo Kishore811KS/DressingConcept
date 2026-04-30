@@ -101,7 +101,7 @@ def get_products():
         min_price = request.args.get('min_price', type=float)
         max_price = request.args.get('max_price', type=float)
         
-        query = Product.query
+        query = Product.query.filter(~Product.name.startswith("___DELETED___"))
         
         if product_type:
             query = query.filter_by(type=product_type)
