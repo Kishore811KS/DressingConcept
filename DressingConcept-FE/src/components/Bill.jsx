@@ -56,7 +56,7 @@ export default function Bill() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [now, setNow] = useState(new Date());
-  
+
   const [customers, setCustomers] = useState([]);
   const [availablePoints, setAvailablePoints] = useState(0);
 
@@ -127,7 +127,8 @@ export default function Bill() {
     const netPrice = money(product.netPrice || (unitPrice - (unitPrice * discountPercent / 100)));
 
     return {
-      productId: product.id,
+      _dbId: product.id,
+      productId: product.productCode || String(product.id),
       description: product.name || product.productName || "",
       size: product.size || product.model || "",
       tax: Number(product.tax || product.watts || TAX_PERCENT),
@@ -147,7 +148,7 @@ export default function Bill() {
     const next = normalizeProduct(product);
 
     setRows((current) => {
-      const existingIndex = current.findIndex((row) => row.productId === next.productId);
+      const existingIndex = current.findIndex((row) => row._dbId === next._dbId);
       if (existingIndex === -1) return [...current, next];
 
       return current.map((row, index) => (
@@ -191,11 +192,8 @@ export default function Bill() {
   };
 
   const updateRow = (index, field, value) => {
-    // Keep raw input values while the user types to avoid resetting partial input (like "1.")
-    // Convert to numbers only when computing derived values.
     const numericFields = ["mrp", "unitPrice", "discountPercent", "netPrice", "quantity", "tax"];
 
-    // Special handling when user edits productId: try to resolve product and populate row
     if (field === "productId") {
       const query = String(value || "").trim();
       if (!query) {
@@ -235,22 +233,16 @@ export default function Bill() {
     setRows((current) => current.map((row, rowIndex) => (
       rowIndex === index
         ? (() => {
-            const updated = { ...row, [field]: numericFields.includes(field) ? value : value };
+          const updated = { ...row, [field]: numericFields.includes(field) ? value : value };
 
-            // Recalculate netPrice when unitPrice or discountPercent changes (use numeric conversion here)
-            if (field === "unitPrice" || field === "discountPercent") {
-              const u = Number(updated.unitPrice) || 0;
-              const d = Number(updated.discountPercent) || 0;
-              updated.netPrice = money(u - (u * d / 100));
-            }
+          if (field === "unitPrice" || field === "discountPercent") {
+            const u = Number(updated.unitPrice) || 0;
+            const d = Number(updated.discountPercent) || 0;
+            updated.netPrice = money(u - (u * d / 100));
+          }
 
-            // Ensure quantity stays numeric when changed via +/- or number input convenience
-            if (field === "quantity") {
-              // keep as string while typing, totals and other logic will Number() it when needed
-            }
-
-            return updated;
-          })()
+          return updated;
+        })()
         : row
     )));
   };
@@ -323,7 +315,7 @@ export default function Bill() {
         rewardPointsEarned: noRewards ? 0 : totals.billValue * 0.01,
         rewardPointsRedeemed: 0,
         items: rows.map((row) => ({
-          productId: row.productId,
+          productId: row._dbId,
           quantity: Number(row.quantity) || 1,
         })),
       };
@@ -394,7 +386,7 @@ export default function Bill() {
           <div className="header-middle">
             <label className="check"><input type="checkbox" checked={classicCustomer} onChange={(event) => setClassicCustomer(event.target.checked)} /> Classic Customer</label>
             <label>Member ID <input value={memberId} onChange={(event) => setMemberId(event.target.value)} /></label>
-            <label>Mobile Number 
+            <label>Mobile Number
               <input list="customer-phones" value={mobileNumber} onChange={(event) => handleMobileChange(event.target.value)} />
             </label>
             <datalist id="customer-phones">
@@ -402,7 +394,7 @@ export default function Bill() {
                 <option key={idx} value={c.phone}>{c.name}</option>
               ))}
             </datalist>
-            <label>Sales Person 
+            <label>Sales Person
               <input list="sales-persons" value={salesPerson} onChange={(event) => setSalesPerson(event.target.value)} />
             </label>
             <datalist id="sales-persons">
@@ -548,88 +540,108 @@ export default function Bill() {
         </div>
       </div>
 
-      {/* Print Only Thermal Receipt */}
+      {/* ── Print-Only Thermal Receipt ── */}
       <div className="print-only">
-        <div className="print-header">
-          <h2>DRESSING CONCEPTS</h2>
-          <p>NO.88/70 S.R.P KOVIL STREET,</p>
-          <p>AGARAM,PERAMBUR,</p>
-          <p>CHENNAI-600 082.</p>
-          <p>PH: 9840669687</p>
-          <p>GSTIN: </p>
-          <div className="print-row">
-            <span>Bill No:{billNo}</span>
-            <span>{formatDateTime(now)}</span>
+
+        <div className="receipt-header">
+          {/* ── LOGO: replaced SVG with actual /Dc-logo.jpg ── */}
+          <div className="receipt-logo">
+            <img src="/Dc-logo.jpg" alt="Dressing Concepts" className="receipt-logo-img" />
           </div>
-          <div className="print-row">
-            <span>{counter}</span>
-            <span>User: {loggedInUserName}</span>
-          </div>
+          <div className="receipt-shop">DRESSING CONCEPTS</div>
+          <div className="receipt-tagline">Style · Quality · Value</div>
+          <div className="receipt-divider-thin" />
+          <div className="receipt-addr">NO.88/70 S.R.P KOVIL STREET,</div>
+          <div className="receipt-addr">AGARAM, PERAMBUR,</div>
+          <div className="receipt-addr">CHENNAI - 600 082.</div>
+          <div className="receipt-addr">Ph: 9840669687</div>
+          <div className="receipt-addr">GSTIN:&nbsp;</div>
         </div>
 
-        <table className="print-table">
+        <div className="receipt-dash" />
+
+        <div className="receipt-meta">
+          <div className="receipt-meta-row"><span>Bill No: {billNo}</span><span>{formatDateTime(now)}</span></div>
+          <div className="receipt-meta-row"><span>{counter}</span><span>User: {loggedInUserName}</span></div>
+        </div>
+
+        <div className="receipt-dash" />
+
+        <table className="receipt-table">
           <thead>
             <tr>
-              <th>Description</th>
-              <th>Qty</th>
-              <th>Rate</th>
-              <th>Amt</th>
+              <th className="r-desc">Description</th>
+              <th className="r-num">Qty</th>
+              <th className="r-num">Rate</th>
+              <th className="r-num">Amt</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
-              <tr key={index}>
-                <td>{row.description}</td>
-                <td>{row.quantity}</td>
-                <td>{row.unitPrice}</td>
-                <td>{money(row.unitPrice * row.quantity)}</td>
-              </tr>
-            ))}
+            {rows.map((row, index) => {
+              const qty = Number(row.quantity) || 0;
+              const rate = Number(row.netPrice) || Number(row.unitPrice) || 0;
+              const amt = money(rate * qty);
+              return (
+                <tr key={index}>
+                  <td className="r-desc">{row.description}</td>
+                  <td className="r-num">{qty.toFixed(2)}</td>
+                  <td className="r-num">{rate.toFixed(2)}</td>
+                  <td className="r-num">{amt.toFixed(2)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
-        <div className="print-pay">
-          Pay Amount: {Math.round(totals.amountToPay)}/-
+        <div className="receipt-dash" />
+
+        <div className="receipt-pay">
+          <span className="receipt-pay-label">Pay Amount</span>
+          <span className="receipt-pay-value">₹ {Math.round(totals.billValue)}/-</span>
         </div>
 
-        <div className="print-summary">
-          <div className="print-row">
-            <span>Total Pieces:</span>
-            <span>{totals.totalQuantity}</span>
-          </div>
-          <div className="print-row">
-            <span>MRP Total:</span>
-            <span>{Math.round(totals.mrpTotal)}</span>
-          </div>
-          <div className="print-row">
-            <span>Coupon Amt:</span>
-            <span>{Math.round(totals.billValue)}</span>
+        <div className="receipt-dash" />
+
+        <div className="receipt-summary">
+          <div className="receipt-row"><span>Total Pieces:</span><span>{totals.totalQuantity}</span></div>
+          <div className="receipt-row"><span>MRP Total:</span><span>₹ {Math.round(totals.mrpTotal)}</span></div>
+          <div className="receipt-row receipt-savings">
+            <span>You Saved:</span>
+            <span>₹ {Math.round(totals.mrpDiscount)}</span>
           </div>
         </div>
 
-        <div className="print-summary">
-          <div style={{ textDecoration: 'underline', marginBottom: '4px' }}>Customer Details:</div>
-          <div>{customerName || 'Walk-in'}</div>
-          <div>{mobileNumber}</div>
+        <div className="receipt-dash" />
+
+        <div className="receipt-customer">
+          <div className="receipt-cust-title">Customer Details</div>
+          <div className="receipt-cust-name">{customerName || "Walk-in Customer"}</div>
+          {mobileNumber && <div className="receipt-cust-phone">{mobileNumber}</div>}
         </div>
 
-        <div className="print-summary" style={{ borderBottom: 'none' }}>
-          <div>Points Used: {noRewards ? 0 : '0'}</div>
-          <div>Points Available: {53.25 /* Hardcoded for now until points logic */}</div>
+        <div className="receipt-dash" />
+
+        <div className="receipt-points">
+          <div className="receipt-row"><span>Points Used:</span><span>0</span></div>
+          <div className="receipt-row"><span>Points Available:</span><span>{availablePoints}</span></div>
         </div>
 
-        <div className="print-qr-section">
-          <div className="print-qr">
-            <div>
-              <p>JOIN US</p>
-              <img src="/image3.jpg" alt="WhatsApp QR" />
-            </div>
-            <div>
-              <p>VISIT US</p>
-              <img src="/image4.jpg" alt="Instagram QR" />
-            </div>
+        <div className="receipt-dash" />
+
+        <div className="receipt-thankyou">Thank you for shopping with us!</div>
+        <div className="receipt-visit">Visit again &hearts;</div>
+
+        <div className="receipt-qr">
+          <div className="receipt-qr-item">
+            <div className="receipt-qr-lbl">JOIN US</div>
+            <img src="/whatsapp-qr.png" alt="WhatsApp QR" />
+          </div>
+          <div className="receipt-qr-item">
+            <div className="receipt-qr-lbl">VISIT US</div>
+            <img src="/instagram.png" alt="Instagram QR" />
           </div>
         </div>
+
       </div>
     </div>
   );
@@ -957,41 +969,179 @@ const saleStyles = `
     }
   }
 
-  .print-only {
-    display: none;
-  }
+  /* ── Hide receipt on screen ── */
+  .print-only { display: none; }
 
+  /* ════════════════════════════════════════
+     PRINT STYLES — 80mm thermal receipt
+  ════════════════════════════════════════ */
   @media print {
-    body * {
-      visibility: hidden;
-    }
-    .print-only, .print-only * {
-      visibility: visible;
-    }
+    @page { size: 80mm auto; margin: 0; }
+
+    body * { visibility: hidden; }
+    .print-only, .print-only * { visibility: visible; }
+
     .print-only {
+      display: block;
       position: absolute;
-      left: 0;
-      top: 0;
-      width: 80mm; /* 3 inch thermal */
-      font-family: monospace;
-      padding: 0;
+      left: 0; top: 0;
+      width: 76mm;
+      padding: 5mm 3mm 6mm;
       margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11px;
       color: #000;
       background: #fff;
     }
-    .print-header { text-align: center; margin-bottom: 10px; }
-    .print-header img { max-width: 60px; margin-bottom: 5px; }
-    .print-header h2 { margin: 0; font-size: 16px; text-transform: uppercase; }
-    .print-header p { margin: 2px 0; font-size: 12px; }
-    .print-row { display: flex; justify-content: space-between; font-size: 12px; margin: 2px 0; }
-    .print-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; border-top: 1px dashed #000; border-bottom: 1px dashed #000; }
-    .print-table th, .print-table td { padding: 4px 0; text-align: right; }
-    .print-table th:first-child, .print-table td:first-child { text-align: left; }
-    .print-pay { font-size: 16px; font-weight: bold; text-align: center; margin: 10px 0; border-bottom: 1px dashed #000; padding-bottom: 10px; }
-    .print-summary { font-size: 12px; border-bottom: 1px dashed #000; padding: 10px 0; }
-    .print-qr-section { text-align: center; margin-top: 15px; }
-    .print-qr { display: flex; justify-content: space-around; margin-top: 10px; }
-    .print-qr div { text-align: center; font-size: 10px; }
-    .print-qr img { width: 60px; height: 60px; margin-bottom: 5px; }
+
+    /* ── Logo ── */
+    .receipt-logo {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 5px;
+    }
+    .receipt-logo-img {
+      width: 62px;
+      height: 62px;
+      object-fit: contain;
+    }
+
+    /* ── Shop header ── */
+    .receipt-header {
+      text-align: center;
+      margin-bottom: 4px;
+    }
+    .receipt-shop {
+      font-size: 15px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin: 3px 0 2px;
+    }
+    .receipt-tagline {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #555;
+      margin-bottom: 4px;
+    }
+    .receipt-divider-thin {
+      border: none;
+      border-top: 1px solid #000;
+      margin: 4px 10% 5px;
+    }
+    .receipt-addr {
+      font-size: 10.5px;
+      margin: 1.5px 0;
+      line-height: 1.45;
+    }
+
+    /* ── Dashed divider ── */
+    .receipt-dash {
+      border: none;
+      border-top: 1px dashed #000;
+      margin: 5px 0;
+    }
+
+    /* ── Bill meta ── */
+    .receipt-meta { font-size: 10.5px; }
+    .receipt-meta-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 2.5px 0;
+    }
+
+    /* ── Items table ── */
+    .receipt-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin: 3px 0;
+    }
+    .receipt-table thead tr { border-bottom: 1px dashed #000; }
+    .receipt-table th {
+      padding: 3px 2px 4px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .receipt-table td { padding: 3px 2px; vertical-align: top; }
+    .r-desc { text-align: left; width: 52%; }
+    .r-num  { text-align: right; }
+
+    /* ── Pay Amount ── */
+    .receipt-pay {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 5px 2px;
+    }
+    .receipt-pay-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .receipt-pay-value {
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    /* ── Summary rows ── */
+    .receipt-summary, .receipt-points {
+      font-size: 10.5px;
+      margin: 3px 0;
+    }
+    .receipt-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 2.5px 0;
+    }
+    .receipt-savings {
+      font-weight: 700;
+    }
+
+    /* ── Customer ── */
+    .receipt-customer { font-size: 10.5px; margin: 3px 0; }
+    .receipt-cust-title {
+      font-weight: 700;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 3px;
+    }
+    .receipt-cust-name { font-weight: 700; }
+    .receipt-cust-phone { color: #333; }
+
+    /* ── Thank you ── */
+    .receipt-thankyou {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      margin: 6px 0 2px;
+    }
+    .receipt-visit {
+      text-align: center;
+      font-size: 10px;
+      color: #444;
+      margin-bottom: 6px;
+    }
+
+    /* ── QR codes ── */
+    .receipt-qr {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 6px;
+      text-align: center;
+    }
+    .receipt-qr-item { display: flex; flex-direction: column; align-items: center; }
+    .receipt-qr-lbl {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+    .receipt-qr img { width: 52px; height: 52px; }
   }
 `;

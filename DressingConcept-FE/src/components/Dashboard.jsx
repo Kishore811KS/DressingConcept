@@ -52,40 +52,40 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Fetch product statistics
       const productStatsResponse = await axios.get(
         `${API_BASE_URL}/api/products/statistics`
       );
-      
+
       // Fetch billing statistics
       const billingStatsResponse = await axios.get(
         `${API_BASE_URL}/api/billing/statistics`
       );
-      
+
       // Fetch low stock products (quantity < 10)
       const lowStockResponse = await axios.get(
         `${API_BASE_URL}/api/products?per_page=100`
       );
-      
+
       // Process data
       const productStats = productStatsResponse.data;
       const billingStats = billingStatsResponse.data;
-      
+
       // Filter low stock products
       const allProducts = lowStockResponse.data.items || [];
       const lowStockProducts = allProducts
         .filter(product => product.quantity < 10)
         .sort((a, b) => a.quantity - b.quantity)
         .slice(0, 10); // Show top 10 lowest stock
-      
+
       // Calculate total payments from payment methods
       const totalPayments = (billingStats.paymentMethods || []).reduce(
-        (sum, method) => sum + (method.total || 0), 
+        (sum, method) => sum + (method.total || 0),
         0
       );
-      
+
       setStats({
         products: {
           total: productStats.total_products || 0,
@@ -102,7 +102,7 @@ const Dashboard = () => {
         lowStockProducts: lowStockProducts,
         paymentMethods: billingStats.paymentMethods || [],
       });
-      
+
     } catch (err) {
       console.error("Error fetching dashboard data:", err);
       setError("Failed to load dashboard data. Please try again.");
@@ -126,11 +126,29 @@ const Dashboard = () => {
 
   const styles = {
     container: {
-      padding: "24px",
-      backgroundColor: "#0f172a",
       minHeight: "100vh",
       fontFamily: "Inter, system-ui, -apple-system, sans-serif",
       color: "#e2e8f0",
+      position: "relative",
+      backgroundImage: `url('/Dc-logo.jpg')`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundAttachment: "fixed",
+      backgroundRepeat: "no-repeat",
+    },
+    overlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.85)", // Dark black overlay
+      backdropFilter: "blur(3px)",
+    },
+    content: {
+      position: "relative",
+      zIndex: 1,
+      padding: "24px",
     },
     header: {
       marginBottom: "32px",
@@ -147,7 +165,7 @@ const Dashboard = () => {
       fontWeight: "600",
     },
     subtitle: {
-      color: "#94a3b8",
+      color: "#cbd5e1",
       marginTop: "4px",
       fontSize: "14px",
     },
@@ -175,28 +193,29 @@ const Dashboard = () => {
       marginBottom: "30px",
     },
     card: {
-      backgroundColor: "#1e293b",
+      backgroundColor: "rgba(18, 18, 18, 0.85)",
+      backdropFilter: "blur(8px)",
       padding: "24px",
       borderRadius: "16px",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
       display: "flex",
       alignItems: "center",
       gap: "16px",
-      transition: "transform 0.2s, box-shadow 0.2s",
+      transition: "transform 0.2s, box-shadow 0.2s, background-color 0.2s",
       cursor: "pointer",
-      border: "1px solid #334155",
+      border: "1px solid rgba(255, 255, 255, 0.1)",
     },
     icon: {
       fontSize: "36px",
       padding: "12px",
       borderRadius: "12px",
-      backgroundColor: "rgba(255,255,255,0.1)",
+      backgroundColor: "rgba(255,255,255,0.08)",
     },
     cardContent: {
       flex: 1,
     },
     cardLabel: {
-      color: "#94a3b8",
+      color: "#cbd5e1",
       fontSize: "14px",
       marginBottom: "4px",
     },
@@ -218,11 +237,12 @@ const Dashboard = () => {
       marginBottom: "24px",
     },
     tableContainer: {
-      backgroundColor: "#1e293b",
+      backgroundColor: "rgba(18, 18, 18, 0.85)",
+      backdropFilter: "blur(8px)",
       padding: "20px",
       borderRadius: "16px",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-      border: "1px solid #334155",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+      border: "1px solid rgba(255, 255, 255, 0.1)",
     },
     tableHeader: {
       display: "flex",
@@ -248,11 +268,11 @@ const Dashboard = () => {
       alignItems: "center",
       gap: "4px",
       padding: "6px 12px",
-      backgroundColor: "rgba(59, 130, 246, 0.1)",
+      backgroundColor: "rgba(59, 130, 246, 0.15)",
       borderRadius: "20px",
       transition: "all 0.2s",
       ':hover': {
-        backgroundColor: "rgba(59, 130, 246, 0.2)",
+        backgroundColor: "rgba(59, 130, 246, 0.25)",
       }
     },
     table: {
@@ -261,9 +281,9 @@ const Dashboard = () => {
     },
     th: {
       padding: "12px",
-      borderBottom: "2px solid #334155",
+      borderBottom: "2px solid rgba(255, 255, 255, 0.1)",
       textAlign: "left",
-      color: "#94a3b8",
+      color: "#cbd5e1",
       fontWeight: "500",
       fontSize: "13px",
       textTransform: "uppercase",
@@ -271,7 +291,7 @@ const Dashboard = () => {
     },
     td: {
       padding: "12px",
-      borderBottom: "1px solid #334155",
+      borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
       textAlign: "left",
       fontSize: "14px",
     },
@@ -295,9 +315,11 @@ const Dashboard = () => {
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
-      height: "400px",
+      height: "100vh",
       flexDirection: "column",
       gap: "16px",
+      position: "relative",
+      zIndex: 1,
     },
     errorContainer: {
       backgroundColor: "rgba(239, 68, 68, 0.2)",
@@ -306,6 +328,7 @@ const Dashboard = () => {
       borderRadius: "8px",
       marginBottom: "20px",
       border: "1px solid rgba(239, 68, 68, 0.3)",
+      backdropFilter: "blur(4px)",
     },
     spinner: {
       animation: "spin 1s linear infinite",
@@ -317,13 +340,14 @@ const Dashboard = () => {
       marginTop: "16px",
     },
     paymentCard: {
-      backgroundColor: "#0f172a",
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
       padding: "16px",
       borderRadius: "12px",
-      border: "1px solid #334155",
+      border: "1px solid rgba(255, 255, 255, 0.1)",
+      backdropFilter: "blur(4px)",
     },
     paymentMethod: {
-      color: "#94a3b8",
+      color: "#cbd5e1",
       fontSize: "14px",
       textTransform: "capitalize",
       display: "flex",
@@ -342,7 +366,7 @@ const Dashboard = () => {
       marginTop: "4px",
     },
     viewAllText: {
-      color: "#3b82f6", 
+      color: "#3b82f6",
       cursor: "pointer",
       display: "inline-flex",
       alignItems: "center",
@@ -358,6 +382,7 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div style={styles.container}>
+        <div style={styles.overlay}></div>
         <div style={styles.loadingContainer}>
           <FaSpinner style={{ ...styles.spinner, fontSize: "40px", color: "#3b82f6" }} />
           <p>Loading dashboard data...</p>
@@ -368,255 +393,260 @@ const Dashboard = () => {
 
   return (
     <div style={styles.container}>
-      <style>
-        {`
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-          .card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 30px rgba(0,0,0,0.4);
-          }
-          .view-all:hover {
-            background-color: rgba(59, 130, 246, 0.2) !important;
-          }
-          .view-all-text:hover {
-            color: #60a5fa !important;
-          }
-        `}
-      </style>
+      <div style={styles.overlay}></div>
+      <div style={styles.content}>
+        <style>
+          {`
+            @keyframes spin {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
+            }
+            .card:hover {
+              transform: translateY(-4px);
+              box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+              background-color: rgba(18, 18, 18, 0.95) !important;
+            }
+            .view-all:hover {
+              background-color: rgba(59, 130, 246, 0.25) !important;
+            }
+            .view-all-text:hover {
+              color: #60a5fa !important;
+            }
+          `}
+        </style>
 
-      {/* Header */}
-      <div style={styles.header}>
-        <div>
-          <h2 style={styles.title}>Dashboard</h2>
-          <p style={styles.subtitle}>
-            {new Date().toLocaleDateString("en-IN", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
+        {/* Header */}
+        <div style={styles.header}>
+          <div>
+            <h2 style={styles.title}>Dashboard</h2>
+            <p style={styles.subtitle}>
+              {new Date().toLocaleDateString("en-IN", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </p>
+          </div>
+          <button
+            style={styles.refreshButton}
+            onClick={fetchDashboardData}
+          >
+            <FaChartLine /> Refresh Data
+          </button>
         </div>
-        <button 
-          style={styles.refreshButton}
-          onClick={fetchDashboardData}
-        >
-          <FaChartLine /> Refresh Data
-        </button>
-      </div>
 
-      {/* Error Message */}
-      {error && (
-        <div style={styles.errorContainer}>
-          <FaExclamationTriangle style={{ marginRight: "8px" }} />
-          {error}
-        </div>
-      )}
+        {/* Error Message */}
+        {error && (
+          <div style={styles.errorContainer}>
+            <FaExclamationTriangle style={{ marginRight: "8px" }} />
+            {error}
+          </div>
+        )}
 
-      {/* Cards */}
-      <div style={styles.cards}>
-        <div className="card" style={styles.card}>
-          <FaBoxes style={{ ...styles.icon, color: "#3b82f6" }} />
-          <div style={styles.cardContent}>
-            <div style={styles.cardLabel}>Total Products</div>
-            <div style={styles.cardValue}>{stats.products.total}</div>
-            <div style={styles.cardSmallValue}>
-              {stats.products.totalQuantity} units in stock
+        {/* Cards */}
+        <div style={styles.cards}>
+          <div className="card" style={styles.card}>
+            <FaBoxes style={{ ...styles.icon, color: "#3b82f6" }} />
+            <div style={styles.cardContent}>
+              <div style={styles.cardLabel}>Total Products</div>
+              <div style={styles.cardValue}>{stats.products.total}</div>
+              <div style={styles.cardSmallValue}>
+                {stats.products.totalQuantity} units in stock
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={styles.card}>
+            <FaShoppingCart style={{ ...styles.icon, color: "#f59e0b" }} />
+            <div style={styles.cardContent}>
+              <div style={styles.cardLabel}>Today's Sales</div>
+              <div style={styles.cardValue}>
+                {formatCurrency(stats.billing.today.sales)}
+              </div>
+              <div style={styles.cardSmallValue}>
+                {stats.billing.today.bills} bills · Avg {formatCurrency(stats.billing.today.average)}
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={styles.card}>
+            <FaMoneyBillWave style={{ ...styles.icon, color: "#10b981" }} />
+            <div style={styles.cardContent}>
+              <div style={styles.cardLabel}>Total Payments</div>
+              <div style={styles.cardValue}>
+                {formatCurrency(stats.billing.totalPayments || 0)}
+              </div>
+              <div style={styles.cardSmallValue}>
+                All time payments received
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={styles.card}>
+            <FaChartLine style={{ ...styles.icon, color: "#8b5cf6" }} />
+            <div style={styles.cardContent}>
+              <div style={styles.cardLabel}>This Month</div>
+              <div style={styles.cardValue}>
+                {formatCurrency(stats.billing.thisMonth.sales)}
+              </div>
+              <div style={styles.cardSmallValue}>
+                {stats.billing.thisMonth.bills} bills · {stats.billing.pendingItems} pending items
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="card" style={styles.card}>
-          <FaShoppingCart style={{ ...styles.icon, color: "#f59e0b" }} />
-          <div style={styles.cardContent}>
-            <div style={styles.cardLabel}>Today's Sales</div>
-            <div style={styles.cardValue}>
-              {formatCurrency(stats.billing.today.sales)}
+        {/* Main Content Grid */}
+        <div style={styles.grid2}>
+          {/* Low Stock Products */}
+          <div style={styles.tableContainer}>
+            <div style={styles.tableHeader}>
+              <h3 style={styles.tableTitle}>
+                <FaExclamationTriangle color="#ef4444" />
+                Low Stock Alert ({stats.lowStockProducts.length} items)
+              </h3>
+              <span
+                style={styles.viewAllLink}
+                onClick={handleViewAllLowStock}
+                className="view-all"
+              >
+                View All <FaArrowRight size={12} />
+              </span>
             </div>
-            <div style={styles.cardSmallValue}>
-              {stats.billing.today.bills} bills · Avg {formatCurrency(stats.billing.today.average)}
-            </div>
-          </div>
-        </div>
-
-        <div className="card" style={styles.card}>
-          <FaMoneyBillWave style={{ ...styles.icon, color: "#10b981" }} />
-          <div style={styles.cardContent}>
-            <div style={styles.cardLabel}>Total Payments</div>
-            <div style={styles.cardValue}>
-              {formatCurrency(stats.billing.totalPayments || 0)}
-            </div>
-            <div style={styles.cardSmallValue}>
-              All time payments received
-            </div>
-          </div>
-        </div>
-
-        <div className="card" style={styles.card}>
-          <FaChartLine style={{ ...styles.icon, color: "#8b5cf6" }} />
-          <div style={styles.cardContent}>
-            <div style={styles.cardLabel}>This Month</div>
-            <div style={styles.cardValue}>
-              {formatCurrency(stats.billing.thisMonth.sales)}
-            </div>
-            <div style={styles.cardSmallValue}>
-              {stats.billing.thisMonth.bills} bills · {stats.billing.pendingItems} pending items
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Grid */}
-      <div style={styles.grid2}>
-        {/* Low Stock Products */}
-        <div style={styles.tableContainer}>
-          <div style={styles.tableHeader}>
-            <h3 style={styles.tableTitle}>
-              <FaExclamationTriangle color="#ef4444" />
-              Low Stock Alert ({stats.lowStockProducts.length} items)
-            </h3>
-            <span 
-              style={styles.viewAllLink}
-              onClick={handleViewAllLowStock}
-              className="view-all"
-            >
-              View All <FaArrowRight size={12} />
-            </span>
-          </div>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Product</th>
-                <th style={styles.th}>Model</th>
-                <th style={styles.th}>Stock</th>
-                <th style={styles.th}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.lowStockProducts.length > 0 ? (
-                stats.lowStockProducts.slice(0, 5).map((product) => (
-                  <tr key={product.id}>
-                    <td style={styles.td}>
-                      <div style={{ fontWeight: "500" }}>{product.name}</div>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Product</th>
+                  <th style={styles.th}>Model</th>
+                  <th style={styles.th}>Stock</th>
+                  <th style={styles.th}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.lowStockProducts.length > 0 ? (
+                  stats.lowStockProducts.slice(0, 5).map((product) => (
+                    <tr key={product.id}>
+                      <td style={styles.td}>
+                        <div style={{ fontWeight: "500" }}>{product.name}</div>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{ color: "#94a3b8" }}>{product.model || '-'}</span>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{
+                          fontWeight: "600",
+                          color: product.quantity === 0 ? "#ef4444" : "#f59e0b"
+                        }}>
+                          {product.quantity}
+                        </span>
+                      </td>
+                      <td style={styles.td}>
+                        <span
+                          style={{
+                            ...styles.statusBadge,
+                            ...(product.quantity === 0
+                              ? styles.criticalStock
+                              : styles.lowStock),
+                          }}
+                        >
+                          {product.quantity === 0 ? "Out of Stock" : "Low Stock"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" style={{ ...styles.td, textAlign: "center", padding: "40px" }}>
+                      <FaBoxes size={32} style={{ opacity: 0.5, marginBottom: "12px" }} />
+                      <div>All products are well stocked ✓</div>
+                      <div style={{ fontSize: "13px", color: "#6b7280", marginTop: "8px" }}>
+                        No items with quantity less than 10
+                      </div>
                     </td>
-                    <td style={styles.td}>
-                      <span style={{ color: "#94a3b8" }}>{product.model || '-'}</span>
-                    </td>
-                    <td style={styles.td}>
-                      <span style={{ 
-                        fontWeight: "600",
-                        color: product.quantity === 0 ? "#ef4444" : "#f59e0b"
-                      }}>
-                        {product.quantity}
-                      </span>
-                    </td>
-                    <td style={styles.td}>
+                  </tr>
+                )}
+
+                {stats.lowStockProducts.length > 5 && (
+                  <tr>
+                    <td colSpan="4" style={{ ...styles.td, textAlign: "center", backgroundColor: "rgba(0, 0, 0, 0.3)" }}>
                       <span
-                        style={{
-                          ...styles.statusBadge,
-                          ...(product.quantity === 0 
-                            ? styles.criticalStock 
-                            : styles.lowStock),
-                        }}
+                        onClick={handleViewAllLowStock}
+                        style={styles.viewAllText}
+                        className="view-all-text"
                       >
-                        {product.quantity === 0 ? "Out of Stock" : "Low Stock"}
+                        <FaEye size={12} /> View all {stats.lowStockProducts.length} low stock items
                       </span>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4" style={{ ...styles.td, textAlign: "center", padding: "40px" }}>
-                    <FaBoxes size={32} style={{ opacity: 0.5, marginBottom: "12px" }} />
-                    <div>All products are well stocked ✓</div>
-                    <div style={{ fontSize: "13px", color: "#6b7280", marginTop: "8px" }}>
-                      No items with quantity less than 10
-                    </div>
-                  </td>
-                </tr>
-              )}
-              
-              {stats.lowStockProducts.length > 5 && (
-                <tr>
-                  <td colSpan="4" style={{ ...styles.td, textAlign: "center", backgroundColor: "#0f172a" }}>
-                    <span 
-                      onClick={handleViewAllLowStock}
-                      style={styles.viewAllText}
-                      className="view-all-text"
-                    >
-                      <FaEye size={12} /> View all {stats.lowStockProducts.length} low stock items
-                    </span>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Payment Methods Summary */}
-        <div style={styles.tableContainer}>
-          <div style={styles.tableHeader}>
-            <h3 style={styles.tableTitle}>
-              <FaMoneyBillWave color="#10b981" />
-              Payment Methods
-            </h3>
+                )}
+              </tbody>
+            </table>
           </div>
-          
-          {stats.paymentMethods.length > 0 ? (
-            <div style={styles.paymentGrid}>
-              {stats.paymentMethods.map((method, index) => (
-                <div key={index} style={styles.paymentCard}>
-                  <div style={styles.paymentMethod}>
-                    <span style={{ 
-                      width: "8px", 
-                      height: "8px", 
-                      borderRadius: "50%",
-                      backgroundColor: 
-                        method.method === 'cash' ? '#10b981' :
-                        method.method === 'card' ? '#3b82f6' :
-                        method.method === 'upi' ? '#8b5cf6' : '#f59e0b'
-                    }} />
-                    {method.method}
+
+          {/* Payment Methods Summary */}
+          <div style={styles.tableContainer}>
+            <div style={styles.tableHeader}>
+              <h3 style={styles.tableTitle}>
+                <FaMoneyBillWave color="#10b981" />
+                Payment Methods
+              </h3>
+            </div>
+
+            {stats.paymentMethods.length > 0 ? (
+              <div style={styles.paymentGrid}>
+                {stats.paymentMethods.map((method, index) => (
+                  <div key={index} style={styles.paymentCard}>
+                    <div style={styles.paymentMethod}>
+                      <span style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        backgroundColor:
+                          method.method === 'cash' ? '#10b981' :
+                            method.method === 'card' ? '#3b82f6' :
+                              method.method === 'upi' ? '#8b5cf6' : '#f59e0b'
+                      }} />
+                      {method.method}
+                    </div>
+                    <div style={styles.paymentAmount}>
+                      {formatCurrency(method.total)}
+                    </div>
+                    <div style={styles.paymentCount}>
+                      {method.count} {method.count === 1 ? 'transaction' : 'transactions'}
+                    </div>
                   </div>
-                  <div style={styles.paymentAmount}>
-                    {formatCurrency(method.total)}
-                  </div>
-                  <div style={styles.paymentCount}>
-                    {method.count} {method.count === 1 ? 'transaction' : 'transactions'}
-                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                <FaMoneyBillWave size={32} style={{ opacity: 0.5, marginBottom: "12px" }} />
+                <p style={{ color: "#94a3b8" }}>No payment data available</p>
+              </div>
+            )}
+
+            {/* Total Payments Summary */}
+            {stats.paymentMethods.length > 0 && (
+              <div style={{
+                marginTop: "20px",
+                padding: "16px",
+                backgroundColor: "rgba(0, 0, 0, 0.5)",
+                borderRadius: "12px",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                backdropFilter: "blur(4px)",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ color: "#cbd5e1" }}>Total Payments</span>
+                  <span style={{ fontSize: "20px", fontWeight: "600", color: "#10b981" }}>
+                    {formatCurrency(stats.billing.totalPayments || 0)}
+                  </span>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ textAlign: "center", padding: "40px 20px" }}>
-              <FaMoneyBillWave size={32} style={{ opacity: 0.5, marginBottom: "12px" }} />
-              <p style={{ color: "#94a3b8" }}>No payment data available</p>
-            </div>
-          )}
-          
-          {/* Total Payments Summary */}
-          {stats.paymentMethods.length > 0 && (
-            <div style={{ 
-              marginTop: "20px", 
-              padding: "16px", 
-              backgroundColor: "#0f172a",
-              borderRadius: "12px",
-              border: "1px solid #334155"
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ color: "#94a3b8" }}>Total Payments</span>
-                <span style={{ fontSize: "20px", fontWeight: "600", color: "#10b981" }}>
-                  {formatCurrency(stats.billing.totalPayments || 0)}
-                </span>
+                <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
+                  All time total
+                </div>
               </div>
-              <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
-                All time total
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

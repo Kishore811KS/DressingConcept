@@ -42,9 +42,9 @@ const InvoicePage = () => {
 
   // Company details
   const companyDetails = {
-    name: "Avva Inventory",
-    address: "No.71, M.T.H.road (Opp padi post office), Padi, Chennai - 600 050",
-    phone: "98657 09626",
+    name: "Dressing Concept",
+    address: "88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082",
+    phone: "98848 58576",
     email: "hiprintsolutions@gmail.com",
     gstin: "33ABCDE1234F1Z5"
   };
@@ -87,14 +87,14 @@ const InvoicePage = () => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [dueDate, setDueDate] = useState(new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [notes, setNotes] = useState("");
   const [customerErrors, setCustomerErrors] = useState({});
   const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [savedInvoice, setSavedInvoice] = useState(null);
-  
+
   // Payment details
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentStatus, setPaymentStatus] = useState('unpaid');
@@ -166,13 +166,13 @@ const InvoicePage = () => {
           resetForm();
         }
       }
-      
+
       if (viewModalRef.current && !viewModalRef.current.contains(event.target) && showViewModal) {
         setShowViewModal(false);
         setViewingInvoice(null);
       }
     };
-    
+
     if (showModal || showViewModal) {
       document.addEventListener("mousedown", handleClickOutside);
     }
@@ -222,14 +222,14 @@ const InvoicePage = () => {
   // Fetch invoices from backend
   const fetchInvoices = async () => {
     if (!isAuthenticated) return;
-    
+
     setInvoicesLoading(true);
     setError('');
-    
+
     try {
       const url = `/invoice?page=${pagination.page}&per_page=${pagination.per_page}`;
       const response = await api.get(url);
-      
+
       if (response.data && response.data.success) {
         setInvoices(response.data.items || []);
         setFilteredInvoices(response.data.items || []);
@@ -257,7 +257,7 @@ const InvoicePage = () => {
     // Search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase().trim();
-      filtered = filtered.filter(inv => 
+      filtered = filtered.filter(inv =>
         (inv.invoice_number?.toLowerCase().includes(term)) ||
         (inv.customer_name?.toLowerCase().includes(term)) ||
         (inv.customer_phone?.toLowerCase().includes(term)) ||
@@ -271,7 +271,7 @@ const InvoicePage = () => {
       start.setHours(0, 0, 0, 0);
       const end = new Date(dateRange.end);
       end.setHours(23, 59, 59, 999);
-      
+
       filtered = filtered.filter(inv => {
         const invDate = new Date(inv.invoice_date);
         return invDate >= start && invDate <= end;
@@ -280,14 +280,14 @@ const InvoicePage = () => {
 
     // Status filter
     if (filterStatus !== 'all') {
-      filtered = filtered.filter(inv => 
+      filtered = filtered.filter(inv =>
         (inv.payment_status || inv.paymentStatus) === filterStatus
       );
     }
 
     // Sorting
     filtered.sort((a, b) => {
-      switch(sortBy) {
+      switch (sortBy) {
         case 'newest':
           return new Date(b.invoice_date) - new Date(a.invoice_date);
         case 'oldest':
@@ -327,13 +327,13 @@ const InvoicePage = () => {
 
   const fetchProducts = async () => {
     if (!isAuthenticated) return;
-    
+
     setSearchLoading(true);
     setSearchError("");
-    
+
     try {
       const response = await api.get(`/billing/search-products?q=${encodeURIComponent(search)}`);
-      
+
       if (Array.isArray(response.data)) {
         setProducts(response.data);
         if (response.data.length === 0) {
@@ -379,7 +379,7 @@ const InvoicePage = () => {
         paymentStatus: status,
         paymentMethod: method
       });
-      
+
       if (response.data && response.data.success) {
         setSuccess('Payment status updated successfully');
         fetchInvoices();
@@ -402,15 +402,15 @@ const InvoicePage = () => {
     if (!customer.name.trim()) errors.name = "Customer name is required";
     if (!customer.phone.trim()) errors.phone = "Phone number is required";
     else if (!/^\d{10}$/.test(customer.phone.replace(/\D/g, ''))) errors.phone = "Phone must be 10 digits";
-    
+
     if (customer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email)) {
       errors.email = "Invalid email format";
     }
-    
+
     if (customer.gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(customer.gstin)) {
       errors.gstin = "Invalid GSTIN format";
     }
-    
+
     setCustomerErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -437,7 +437,7 @@ const InvoicePage = () => {
     setDiscountType("fixed");
     setNotes("");
     setInvoiceDate(new Date().toISOString().split('T')[0]);
-    setDueDate(new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0]);
+    setDueDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
     setPaymentMethod('cash');
     setPaymentStatus('unpaid');
     setIsInterState(false);
@@ -457,17 +457,17 @@ const InvoicePage = () => {
     if (existing) {
       setItems(
         items.map((i) =>
-          i.productId === product.id 
-            ? { ...i, quantity: i.quantity + 1 } 
+          i.productId === product.id
+            ? { ...i, quantity: i.quantity + 1 }
             : i
         )
       );
       setSuccess(`${product.name} quantity increased`);
     } else {
-      setItems([...items, { 
-        productId: product.id, 
-        name: product.name, 
-        model: product.model || '', 
+      setItems([...items, {
+        productId: product.id,
+        name: product.name,
+        model: product.model || '',
         price: product.sellPrice || product.price || 0,
         mrp: product.mrp || product.sellPrice || product.price || 0,
         quantity: 1,
@@ -479,7 +479,7 @@ const InvoicePage = () => {
     setSearch("");
     setProducts([]);
     setSearchError("");
-    
+
     setTimeout(() => setSuccess(''), 2000);
   };
 
@@ -503,7 +503,7 @@ const InvoicePage = () => {
 
   // CALCULATIONS
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  
+
   const calculateDiscount = () => {
     if (discountType === "percentage") {
       return (subtotal * discount) / 100;
@@ -520,13 +520,13 @@ const InvoicePage = () => {
     let cgstTotal = 0;
     let sgstTotal = 0;
     let igstTotal = 0;
-    
+
     items.forEach(item => {
       const gstRate = item.gst || 0;
       const itemTotal = (item.price * item.quantity);
       const taxableValue = itemTotal * (100 / (100 + gstRate));
       const gstAmount = itemTotal - taxableValue;
-      
+
       if (!gstDetails[gstRate]) {
         gstDetails[gstRate] = {
           taxable: 0,
@@ -536,7 +536,7 @@ const InvoicePage = () => {
           total: 0
         };
       }
-      
+
       if (gstRate > 0) {
         if (isInterState) {
           gstDetails[gstRate].igst += gstAmount;
@@ -553,7 +553,7 @@ const InvoicePage = () => {
       }
       gstDetails[gstRate].total += itemTotal;
     });
-    
+
     return { gstDetails, cgstTotal, sgstTotal, igstTotal };
   };
 
@@ -591,8 +591,8 @@ const InvoicePage = () => {
       paymentMethod,
       paymentStatus,
       isInterState,
-      items: items.map((item) => ({ 
-        productId: item.productId, 
+      items: items.map((item) => ({
+        productId: item.productId,
         quantity: item.quantity,
         price: item.price,
         hsnCode: item.hsnCode,
@@ -602,19 +602,19 @@ const InvoicePage = () => {
 
     try {
       const res = await api.post('/invoice', payload);
-      
+
       if (res.data && res.data.success) {
         setSavedInvoice(res.data.invoice);
         setSuccess(`✅ Invoice Created Successfully!\nInvoice Number: ${res.data.invoiceNumber}`);
-        
+
         fetchInvoices();
         fetchDashboardStats();
-        
+
         setTimeout(() => {
           if (window.confirm(`Invoice ${res.data.invoiceNumber} saved successfully!\n\nDo you want to print it?`)) {
             handlePrintInvoice(res.data.invoice);
           }
-          
+
           resetForm();
           setShowModal(false);
           setSuccess('');
@@ -622,12 +622,12 @@ const InvoicePage = () => {
       } else {
         setError(res.data?.error || 'Failed to save invoice');
       }
-      
+
     } catch (err) {
       console.error("Error creating invoice:", err);
-      
+
       let errorMessage = "Failed to save invoice. ";
-      
+
       if (err.response) {
         if (err.response.status === 401) {
           errorMessage = "Session expired. Please login again.";
@@ -643,7 +643,7 @@ const InvoicePage = () => {
       } else {
         errorMessage = "Error setting up request. Please try again.";
       }
-      
+
       setError(errorMessage);
       setTimeout(() => setError(''), 5000);
     } finally {
@@ -656,7 +656,7 @@ const InvoicePage = () => {
     const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
     const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
     const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-    
+
     const convertLessThanThousand = (n) => {
       if (n === 0) return '';
       if (n < 10) return ones[n];
@@ -664,10 +664,10 @@ const InvoicePage = () => {
       if (n < 100) return tens[Math.floor(n / 10)] + ' ' + ones[n % 10];
       return ones[Math.floor(n / 100)] + ' Hundred ' + convertLessThanThousand(n % 100);
     };
-    
+
     let amount = Math.floor(num);
     const paise = Math.round((num - amount) * 100);
-    
+
     let words = '';
     if (amount >= 10000000) {
       words += convertLessThanThousand(Math.floor(amount / 10000000)) + ' Crore ';
@@ -682,18 +682,18 @@ const InvoicePage = () => {
       amount %= 1000;
     }
     words += convertLessThanThousand(amount);
-    
+
     if (paise > 0) {
       words += ' and ' + convertLessThanThousand(paise) + ' Paise';
     }
-    
+
     return words.trim() || 'Zero Rupees';
   };
 
   // Function to print invoice
   const handlePrintInvoice = (invoice) => {
     const printWindow = window.open('', '_blank');
-    
+
     if (printWindow) {
       const itemsHtml = invoice.items?.map(item => `
         <tr>
@@ -936,11 +936,11 @@ const InvoicePage = () => {
         </body>
         </html>
       `;
-      
+
       printWindow.document.write(printContent);
       printWindow.document.close();
       printWindow.focus();
-      
+
       setTimeout(() => {
         printWindow.print();
       }, 500);
@@ -958,8 +958,8 @@ const InvoicePage = () => {
         </div>
         <div style={styles.authMessage}>
           <h3>🔒 Authentication Required</h3>
-          <p style={{color: '#dc3545', margin: '20px 0'}}>{error || 'Please login to access invoices'}</p>
-          <button 
+          <p style={{ color: '#dc3545', margin: '20px 0' }}>{error || 'Please login to access invoices'}</p>
+          <button
             style={styles.createButton}
             onClick={() => window.location.href = '/login'}
           >
@@ -975,7 +975,7 @@ const InvoicePage = () => {
       {/* Header with Create Button */}
       <div style={styles.header}>
         <h2 style={styles.title}>Invoices</h2>
-        <button 
+        <button
           style={styles.createButton}
           onClick={() => {
             resetForm();
@@ -988,13 +988,13 @@ const InvoicePage = () => {
 
       {/* Error/Success Messages */}
       {error && (
-        <div style={{...styles.alert, ...styles.alertError, marginBottom: '20px', whiteSpace: 'pre-wrap'}}>
+        <div style={{ ...styles.alert, ...styles.alertError, marginBottom: '20px', whiteSpace: 'pre-wrap' }}>
           ⚠️ {error}
         </div>
       )}
-      
+
       {success && (
-        <div style={{...styles.alert, ...styles.alertSuccess, marginBottom: '20px', whiteSpace: 'pre-wrap'}}>
+        <div style={{ ...styles.alert, ...styles.alertSuccess, marginBottom: '20px', whiteSpace: 'pre-wrap' }}>
           ✅ {success}
         </div>
       )}
@@ -1010,7 +1010,7 @@ const InvoicePage = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
           {searchTerm && (
-            <button 
+            <button
               style={styles.clearSearch}
               onClick={() => setSearchTerm('')}
             >
@@ -1023,7 +1023,7 @@ const InvoicePage = () => {
           type="date"
           style={styles.filterInput}
           value={dateRange.start}
-          onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
+          onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
           placeholder="From Date"
         />
 
@@ -1031,7 +1031,7 @@ const InvoicePage = () => {
           type="date"
           style={styles.filterInput}
           value={dateRange.end}
-          onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
+          onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
           placeholder="To Date"
         />
 
@@ -1057,7 +1057,7 @@ const InvoicePage = () => {
           <option value="lowest">Lowest Amount</option>
         </select>
 
-        <button 
+        <button
           style={styles.resetButton}
           onClick={resetFilters}
         >
@@ -1110,21 +1110,21 @@ const InvoicePage = () => {
                     <td style={styles.td}>
                       <span style={{
                         ...styles.statusBadge,
-                        backgroundColor: (invoice.payment_status || invoice.paymentStatus) === 'paid' ? '#10b981' : 
-                                       (invoice.payment_status || invoice.paymentStatus) === 'partial' ? '#f59e0b' : '#ef4444'
+                        backgroundColor: (invoice.payment_status || invoice.paymentStatus) === 'paid' ? '#10b981' :
+                          (invoice.payment_status || invoice.paymentStatus) === 'partial' ? '#f59e0b' : '#ef4444'
                       }}>
                         {invoice.payment_status || invoice.paymentStatus || 'unpaid'}
                       </span>
                     </td>
                     <td style={styles.td}>
                       <div style={styles.actionButtons}>
-                        <button 
+                        <button
                           style={styles.viewButton}
                           onClick={() => fetchInvoiceDetails(invoice.id)}
                         >
                           View
                         </button>
-                        <button 
+                        <button
                           style={styles.printButton}
                           onClick={() => handlePrintInvoice(invoice)}
                         >
@@ -1140,7 +1140,7 @@ const InvoicePage = () => {
             {/* Pagination */}
             {pagination.pages > 1 && (
               <div style={styles.pagination}>
-                <button 
+                <button
                   style={styles.pageButton}
                   onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
                   disabled={pagination.page === 1}
@@ -1150,7 +1150,7 @@ const InvoicePage = () => {
                 <span style={styles.pageInfo}>
                   Page {pagination.page} of {pagination.pages}
                 </span>
-                <button 
+                <button
                   style={styles.pageButton}
                   onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
                   disabled={pagination.page === pagination.pages}
@@ -1166,12 +1166,12 @@ const InvoicePage = () => {
       {/* View Invoice Modal */}
       {showViewModal && viewingInvoice && (
         <div style={styles.modalOverlay}>
-          <div style={{...styles.modal, maxWidth: '1000px'}} ref={viewModalRef}>
+          <div style={{ ...styles.modal, maxWidth: '1000px' }} ref={viewModalRef}>
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>
                 Invoice Details - {viewingInvoice.invoice_number || viewingInvoice.invoiceNumber}
               </h3>
-              <button 
+              <button
                 style={styles.closeButton}
                 onClick={() => {
                   setShowViewModal(false);
@@ -1181,13 +1181,13 @@ const InvoicePage = () => {
                 ×
               </button>
             </div>
-            
+
             <div style={styles.modalContent}>
               {/* Company Header */}
               <div style={styles.viewCompanyHeader}>
-                <h3 style={{color: '#3b82f6', margin: 0}}>{companyDetails.name}</h3>
-                <p style={{margin: '5px 0', color: '#94a3b8'}}>{companyDetails.address}</p>
-                <p style={{margin: 0, color: '#94a3b8'}}>Phone: {companyDetails.phone} | Email: {companyDetails.email}</p>
+                <h3 style={{ color: '#3b82f6', margin: 0 }}>{companyDetails.name}</h3>
+                <p style={{ margin: '5px 0', color: '#94a3b8' }}>{companyDetails.address}</p>
+                <p style={{ margin: 0, color: '#94a3b8' }}>Phone: {companyDetails.phone} | Email: {companyDetails.email}</p>
               </div>
 
               {/* Status Update Section */}
@@ -1196,7 +1196,7 @@ const InvoicePage = () => {
                 <div style={styles.statusUpdateRow}>
                   <div style={styles.statusUpdateField}>
                     <label style={styles.label}>Payment Status</label>
-                    <select 
+                    <select
                       style={styles.statusSelect}
                       value={viewingInvoice.payment_status || viewingInvoice.paymentStatus || 'unpaid'}
                       onChange={(e) => updatePaymentStatus(viewingInvoice.id, e.target.value, viewingInvoice.payment_method || viewingInvoice.paymentMethod)}
@@ -1208,7 +1208,7 @@ const InvoicePage = () => {
                   </div>
                   <div style={styles.statusUpdateField}>
                     <label style={styles.label}>Payment Method</label>
-                    <select 
+                    <select
                       style={styles.statusSelect}
                       value={viewingInvoice.payment_method || viewingInvoice.paymentMethod || 'cash'}
                       onChange={(e) => updatePaymentStatus(viewingInvoice.id, viewingInvoice.payment_status || viewingInvoice.paymentStatus, e.target.value)}
@@ -1305,7 +1305,7 @@ const InvoicePage = () => {
                 {safeNumber(viewingInvoice.igst_total || viewingInvoice.igstTotal) > 0 && (
                   <div style={styles.viewSummaryItem}><strong>IGST:</strong> ₹{safeNumber(viewingInvoice.igst_total || viewingInvoice.igstTotal).toFixed(2)}</div>
                 )}
-                <div style={{...styles.viewSummaryItem, ...styles.viewTotal}}>
+                <div style={{ ...styles.viewSummaryItem, ...styles.viewTotal }}>
                   <strong>Total:</strong> ₹{safeNumber(viewingInvoice.total).toFixed(2)}
                 </div>
                 <div style={styles.viewAmountWords}>
@@ -1317,13 +1317,13 @@ const InvoicePage = () => {
                 <div style={styles.viewSection}>
                   <h4 style={styles.viewSectionTitle}>Terms & Conditions</h4>
                   <div style={styles.viewCard}>
-                    <p style={{margin: 0, whiteSpace: 'pre-wrap'}}>{viewingInvoice.notes}</p>
+                    <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{viewingInvoice.notes}</p>
                   </div>
                 </div>
               )}
 
               <div style={styles.viewActions}>
-                <button 
+                <button
                   style={styles.printButton}
                   onClick={() => handlePrintInvoice(viewingInvoice)}
                 >
@@ -1342,14 +1342,14 @@ const InvoicePage = () => {
             {/* Modal Header */}
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>
-                {modalStep === 1 ? "Customer Details" : 
-                 modalStep === 2 ? "Add Products" : 
-                 "Payment & Summary"}
+                {modalStep === 1 ? "Customer Details" :
+                  modalStep === 2 ? "Add Products" :
+                    "Payment & Summary"}
               </h3>
               <div style={styles.stepIndicator}>
                 Step {modalStep} of 3
               </div>
-              <button 
+              <button
                 style={styles.closeButton}
                 onClick={() => {
                   if (items.length > 0 || customer.name || customer.phone) {
@@ -1370,40 +1370,40 @@ const InvoicePage = () => {
             {/* Modal Content */}
             <div style={styles.modalContent}>
               {error && (
-                <div style={{...styles.alert, ...styles.alertError, marginBottom: '20px'}}>
+                <div style={{ ...styles.alert, ...styles.alertError, marginBottom: '20px' }}>
                   ⚠️ {error}
                 </div>
               )}
-              
+
               {success && (
-                <div style={{...styles.alert, ...styles.alertSuccess, marginBottom: '20px'}}>
+                <div style={{ ...styles.alert, ...styles.alertSuccess, marginBottom: '20px' }}>
                   ✅ {success}
                 </div>
               )}
-              
+
               {/* Step 1: Customer Details */}
               {modalStep === 1 && (
                 <div style={styles.stepContent}>
                   <div style={styles.formGrid}>
                     <div style={styles.formField}>
                       <label style={styles.label}>Customer Name *</label>
-                      <input 
-                        style={{...styles.input, borderColor: customerErrors.name ? '#ef4444' : '#334155'}}
-                        value={customer.name} 
-                        onChange={(e) => setCustomer({ ...customer, name: e.target.value })} 
+                      <input
+                        style={{ ...styles.input, borderColor: customerErrors.name ? '#ef4444' : '#334155' }}
+                        value={customer.name}
+                        onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
                         placeholder="Enter customer name"
                       />
                       {customerErrors.name && (
                         <span style={styles.errorText}>{customerErrors.name}</span>
                       )}
                     </div>
-                    
+
                     <div style={styles.formField}>
                       <label style={styles.label}>Phone *</label>
-                      <input 
-                        style={{...styles.input, borderColor: customerErrors.phone ? '#ef4444' : '#334155'}}
-                        value={customer.phone} 
-                        onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} 
+                      <input
+                        style={{ ...styles.input, borderColor: customerErrors.phone ? '#ef4444' : '#334155' }}
+                        value={customer.phone}
+                        onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
                         placeholder="10 digit mobile number"
                         maxLength="10"
                       />
@@ -1411,37 +1411,37 @@ const InvoicePage = () => {
                         <span style={styles.errorText}>{customerErrors.phone}</span>
                       )}
                     </div>
-                    
+
                     <div style={styles.formField}>
                       <label style={styles.label}>Email</label>
-                      <input 
-                        style={{...styles.input, borderColor: customerErrors.email ? '#ef4444' : '#334155'}}
+                      <input
+                        style={{ ...styles.input, borderColor: customerErrors.email ? '#ef4444' : '#334155' }}
                         type="email"
-                        value={customer.email} 
-                        onChange={(e) => setCustomer({ ...customer, email: e.target.value })} 
+                        value={customer.email}
+                        onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
                         placeholder="email@example.com"
                       />
                       {customerErrors.email && (
                         <span style={styles.errorText}>{customerErrors.email}</span>
                       )}
                     </div>
-                    
+
                     <div style={styles.formField}>
                       <label style={styles.label}>Address</label>
-                      <input 
-                        style={styles.input} 
-                        value={customer.address} 
-                        onChange={(e) => setCustomer({ ...customer, address: e.target.value })} 
+                      <input
+                        style={styles.input}
+                        value={customer.address}
+                        onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
                         placeholder="Enter address"
                       />
                     </div>
-                    
+
                     <div style={styles.formField}>
                       <label style={styles.label}>GSTIN (Optional)</label>
-                      <input 
-                        style={{...styles.input, borderColor: customerErrors.gstin ? '#ef4444' : '#334155'}}
-                        value={customer.gstin} 
-                        onChange={(e) => setCustomer({ ...customer, gstin: e.target.value.toUpperCase() })} 
+                      <input
+                        style={{ ...styles.input, borderColor: customerErrors.gstin ? '#ef4444' : '#334155' }}
+                        value={customer.gstin}
+                        onChange={(e) => setCustomer({ ...customer, gstin: e.target.value.toUpperCase() })}
                         placeholder="22AAAAA0000A1Z5"
                         maxLength="15"
                       />
@@ -1454,20 +1454,20 @@ const InvoicePage = () => {
                   <div style={styles.dateSection}>
                     <div style={styles.dateField}>
                       <label style={styles.label}>Invoice Date</label>
-                      <input 
-                        type="date" 
-                        style={styles.dateInput} 
-                        value={invoiceDate} 
-                        onChange={(e) => setInvoiceDate(e.target.value)} 
+                      <input
+                        type="date"
+                        style={styles.dateInput}
+                        value={invoiceDate}
+                        onChange={(e) => setInvoiceDate(e.target.value)}
                       />
                     </div>
                     <div style={styles.dateField}>
                       <label style={styles.label}>Due Date</label>
-                      <input 
-                        type="date" 
-                        style={styles.dateInput} 
-                        value={dueDate} 
-                        onChange={(e) => setDueDate(e.target.value)} 
+                      <input
+                        type="date"
+                        style={styles.dateInput}
+                        value={dueDate}
+                        onChange={(e) => setDueDate(e.target.value)}
                         min={invoiceDate}
                       />
                     </div>
@@ -1481,34 +1481,34 @@ const InvoicePage = () => {
                   {/* Product Search */}
                   <div ref={searchRef} style={styles.searchWrapper}>
                     <div style={styles.searchContainer}>
-                      <input 
-                        style={styles.searchInput} 
-                        placeholder="Search product by name, model or SKU... (min 2 characters)" 
-                        value={search} 
-                        onChange={(e) => setSearch(e.target.value)} 
+                      <input
+                        style={styles.searchInput}
+                        placeholder="Search product by name, model or SKU... (min 2 characters)"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
                       />
                       {searchLoading && <span style={styles.loadingText}>Searching...</span>}
                     </div>
-                    
+
                     {searchError && (
                       <div style={styles.searchError}>
                         {searchError}
                       </div>
                     )}
-                    
+
                     {products.length > 0 && (
                       <div style={styles.dropdown}>
                         {products.map((p) => (
                           <div key={p.id} style={styles.dropdownItem} onClick={() => addProduct(p)}>
                             <div style={styles.productInfo}>
-                              <strong>{p.name}</strong> 
+                              <strong>{p.name}</strong>
                               {p.model && <span style={styles.productModel}>({p.model})</span>}
                               {p.type && <span style={styles.productType}> - {p.type}</span>}
                             </div>
                             <div style={styles.productPrice}>
-                              ₹{p.sellPrice || p.price || 0} 
+                              ₹{p.sellPrice || p.price || 0}
                               {p.quantity !== undefined && (
-                                <span style={{...styles.stockInfo, color: p.quantity < 5 ? '#ef4444' : '#94a3b8'}}>
+                                <span style={{ ...styles.stockInfo, color: p.quantity < 5 ? '#ef4444' : '#94a3b8' }}>
                                   Stock: {p.quantity}
                                 </span>
                               )}
@@ -1544,12 +1544,12 @@ const InvoicePage = () => {
                               <td style={styles.td}>{item.hsnCode || "-"}</td>
                               <td style={styles.td}>₹{safeNumber(item.price).toFixed(2)}</td>
                               <td style={styles.td}>
-                                <input 
-                                  type="number" 
-                                  style={styles.qtyInput} 
-                                  value={item.quantity} 
+                                <input
+                                  type="number"
+                                  style={styles.qtyInput}
+                                  value={item.quantity}
                                   min="1"
-                                  onChange={(e) => changeQty(index, parseInt(e.target.value) || 1)} 
+                                  onChange={(e) => changeQty(index, parseInt(e.target.value) || 1)}
                                 />
                               </td>
                               <td style={styles.td}>{item.gst}%</td>
@@ -1583,7 +1583,7 @@ const InvoicePage = () => {
                     <div style={styles.paymentGrid}>
                       <div style={styles.formField}>
                         <label style={styles.label}>Payment Method</label>
-                        <select 
+                        <select
                           style={styles.select}
                           value={paymentMethod}
                           onChange={(e) => setPaymentMethod(e.target.value)}
@@ -1595,10 +1595,10 @@ const InvoicePage = () => {
                           <option value="online">Online</option>
                         </select>
                       </div>
-                      
+
                       <div style={styles.formField}>
                         <label style={styles.label}>Payment Status</label>
-                        <select 
+                        <select
                           style={styles.select}
                           value={paymentStatus}
                           onChange={(e) => setPaymentStatus(e.target.value)}
@@ -1638,14 +1638,14 @@ const InvoicePage = () => {
                   {items.length > 0 && (
                     <div style={styles.summarySection}>
                       <h4 style={styles.summaryTitle}>Summary</h4>
-                      
+
                       <div style={styles.summaryRow}>
                         <span>Subtotal:</span>
                         <span>₹{subtotal.toFixed(2)}</span>
                       </div>
-                      
+
                       <div style={styles.discountRow}>
-                        <select 
+                        <select
                           style={styles.discountTypeSelect}
                           value={discountType}
                           onChange={(e) => {
@@ -1656,15 +1656,15 @@ const InvoicePage = () => {
                           <option value="fixed">Fixed (₹)</option>
                           <option value="percentage">Percentage (%)</option>
                         </select>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           style={styles.discountInput}
                           placeholder={discountType === "fixed" ? "Discount amount" : "Discount %"}
-                          value={discount} 
+                          value={discount}
                           min="0"
                           max={discountType === "percentage" ? "100" : subtotal}
                           step={discountType === "fixed" ? "1" : "0.1"}
-                          onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} 
+                          onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
                         />
                       </div>
 
@@ -1715,7 +1715,7 @@ const InvoicePage = () => {
                   {/* Notes */}
                   <div style={styles.notesSection}>
                     <label style={styles.label}>Notes / Terms & Conditions:</label>
-                    <textarea 
+                    <textarea
                       style={styles.notesInput}
                       rows="3"
                       value={notes}
@@ -1730,16 +1730,16 @@ const InvoicePage = () => {
             {/* Modal Footer */}
             <div style={styles.modalFooter}>
               {modalStep > 1 && (
-                <button 
+                <button
                   style={styles.backButton}
                   onClick={handleBackStep}
                 >
                   Back
                 </button>
               )}
-              
+
               {modalStep < 3 ? (
-                <button 
+                <button
                   style={styles.nextButton}
                   onClick={handleNextStep}
                   disabled={modalStep === 2 && items.length === 0}
@@ -1747,7 +1747,7 @@ const InvoicePage = () => {
                   Next
                 </button>
               ) : (
-                <button 
+                <button
                   style={styles.saveButton}
                   onClick={saveInvoice}
                   disabled={loading || items.length === 0}

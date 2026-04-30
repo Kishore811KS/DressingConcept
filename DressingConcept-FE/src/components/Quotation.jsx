@@ -42,9 +42,9 @@ const QuotationPage = () => {
 
   // Company details
   const companyDetails = {
-    name: "Avva Inventory",
-    address: "No.71, M.T.H.road (Opp padi post office), Padi, Chennai - 600 050",
-    phone: "98657 09626",
+    name: "Dressing Concept",
+    address: "88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082",
+    phone: "98848 58576",
     email: "hiprintsolutions@gmail.com",
     gstin: "33ABCDE1234F1Z5"
   };

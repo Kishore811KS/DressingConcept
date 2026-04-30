@@ -5,19 +5,19 @@ import axios from 'axios';
 const ServiceBill = () => {
   // State management
   const [manualServices, setManualServices] = useState([]);
-  
+
   // New service entry form
   const [newServiceName, setNewServiceName] = useState('');
   const [newServiceDescription, setNewServiceDescription] = useState('');
   const [newServicePrice, setNewServicePrice] = useState('');
   const [newServiceGST, setNewServiceGST] = useState('18');
   const [newServiceCategory, setNewServiceCategory] = useState('General');
-  
+
   // Bill information
   const [billNumber, setBillNumber] = useState('');
   const [currentDate, setCurrentDate] = useState('');
   const [currentTime, setCurrentTime] = useState('');
-  
+
   // Customer information
   const [customerName, setCustomerName] = useState('Walk-in Customer');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -25,17 +25,17 @@ const ServiceBill = () => {
   const [customerGST, setCustomerGST] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerType, setCustomerType] = useState('regular'); // Changed from 'external' to 'regular'
-  
+
   // Discount information
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('percentage');
   const [manualDiscount, setManualDiscount] = useState(false);
-  
+
   // Payment information
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentStatus, setPaymentStatus] = useState('pending');
-  
+
   // Payment details
   const [cashReceived, setCashReceived] = useState(0);
   const [cardNumber, setCardNumber] = useState('');
@@ -44,7 +44,7 @@ const ServiceBill = () => {
   const [transactionId, setTransactionId] = useState('');
   const [bankName, setBankName] = useState('');
   const [chequeNumber, setChequeNumber] = useState('');
-  
+
   // UI states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -74,12 +74,11 @@ const ServiceBill = () => {
     'Other'
   ];
 
-  
+
   const shopDetails = {
-    name: 'Avva Inventory',
-    phone: '+91 72993 00400',
-    address: 'No.71, M.T.H.road (Opp padi post office), Padi',
-    city: 'Chennai - 600 050',
+    name: 'Dressing Concept',
+    phone: '+91 98848 58576',
+    address: '88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082',
     gst: '33ABCDE1234F1Z5'
   };
 
@@ -124,7 +123,7 @@ const ServiceBill = () => {
         data: error.response?.data,
         message: error.message
       });
-      
+
       // Handle different error scenarios
       if (error.code === 'ECONNABORTED') {
         setError('Request timeout. Please check if server is running.');
@@ -133,7 +132,7 @@ const ServiceBill = () => {
       } else {
         setError(error.response?.data?.error || error.message || 'An error occurred');
       }
-      
+
       return Promise.reject(error);
     }
   );
@@ -724,13 +723,13 @@ const ServiceBill = () => {
     const year = now.getFullYear().toString().slice(-2);
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
-    
+
     const randomChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let random = '';
     for (let i = 0; i < 8; i++) {
       random += randomChars.charAt(Math.floor(Math.random() * randomChars.length));
     }
-    
+
     setBillNumber(`HPS-SV-${year}${month}${day}-${random}`);
   };
 
@@ -753,7 +752,7 @@ const ServiceBill = () => {
   useEffect(() => {
     generateBillNumber();
     updateDateTime();
-    
+
     const interval = setInterval(updateDateTime, 60000);
     return () => clearInterval(interval);
   }, []);
@@ -898,7 +897,7 @@ const ServiceBill = () => {
       }
     `;
     document.head.appendChild(style);
-    
+
     return () => {
       document.head.removeChild(style);
     };
@@ -907,7 +906,7 @@ const ServiceBill = () => {
   // Clear payment method specific fields when method changes
   useEffect(() => {
     setShowPaymentDetails(true);
-    switch(paymentMethod) {
+    switch (paymentMethod) {
       case 'cash':
         setCardNumber('');
         setCardHolderName('');
@@ -952,16 +951,16 @@ const ServiceBill = () => {
   // Validate form before saving
   const validateForm = () => {
     const errors = {};
-    
+
     if (!customerName || customerName.trim() === '') {
       errors.customerName = 'Customer name is required';
     }
-    
+
     const activeServices = manualServices.filter(s => s.quantity > 0);
     if (activeServices.length === 0) {
       errors.services = 'At least one service with quantity > 0 is required';
     }
-    
+
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -983,14 +982,14 @@ const ServiceBill = () => {
     }
 
     const gstRate = parseFloat(newServiceGST) || 0;
-    
+
     // Generate a temporary ID
     const tempId = Date.now() + Math.floor(Math.random() * 1000);
-    
+
     // Calculate GST and total
     const gstAmount = (price * gstRate / 100);
     const total = price + gstAmount;
-    
+
     // Add to manual services
     setManualServices([
       ...manualServices,
@@ -1007,21 +1006,21 @@ const ServiceBill = () => {
         isManual: true
       }
     ]);
-    
+
     // Clear form
     setNewServiceName('');
     setNewServiceDescription('');
     setNewServicePrice('');
     setNewServiceGST('18');
     setNewServiceCategory('General');
-    
+
     // Focus back on service name
     setTimeout(() => {
       if (serviceNameInputRef.current) {
         serviceNameInputRef.current.focus();
       }
     }, 100);
-    
+
     setSuccess('Service added to bill');
     setTimeout(() => setSuccess(''), 2000);
   };
@@ -1029,26 +1028,26 @@ const ServiceBill = () => {
   // Update quantity
   const updateQuantity = (serviceId, newQuantity) => {
     const service = manualServices.find(s => s.id === serviceId);
-    
+
     if (service) {
       newQuantity = parseInt(newQuantity) || 0;
-      
+
       if (newQuantity >= 0) {
         const gstAmount = (service.price * service.gstRate / 100) * newQuantity;
         const total = (service.price * newQuantity) + gstAmount;
-        
+
         const updatedServices = manualServices.map(s =>
           s.id === serviceId
-            ? { 
-                ...s, 
-                quantity: newQuantity,
-                gstAmount: gstAmount,
-                total: total
-              }
+            ? {
+              ...s,
+              quantity: newQuantity,
+              gstAmount: gstAmount,
+              total: total
+            }
             : s
         );
         setManualServices(updatedServices);
-        
+
         if (newQuantity === 0) {
           setSuccess(`${service.name} quantity set to 0`);
         } else {
@@ -1085,7 +1084,7 @@ const ServiceBill = () => {
   const calculateDiscountAmount = () => {
     const subtotal = calculateSubtotal();
     if (subtotal === 0) return 0;
-    
+
     if (discountType === 'percentage') {
       return (subtotal * discount) / 100;
     }
@@ -1117,7 +1116,7 @@ const ServiceBill = () => {
     setManualDiscount(true);
     const numValue = parseFloat(value) || 0;
     const subtotal = calculateSubtotal();
-    
+
     if (discountType === 'percentage') {
       if (numValue > 100) {
         setError('Percentage discount cannot exceed 100%');
@@ -1137,7 +1136,7 @@ const ServiceBill = () => {
         setDiscount(numValue);
       }
     }
-    
+
     setTimeout(() => setError(''), 3000);
   };
 
@@ -1146,7 +1145,7 @@ const ServiceBill = () => {
     setManualDiscount(true);
     const subtotal = calculateSubtotal();
     setDiscountType(type);
-    
+
     if (type === 'percentage') {
       if (discountType === 'fixed' && subtotal > 0) {
         const percentage = (discount / subtotal) * 100;
@@ -1189,7 +1188,7 @@ const ServiceBill = () => {
     }
 
     const activeServices = manualServices.filter(s => s.quantity > 0);
-    
+
     if (activeServices.length === 0) {
       setError('No services with quantity > 0 to save!');
       return null;
@@ -1226,7 +1225,7 @@ const ServiceBill = () => {
 
       // Use the service-bills endpoint
       const response = await api.post('/service-bills', billData);
-      
+
       if (response.data.success) {
         setSuccess('✅ Service bill saved successfully!');
         setSavedBillId(response.data.billId);
@@ -1238,9 +1237,9 @@ const ServiceBill = () => {
         });
         setShowWhatsApp(true);
         setBillSaved(true);
-        
+
         console.log('✅ Bill saved with ID:', response.data.billId);
-        
+
         return {
           billId: response.data.billId,
           billNumber: response.data.billNumber
@@ -1250,7 +1249,7 @@ const ServiceBill = () => {
       }
     } catch (err) {
       console.error('❌ Save service bill error:', err);
-      
+
       // Handle specific error cases
       if (err.response?.data?.error) {
         setError(err.response.data.error);
@@ -1259,7 +1258,7 @@ const ServiceBill = () => {
       } else {
         setError('Failed to save bill. Please try again.');
       }
-      
+
       return null;
     } finally {
       setLoading(false);
@@ -1676,7 +1675,7 @@ const ServiceBill = () => {
     }
 
     const savedData = await saveBillToDatabase();
-    
+
     if (savedData) {
       downloadBill();
     }
@@ -1692,17 +1691,17 @@ const ServiceBill = () => {
     }
 
     const savedData = await saveBillToDatabase();
-    
+
     if (savedData) {
       // Use the confirmed bill number from backend response
       const confirmedBillNumber = savedData.billNumber;
-      
+
       // Generate fresh HTML with the confirmed bill number from backend
       const printHTML = generateBillHTML(confirmedBillNumber);
-      
+
       // Create a new window for printing
       const printWindow = window.open('', '_blank');
-      
+
       if (printWindow) {
         // Write the HTML and trigger print
         printWindow.document.write(`
@@ -1755,7 +1754,7 @@ const ServiceBill = () => {
     }
 
     const cleanPhone = customerPhone.replace(/\D/g, '');
-    
+
     if (cleanPhone.length < 10) {
       setError('Please enter a valid 10-digit phone number');
       setTimeout(() => setError(''), 3000);
@@ -1780,13 +1779,13 @@ const ServiceBill = () => {
     message += `Customer: ${customerName}\n`;
     message += `================\n`;
     message += `SERVICES:\n`;
-    
+
     activeServices.forEach(s => {
       message += `${s.name.substring(0, 15)}... ${s.quantity}x ₹${s.price.toFixed(2)}`;
       if (s.gstRate > 0) message += ` (GST: ${s.gstRate}%)`;
       message += ` = ₹${s.total.toFixed(2)}\n`;
     });
-    
+
     message += `================\n`;
     message += `Subtotal: ₹${subtotal.toFixed(2)}\n`;
     message += `GST: +₹${totalGST.toFixed(2)}\n`;
@@ -1798,12 +1797,12 @@ const ServiceBill = () => {
     message += `Status: ${paymentStatus.toUpperCase()}\n`;
     if (due > 0) message += `Due: ₹${due.toFixed(2)}\n`;
     message += `================\n`;
-    message += `Thank you for choosing Avva Inventory!\n`;
+    message += `Thank you for choosing Dressing Concept!\n`;
     message += `For service support, call ${shopDetails.phone}`;
 
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
-    
+
     setSuccess('WhatsApp opened with service bill details!');
     setTimeout(() => setSuccess(''), 3000);
   };
@@ -1844,7 +1843,7 @@ const ServiceBill = () => {
   // Fetch customer by phone
   const fetchCustomerByPhone = async (phone) => {
     if (phone.length < 10) return;
-    
+
     setFetchingCustomer(true);
     try {
       const response = await api.get(`/billing/customer/${phone}`);
@@ -1920,23 +1919,23 @@ const ServiceBill = () => {
     <div style={baseStyles.container}>
       {/* Left Panel - Manual Service Entry */}
       <div style={baseStyles.productPanel} className="no-print">
-        <h2 style={baseStyles.productPanelTitle}>🔧 Create Service Bill - Avva Inventory</h2>
-        
+        <h2 style={baseStyles.productPanelTitle}>🔧 Create Service Bill - Dressing Concept</h2>
+
         {error && (
-          <div style={{...baseStyles.alert, ...baseStyles.alertError}}>
+          <div style={{ ...baseStyles.alert, ...baseStyles.alertError }}>
             ⚠️ {error}
           </div>
         )}
-        
+
         {success && (
-          <div style={{...baseStyles.alert, ...baseStyles.alertSuccess}}>
+          <div style={{ ...baseStyles.alert, ...baseStyles.alertSuccess }}>
             ✅ {success}
           </div>
         )}
-        
+
         <div style={baseStyles.manualEntrySection}>
           <h3 style={baseStyles.manualEntryTitle}>➕ Add Service Manually</h3>
-          
+
           <div style={baseStyles.formGrid}>
             <div style={baseStyles.formGroup}>
               <label style={baseStyles.formLabel}>Service Name *</label>
@@ -1954,7 +1953,7 @@ const ServiceBill = () => {
                 autoComplete="off"
               />
             </div>
-            
+
             <div style={baseStyles.formGroup}>
               <label style={baseStyles.formLabel}>Category</label>
               <select
@@ -1968,7 +1967,7 @@ const ServiceBill = () => {
               </select>
             </div>
           </div>
-          
+
           <div style={baseStyles.formGroup}>
             <label style={baseStyles.formLabel}>Description (Optional)</label>
             <textarea
@@ -1980,7 +1979,7 @@ const ServiceBill = () => {
               rows="2"
             />
           </div>
-          
+
           <div style={baseStyles.formGrid}>
             <div style={baseStyles.formGroup}>
               <label style={baseStyles.formLabel}>Price (₹) *</label>
@@ -1995,7 +1994,7 @@ const ServiceBill = () => {
                 step="0.01"
               />
             </div>
-            
+
             <div style={baseStyles.formGroup}>
               <label style={baseStyles.formLabel}>GST Rate (%)</label>
               <select
@@ -2011,7 +2010,7 @@ const ServiceBill = () => {
               </select>
             </div>
           </div>
-          
+
           <button
             style={baseStyles.addButton}
             onClick={addManualService}
@@ -2020,12 +2019,12 @@ const ServiceBill = () => {
           >
             ➕ Add Service to Bill
           </button>
-          
-          <p style={{fontSize: '11px', color: '#666', marginTop: '10px', textAlign: 'center'}}>
+
+          <p style={{ fontSize: '11px', color: '#666', marginTop: '10px', textAlign: 'center' }}>
             Press Enter to quickly add service
           </p>
         </div>
-        
+
         <div style={baseStyles.selectedProducts}>
           <h3 style={baseStyles.selectedProductsTitle}>
             🛠️ Services in Bill ({activeServices.length} active / {manualServices.length} total)
@@ -2035,8 +2034,8 @@ const ServiceBill = () => {
               <p style={baseStyles.noItems}>No services added yet. Fill the form above to add services.</p>
             ) : (
               manualServices.map(service => (
-                <div 
-                  key={service.id} 
+                <div
+                  key={service.id}
                   style={{
                     ...baseStyles.selectedItem,
                     ...(service.quantity === 0 ? dynamicStyles.zeroQuantity : {})
@@ -2057,7 +2056,7 @@ const ServiceBill = () => {
                       <span style={baseStyles.itemGSTRate}>GST: {service.gstRate}%</span>
                     )}
                     {service.quantity === 0 && (
-                      <span style={{fontSize: '9px', color: '#856404'}}>(Zero quantity)</span>
+                      <span style={{ fontSize: '9px', color: '#856404' }}>(Zero quantity)</span>
                     )}
                   </div>
                   <div style={baseStyles.itemPrice}>₹{service.price.toFixed(2)}</div>
@@ -2083,12 +2082,12 @@ const ServiceBill = () => {
             )}
           </div>
           {manualServices.length > 0 && (
-            <p style={{fontSize: '11px', color: '#666', marginTop: '10px', textAlign: 'center'}}>
+            <p style={{ fontSize: '11px', color: '#666', marginTop: '10px', textAlign: 'center' }}>
               💡 Set quantity to 0 to keep service in list (will not be billed)
             </p>
           )}
         </div>
-        
+
         {/* Validation Errors */}
         {validationErrors.customerName && (
           <p style={baseStyles.errorText}>⚠️ {validationErrors.customerName}</p>
@@ -2097,13 +2096,13 @@ const ServiceBill = () => {
           <p style={baseStyles.errorText}>⚠️ {validationErrors.services}</p>
         )}
       </div>
-      
+
       {/* Right Panel - Thermal Bill */}
       <div style={baseStyles.billPanel} className="no-print">
         <div style={baseStyles.billContainer}>
-          <div 
-            style={baseStyles.billPaper} 
-            id="billPaper" 
+          <div
+            style={baseStyles.billPaper}
+            id="billPaper"
             ref={billPaperRef}
           >
             <div className="bill-header">
@@ -2113,11 +2112,11 @@ const ServiceBill = () => {
               <p style={baseStyles.billHeaderP}>{shopDetails.city}</p>
               <p style={baseStyles.billHeaderP}>Ph: {shopDetails.phone}</p>
               <p style={baseStyles.billHeaderP}>GST: {shopDetails.gst}</p>
-              <p style={{...baseStyles.billHeaderP, fontWeight: 'bold', color: '#17a2b8'}}>
+              <p style={{ ...baseStyles.billHeaderP, fontWeight: 'bold', color: '#17a2b8' }}>
                 🔧 SERVICE BILL
               </p>
             </div>
-            
+
             <div className="bill-info">
               <div style={baseStyles.billInfoRow}>
                 <span>Bill No:</span>
@@ -2132,27 +2131,27 @@ const ServiceBill = () => {
                 <span>{currentTime}</span>
               </div>
             </div>
-            
+
             <div className="customer-section">
               <div style={baseStyles.customerRow}>
                 <span style={baseStyles.customerLabel}>Customer:</span>
                 <span style={baseStyles.customerValue}>{customerName || 'Walk-in Customer'}</span>
               </div>
-              
+
               {customerPhone && (
                 <div style={baseStyles.customerRow}>
-                  <span style={{...baseStyles.customerLabel, color: '#17a2b8'}}>Phone Number:</span>
+                  <span style={{ ...baseStyles.customerLabel, color: '#17a2b8' }}>Phone Number:</span>
                   <span style={baseStyles.customerValue}>{customerPhone}</span>
                 </div>
               )}
-              
+
               {customerEmail && (
                 <div style={baseStyles.customerRow}>
                   <span style={baseStyles.customerLabel}>Email:</span>
                   <span style={baseStyles.customerValue}>{customerEmail}</span>
                 </div>
               )}
-              
+
               {customerGST && (
                 <div style={baseStyles.customerRow}>
                   <span style={baseStyles.customerLabel}>GST:</span>
@@ -2160,7 +2159,7 @@ const ServiceBill = () => {
                 </div>
               )}
             </div>
-            
+
             <div style={baseStyles.customerSection} className="no-print">
               <input
                 type="text"
@@ -2172,7 +2171,7 @@ const ServiceBill = () => {
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="Customer Name *"
               />
-              
+
               <input
                 type="text"
                 style={{
@@ -2185,7 +2184,7 @@ const ServiceBill = () => {
                 placeholder={fetchingCustomer ? "Searching..." : "Phone Number"}
                 maxLength="10"
               />
-              
+
               <input
                 type="email"
                 style={baseStyles.customerInput}
@@ -2193,7 +2192,7 @@ const ServiceBill = () => {
                 onChange={(e) => setCustomerEmail(e.target.value)}
                 placeholder="Email Address"
               />
-              
+
               <input
                 type="text"
                 style={baseStyles.customerInput}
@@ -2201,7 +2200,7 @@ const ServiceBill = () => {
                 onChange={(e) => setCustomerAddress(e.target.value)}
                 placeholder="Address"
               />
-              
+
               <input
                 type="text"
                 style={baseStyles.customerInput}
@@ -2210,10 +2209,10 @@ const ServiceBill = () => {
                 placeholder="GST Number (if applicable)"
               />
             </div>
-            
+
             {/* Discount Section */}
             <div style={baseStyles.discountSection} className="no-print">
-              <div 
+              <div
                 style={baseStyles.discountHeader}
                 onClick={() => setShowDiscountInput(!showDiscountInput)}
               >
@@ -2224,7 +2223,7 @@ const ServiceBill = () => {
                   {showDiscountInput ? '▼' : '▶'}
                 </span>
               </div>
-              
+
               {showDiscountInput && (
                 <div style={baseStyles.discountControls}>
                   <select
@@ -2235,7 +2234,7 @@ const ServiceBill = () => {
                     <option value="percentage">Percentage (%)</option>
                     <option value="fixed">Fixed Amount (₹)</option>
                   </select>
-                  
+
                   <input
                     type="number"
                     style={baseStyles.discountInput}
@@ -2248,12 +2247,12 @@ const ServiceBill = () => {
                   />
                 </div>
               )}
-              
+
               <div style={baseStyles.discountAmount}>
                 Discount Amount: -₹{discountAmount.toFixed(2)}
               </div>
             </div>
-            
+
             <div className="bill-items">
               <div className="bill-items-header">
                 <span>Service</span>
@@ -2270,8 +2269,8 @@ const ServiceBill = () => {
                   activeServices.map(service => (
                     <div key={service.id} className="bill-item">
                       <span style={baseStyles.billItemName}>
-                        {service.name.length > 12 
-                          ? service.name.substring(0, 10) + '...' 
+                        {service.name.length > 12
+                          ? service.name.substring(0, 10) + '...'
                           : service.name
                         }
                         {service.gstRate > 0 && (
@@ -2286,31 +2285,31 @@ const ServiceBill = () => {
                 )}
               </div>
             </div>
-            
+
             <div className="bill-summary">
               <div className="summary-row">
                 <span>Subtotal:</span>
                 <span>₹{subtotal.toFixed(2)}</span>
               </div>
-              
+
               <div className="summary-row">
                 <span>GST Total:</span>
-                <span style={{color: '#dc3545'}}>+₹{totalGST.toFixed(2)}</span>
+                <span style={{ color: '#dc3545' }}>+₹{totalGST.toFixed(2)}</span>
               </div>
-              
+
               {discount > 0 && (
                 <div className="summary-row">
                   <span>Discount ({discount}{discountType === 'percentage' ? '%' : '₹'}):</span>
                   <span>-₹{discountAmount.toFixed(2)}</span>
                 </div>
               )}
-              
+
               <div className="summary-row summary-row-total">
                 <span>Total:</span>
                 <span>₹{total.toFixed(2)}</span>
               </div>
             </div>
-            
+
             <div className="payment-section">
               <div style={baseStyles.paymentRow}>
                 <span>Payment Method:</span>
@@ -2325,7 +2324,7 @@ const ServiceBill = () => {
                   <option value="cheque">📝 Cheque</option>
                 </select>
               </div>
-              
+
               {showPaymentDetails && (
                 <div style={baseStyles.paymentDetails}>
                   {paymentMethod === 'cash' && (
@@ -2347,7 +2346,7 @@ const ServiceBill = () => {
                       </div>
                     </>
                   )}
-                  
+
                   {paymentMethod === 'card' && (
                     <>
                       <input
@@ -2374,7 +2373,7 @@ const ServiceBill = () => {
                       />
                     </>
                   )}
-                  
+
                   {paymentMethod === 'upi' && (
                     <>
                       <input
@@ -2393,7 +2392,7 @@ const ServiceBill = () => {
                       />
                     </>
                   )}
-                  
+
                   {paymentMethod === 'cheque' && (
                     <>
                       <input
@@ -2414,7 +2413,7 @@ const ServiceBill = () => {
                   )}
                 </div>
               )}
-              
+
               <div style={baseStyles.paymentRow}>
                 <span>Paid Amount:</span>
                 <input
@@ -2426,25 +2425,25 @@ const ServiceBill = () => {
                   step="0.01"
                 />
               </div>
-              
+
               <div style={baseStyles.paymentRow}>
                 <span>Payment Status:</span>
                 <span style={{
-                  color: paymentStatus === 'paid' ? '#28a745' : 
-                         paymentStatus === 'partial' ? '#ffc107' : '#dc3545',
+                  color: paymentStatus === 'paid' ? '#28a745' :
+                    paymentStatus === 'partial' ? '#ffc107' : '#dc3545',
                   fontWeight: 'bold'
                 }}>
                   {paymentStatus.toUpperCase()}
                 </span>
               </div>
-              
+
               {due > 0 && (
                 <div style={baseStyles.paymentRow}>
                   <span>Due Amount:</span>
                   <span>₹{due.toFixed(2)}</span>
                 </div>
               )}
-              
+
               <button
                 style={{
                   ...baseStyles.btn,
@@ -2458,14 +2457,14 @@ const ServiceBill = () => {
                 Exact Amount
               </button>
             </div>
-            
+
             <div className="bill-footer">
               <p style={baseStyles.billFooterP}>Thank you for choosing {shopDetails.name}!</p>
               <p style={baseStyles.billFooterP}>For service support, call {shopDetails.phone}</p>
               <p style={baseStyles.billFooterP}>** Computer generated service bill **</p>
             </div>
           </div>
-          
+
           <div style={baseStyles.actionButtons} className="no-print">
             <button
               style={{
@@ -2527,13 +2526,13 @@ const ServiceBill = () => {
           )}
 
           {billSaved && (
-            <p style={{fontSize: '10px', color: '#28a745', textAlign: 'center', marginTop: '5px'}}>
+            <p style={{ fontSize: '10px', color: '#28a745', textAlign: 'center', marginTop: '5px' }}>
               ✓ Service bill saved to database
             </p>
           )}
         </div>
       </div>
-      
+
       {/* Hidden download link */}
       <a ref={downloadLinkRef} style={baseStyles.downloadLink}></a>
     </div>
