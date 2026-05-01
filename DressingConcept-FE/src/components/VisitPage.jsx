@@ -112,7 +112,7 @@ const VisitBillPage = () => {
   const api = axios.create({
     baseURL: API_BASE_URL,
     withCredentials: true,
-    timeout: 10000, // Important: 10 seconds timeout
+    timeout: 10000,
     headers: {
       'Content-Type': 'application/json'
     }
@@ -138,6 +138,91 @@ const VisitBillPage = () => {
     vip: { icon: <Crown size={14} />, color: '#d97706', label: 'VIP' },
     corporate: { icon: <Briefcase size={14} />, color: '#2563eb', label: 'Corporate' }
   };
+
+  // Calculate current bills for pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentBills = filteredBills.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredBills.length / itemsPerPage);
+
+  // Keyboard Shortcut Handler
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const activeElement = document.activeElement;
+      const isTyping = activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.isContentEditable;
+
+      // F8 / Ctrl+Shift+V - View Bill Details
+      if (event.key === 'F8' || (event.ctrlKey && event.shiftKey && event.key === 'V')) {
+        event.preventDefault();
+        if (currentBills.length > 0 && !isTyping) {
+          const firstBill = currentBills[0];
+          fetchBillDetails(firstBill.id);
+          showMessage("success", "⌨️ Viewing bill details (F8)");
+        } else if (currentBills.length === 0) {
+          showMessage("error", "No bills to view");
+        }
+        return;
+      }
+
+      // F9 / Ctrl+Shift+B - Print Bill
+      if (event.key === 'F9' || (event.ctrlKey && event.shiftKey && event.key === 'B')) {
+        event.preventDefault();
+        if (currentBills.length > 0 && !isTyping) {
+          const firstBill = currentBills[0];
+          handlePrintBill(firstBill);
+          showMessage("success", "⌨️ Printing bill (F9)");
+        } else if (currentBills.length === 0) {
+          showMessage("error", "No bills to print");
+        }
+        return;
+      }
+
+      // F10 / Ctrl+Shift+W - WhatsApp Share
+      if (event.key === 'F10' || (event.ctrlKey && event.shiftKey && event.key === 'W')) {
+        event.preventDefault();
+        if (currentBills.length > 0 && !isTyping) {
+          const firstBill = currentBills[0];
+          if (firstBill.customerPhone) {
+            handleWhatsAppShare(firstBill);
+            showMessage("success", "⌨️ Opening WhatsApp (F10)");
+          } else {
+            showMessage("error", "No phone number available");
+          }
+        } else if (currentBills.length === 0) {
+          showMessage("error", "No bills to share");
+        }
+        return;
+      }
+
+      // Ctrl+F - Focus search
+      if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
+        event.preventDefault();
+        const searchInput = document.querySelector('input[placeholder*="Search"]');
+        searchInput?.focus();
+        showMessage("success", "⌨️ Search focused (Ctrl+F)");
+        return;
+      }
+
+      // Ctrl+R - Refresh
+      if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
+        event.preventDefault();
+        fetchBills();
+        showMessage("success", "⌨️ Refreshing bills (Ctrl+R)");
+        return;
+      }
+
+      // Escape - Clear messages
+      if (event.key === 'Escape') {
+        setMessage({ type: "", text: "" });
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentBills]);
 
   // Fetch companies on mount
   useEffect(() => {
@@ -179,12 +264,10 @@ const VisitBillPage = () => {
 
       if (response.data && response.data.length > 0) {
         setCompanies(response.data);
-        // Auto-select first company
         const firstCompany = response.data[0];
         setSelectedCompanyId(firstCompany.id);
         await fetchCompanyDetails(firstCompany.id);
       } else {
-        // Use default company details
         setCompanyDetails({
           name: "Dressing Concept",
           address: "88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082",
@@ -199,7 +282,6 @@ const VisitBillPage = () => {
     } catch (err) {
       console.error('Error fetching companies:', err);
       showMessage("error", "❌ Failed to fetch company details");
-      // Use default company details
       setCompanyDetails({
         name: "Dressing Concept",
         address: "88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082",
@@ -235,7 +317,6 @@ const VisitBillPage = () => {
       });
     } catch (err) {
       console.error('Error fetching company details:', err);
-      // Keep existing company details if fetch fails
     }
   };
 
@@ -245,7 +326,7 @@ const VisitBillPage = () => {
     setShowCompanySelector(false);
     await fetchCompanyDetails(company.id);
     showMessage("success", `✅ Switched to ${company.name}`);
-    fetchBills(); // Refresh bills for the selected company
+    fetchBills();
   };
 
   const fetchBills = async () => {
@@ -253,7 +334,6 @@ const VisitBillPage = () => {
     setError('');
 
     try {
-      // Try different possible endpoints
       const endpoints = [
         `${API_BASE_URL}/billing/bills`,
         `${API_BASE_URL}/bills`,
@@ -284,7 +364,6 @@ const VisitBillPage = () => {
 
       console.log('API Response:', response.data);
 
-      // Extract bills data from response
       let billsData = [];
 
       if (Array.isArray(response.data)) {
@@ -296,7 +375,6 @@ const VisitBillPage = () => {
       } else if (response.data.results && Array.isArray(response.data.results)) {
         billsData = response.data.results;
       } else if (typeof response.data === 'object') {
-        // Try to find any array property
         for (const key in response.data) {
           if (Array.isArray(response.data[key])) {
             billsData = response.data[key];
@@ -314,14 +392,11 @@ const VisitBillPage = () => {
         return;
       }
 
-      // Process bills to ensure all fields are properly mapped
       const processedBills = billsData.map(bill => {
-        // Handle discount - it could be amount or percentage
         let discountValue = parseFloat(bill.discount || bill.discount_amount || 0);
         let discountType = bill.discountType || bill.discount_type || 'amount';
         let subtotal = parseFloat(bill.subtotal || bill.sub_total || 0);
 
-        // Calculate actual discount amount
         let discountAmount = discountValue;
         if (discountType === 'percentage' && subtotal > 0) {
           discountAmount = (subtotal * discountValue) / 100;
@@ -387,7 +462,6 @@ const VisitBillPage = () => {
         };
       });
 
-      // Calculate item count and due amount for each bill
       processedBills.forEach(bill => {
         bill.itemCount = bill.items ? bill.items.length : 0;
         bill.dueAmount = bill.total - bill.paidAmount;
@@ -412,7 +486,6 @@ const VisitBillPage = () => {
     try {
       setLoading(true);
 
-      // First check if we already have the bill in state
       const existingBill = bills.find(b => b.id === billId);
       if (existingBill && existingBill.items && existingBill.items.length > 0) {
         console.log('Using existing bill data');
@@ -422,7 +495,6 @@ const VisitBillPage = () => {
         return;
       }
 
-      // Try different endpoints for single bill
       const endpoints = [
         `${API_BASE_URL}/billing/bills/${billId}`,
         `${API_BASE_URL}/bills/${billId}`,
@@ -448,7 +520,6 @@ const VisitBillPage = () => {
       }
 
       if (!success || !response) {
-        // If API fails, use the existing bill data
         const billFromList = bills.find(b => b.id === billId);
         if (billFromList) {
           console.log('Using bill from list as fallback');
@@ -462,15 +533,12 @@ const VisitBillPage = () => {
 
       console.log('Bill Details Response:', response.data);
 
-      // Process the bill data
       const billData = response.data;
 
-      // Handle discount - it could be amount or percentage
       let discountValue = parseFloat(billData.discount || billData.discount_amount || 0);
       let discountType = billData.discountType || billData.discount_type || 'amount';
       let subtotal = parseFloat(billData.subtotal || billData.sub_total || 0);
 
-      // Calculate actual discount amount
       let discountAmount = discountValue;
       if (discountType === 'percentage' && subtotal > 0) {
         discountAmount = (subtotal * discountValue) / 100;
@@ -535,7 +603,6 @@ const VisitBillPage = () => {
         })) : []
       };
 
-      // Calculate item count and due amount
       processedBill.itemCount = processedBill.items.length;
       processedBill.dueAmount = processedBill.total - processedBill.paidAmount;
 
@@ -546,7 +613,6 @@ const VisitBillPage = () => {
     } catch (err) {
       console.error('Error fetching bill details:', err);
 
-      // Try to use the bill from the list as fallback
       const billFromList = bills.find(b => b.id === billId);
       if (billFromList) {
         console.log('Using bill from list as fallback after error');
@@ -560,6 +626,339 @@ const VisitBillPage = () => {
     }
   };
 
+  // Enhanced Print Bill with thermal receipt design including logo, thank you, and QR codes
+  const handlePrintBill = (bill) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showMessage("error", "❌ Please allow pop-ups to print.");
+      return;
+    }
+
+    const processedBill = {
+      ...bill,
+      subtotal: parseFloat(bill.subtotal) || 0,
+      discountValue: parseFloat(bill.discountValue) || 0,
+      discountAmount: parseFloat(bill.discountAmount) || 0,
+      discountType: bill.discountType || 'amount',
+      tax: parseFloat(bill.tax) || 0,
+      total: parseFloat(bill.total) || 0,
+      paidAmount: parseFloat(bill.paidAmount) || 0,
+      changeAmount: parseFloat(bill.changeAmount) || 0,
+      dueAmount: (parseFloat(bill.total) || 0) - (parseFloat(bill.paidAmount) || 0)
+    };
+
+    let discountDisplay = '';
+    if (processedBill.discountType === 'percentage') {
+      discountDisplay = `${processedBill.discountValue}% (₹${processedBill.discountAmount.toFixed(2)})`;
+    } else {
+      discountDisplay = `₹${processedBill.discountAmount.toFixed(2)}`;
+    }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Bill - ${processedBill.billNumber}</title>
+          <style>
+            @page {
+              size: 80mm auto;
+              margin: 0;
+            }
+            body {
+              font-family: 'Courier New', monospace;
+              font-size: 12px;
+              width: 100%;
+              margin: 0;
+              padding: 5mm 3mm;
+              background: white;
+              color: black;
+              box-sizing: border-box;
+            }
+            .receipt {
+              width: 100%;
+              max-width: 74mm;
+              margin: 0 auto;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            .receipt-header {
+              text-align: center;
+              margin-bottom: 10px;
+            }
+            .receipt-logo {
+              text-align: center;
+              margin-bottom: 5px;
+            }
+            .receipt-logo-img {
+              width: 70px;
+              height: 70px;
+              object-fit: contain;
+            }
+            .receipt-shop {
+              font-size: 16px;
+              font-weight: bold;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              margin: 2px 0;
+            }
+            .receipt-tagline {
+              font-size: 9px;
+              letter-spacing: 0.5px;
+              color: #666;
+              margin-bottom: 3px;
+            }
+            .receipt-addr {
+              font-size: 9px;
+              margin: 1px 0;
+              line-height: 1.2;
+            }
+            .receipt-divider-thin {
+              border-top: 1px dotted #000;
+              margin: 4px 0;
+            }
+            .receipt-dash {
+              border-top: 1px dashed #000;
+              margin: 6px 0;
+            }
+            .receipt-meta {
+              margin: 6px 0;
+            }
+            .receipt-meta-row {
+              display: flex;
+              justify-content: space-between;
+              font-size: 10px;
+              margin: 2px 0;
+            }
+            .receipt-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 8px 0;
+            }
+            .receipt-table th, .receipt-table td {
+              padding: 4px 2px;
+              font-size: 10px;
+            }
+            .receipt-table th {
+              border-bottom: 1px solid #000;
+              text-align: left;
+              font-weight: bold;
+            }
+            .r-desc {
+              text-align: left;
+              width: 50%;
+            }
+            .r-num {
+              text-align: right;
+            }
+            .receipt-pay {
+              display: flex;
+              justify-content: space-between;
+              margin: 10px 0;
+              font-weight: bold;
+              font-size: 14px;
+            }
+            .receipt-summary {
+              margin: 8px 0;
+            }
+            .receipt-row {
+              display: flex;
+              justify-content: space-between;
+              font-size: 10px;
+              margin: 3px 0;
+            }
+            .receipt-savings {
+              color: #059669;
+              font-weight: bold;
+            }
+            .receipt-customer {
+              margin: 8px 0;
+              padding: 5px;
+              background: #f5f5f5;
+              border: 1px solid #ddd;
+            }
+            .receipt-cust-title {
+              font-weight: bold;
+              font-size: 10px;
+              margin-bottom: 3px;
+            }
+            .receipt-cust-name, .receipt-cust-phone {
+              font-size: 9px;
+              margin: 2px 0;
+            }
+            .receipt-points {
+              margin: 8px 0;
+            }
+            .receipt-thankyou {
+              text-align: center;
+              margin-top: 10px;
+              font-weight: bold;
+              font-size: 11px;
+            }
+            .receipt-visit {
+              text-align: center;
+              font-size: 10px;
+              color: #666;
+              margin-top: 3px;
+            }
+            .receipt-qr {
+              display: flex;
+              justify-content: space-around;
+              margin-top: 12px;
+            }
+            .receipt-qr-item {
+              text-align: center;
+            }
+            .receipt-qr-lbl {
+              font-size: 8px;
+              font-weight: bold;
+              margin-bottom: 5px;
+            }
+            .receipt-qr-item img {
+              width: 45px;
+              height: 45px;
+              object-fit: contain;
+            }
+            .text-center {
+              text-align: center;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="receipt">
+            <!-- Header with Logo -->
+            <div class="receipt-header">
+              <div class="receipt-logo">
+                <img src="/Dc-logo.jpg" alt="Dressing Concepts" class="receipt-logo-img" onerror="this.style.display='none'" />
+              </div>
+              <div class="receipt-shop">${companyDetails.name || "DRESSING CONCEPTS"}</div>
+              <div class="receipt-tagline">Style · Quality · Value</div>
+              <div class="receipt-divider-thin"></div>
+              <div class="receipt-addr">${companyDetails.address || "NO.88/70 S.R.P KOVIL STREET, AGARAM, PERAMBUR"}</div>
+              <div class="receipt-addr">${companyDetails.city || "CHENNAI - 600 082"}</div>
+              <div class="receipt-addr">Ph: ${companyDetails.phone || "9840669687"}</div>
+              ${companyDetails.gst ? `<div class="receipt-addr">GSTIN: ${companyDetails.gst}</div>` : ''}
+            </div>
+
+            <div class="receipt-dash"></div>
+
+            <!-- Bill Meta Info -->
+            <div class="receipt-meta">
+              <div class="receipt-meta-row"><span>Bill No: ${processedBill.billNumber}</span><span>${new Date(processedBill.createdAt).toLocaleDateString()}</span></div>
+              <div class="receipt-meta-row"><span>Time: ${new Date(processedBill.createdAt).toLocaleTimeString()}</span><span>User: ${processedBill.createdBy || 'Admin'}</span></div>
+              ${processedBill.counter ? `<div class="receipt-meta-row"><span>Counter: ${processedBill.counter}</span><span></span></div>` : ''}
+            </div>
+
+            <div class="receipt-dash"></div>
+
+            <!-- Items Table -->
+            <table class="receipt-table">
+              <thead>
+                <tr>
+                  <th class="r-desc">Description</th>
+                  <th class="r-num">Qty</th>
+                  <th class="r-num">Price</th>
+                  <th class="r-num">Amt</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${processedBill.items && processedBill.items.length > 0 ? processedBill.items.map(item => {
+      const productName = item.productName || 'Unknown';
+      const sellPrice = parseFloat(item.sellPrice) || 0;
+      const quantity = item.quantity || 0;
+      const total = parseFloat(item.total) || 0;
+      return `
+                    <tr>
+                      <td class="r-desc">${productName.substring(0, 20)}${productName.length > 20 ? '...' : ''}</td>
+                      <td class="r-num">${quantity}</td>
+                      <td class="r-num">₹${sellPrice.toFixed(2)}</td>
+                      <td class="r-num">₹${total.toFixed(2)}</td>
+                    </tr>
+                  `;
+    }).join('') : '<tr><td colspan="4" class="text-center">No items found</td></tr>'}
+              </tbody>
+            </table>
+
+            <div class="receipt-dash"></div>
+
+            <!-- Payment Summary -->
+            <div class="receipt-pay">
+              <span>Pay Amount</span>
+              <span>₹ ${processedBill.total.toFixed(2)}/-</span>
+            </div>
+
+            <div class="receipt-dash"></div>
+
+            <div class="receipt-summary">
+              <div class="receipt-row"><span>Total Pieces:</span><span>${processedBill.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0}</span></div>
+              <div class="receipt-row"><span>Subtotal:</span><span>₹ ${processedBill.subtotal.toFixed(2)}</span></div>
+              ${processedBill.discountAmount > 0 ? `<div class="receipt-row"><span>Discount:</span><span>- ₹ ${processedBill.discountAmount.toFixed(2)}</span></div>` : ''}
+              ${processedBill.tax > 0 ? `<div class="receipt-row"><span>Tax:</span><span>₹ ${processedBill.tax.toFixed(2)}</span></div>` : ''}
+              <div class="receipt-row receipt-savings"><span>You Saved:</span><span>₹ ${(processedBill.subtotal - processedBill.total).toFixed(2)}</span></div>
+            </div>
+
+            <div class="receipt-dash"></div>
+
+            <!-- Customer Details -->
+            <div class="receipt-customer">
+              <div class="receipt-cust-title">Customer Details</div>
+              <div class="receipt-cust-name">${processedBill.customerName || "Walk-in Customer"}</div>
+              ${processedBill.customerPhone ? `<div class="receipt-cust-phone">📱 ${processedBill.customerPhone}</div>` : ''}
+              ${processedBill.customerAddress ? `<div class="receipt-cust-phone">📍 ${processedBill.customerAddress.substring(0, 30)}</div>` : ''}
+            </div>
+
+            <div class="receipt-dash"></div>
+
+            <!-- Payment Details -->
+            <div class="receipt-summary">
+              <div class="receipt-row"><span>Amount Paid:</span><span>₹ ${processedBill.paidAmount.toFixed(2)}</span></div>
+              ${processedBill.dueAmount > 0 ? `<div class="receipt-row"><span>Due Amount:</span><span>₹ ${processedBill.dueAmount.toFixed(2)}</span></div>` : ''}
+              ${processedBill.changeAmount > 0 ? `<div class="receipt-row"><span>Change:</span><span>₹ ${processedBill.changeAmount.toFixed(2)}</span></div>` : ''}
+              <div class="receipt-row"><span>Payment Mode:</span><span>${(processedBill.paymentMethod || 'cash').toUpperCase()}</span></div>
+            </div>
+
+            <div class="receipt-dash"></div>
+
+            <!-- Rewards Points -->
+            <div class="receipt-points">
+              <div class="receipt-row"><span>Points Used:</span><span>0</span></div>
+              <div class="receipt-row"><span>Points Available:</span><span>${processedBill.rewardPointsAvailable || 0}</span></div>
+              <div class="receipt-row"><span>Points Earned:</span><span>${processedBill.noRewards ? "0" : Math.floor(processedBill.total * 0.01)}</span></div>
+            </div>
+
+            <div class="receipt-dash"></div>
+
+            <!-- Thank You Message -->
+            <div class="receipt-thankyou">Thank you for shopping with us!</div>
+            <div class="receipt-visit">Visit again ❤️</div>
+
+            <!-- QR Codes Section -->
+            <div class="receipt-qr">
+              <div class="receipt-qr-item">
+                <div class="receipt-qr-lbl">JOIN US</div>
+                <img src="/whatsapp-qr.png" alt="WhatsApp QR" onerror="this.style.display='none'" />
+              </div>
+              <div class="receipt-qr-item">
+                <div class="receipt-qr-lbl">VISIT US</div>
+                <img src="/instagram.png" alt="Instagram QR" onerror="this.style.display='none'" />
+              </div>
+            </div>
+
+            <div class="receipt-divider-thin"></div>
+            <div class="receipt-visit" style="font-size: 8px;">** Computer generated bill **</div>
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                window.close();
+              }, 300);
+            };
+          <\/script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // WhatsApp share function with company details
   const handleWhatsAppShare = (bill) => {
     if (!bill.customerPhone) {
@@ -567,13 +966,10 @@ const VisitBillPage = () => {
       return;
     }
 
-    // Show sending status
     setWhatsappStatus(prev => ({ ...prev, [bill.id]: 'sending' }));
 
-    // Clean phone number (remove non-digits)
     const cleanPhone = bill.customerPhone.replace(/\D/g, '');
 
-    // Check if phone number is valid
     if (cleanPhone.length < 10) {
       showMessage("error", "❌ Please enter a valid 10-digit phone number");
       setWhatsappStatus(prev => ({ ...prev, [bill.id]: 'error' }));
@@ -583,10 +979,8 @@ const VisitBillPage = () => {
       return;
     }
 
-    // Format phone number for WhatsApp (add country code if not present)
     const whatsappNumber = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
 
-    // Create message with company details
     const dueAmount = (bill.total || 0) - (bill.paidAmount || 0);
     const items = bill.items || [];
 
@@ -657,13 +1051,9 @@ const VisitBillPage = () => {
     message += `Goods once sold will not be taken back\n`;
     message += `** Computer generated bill **\n`;
 
-    // Encode message for URL
     const encodedMessage = encodeURIComponent(message);
-
-    // Open WhatsApp
     window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
 
-    // Update status
     setWhatsappStatus(prev => ({ ...prev, [bill.id]: 'sent' }));
     showMessage("success", "✅ WhatsApp opened successfully!");
 
@@ -675,7 +1065,6 @@ const VisitBillPage = () => {
   const applyFilters = () => {
     let filtered = [...bills];
 
-    // Search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase().trim();
       filtered = filtered.filter(bill =>
@@ -687,21 +1076,18 @@ const VisitBillPage = () => {
       );
     }
 
-    // Payment method filter
     if (filterPaymentMethod !== 'all') {
       filtered = filtered.filter(bill =>
         bill.paymentMethod?.toLowerCase() === filterPaymentMethod.toLowerCase()
       );
     }
 
-    // Customer type filter
     if (filterCustomerType !== 'all') {
       filtered = filtered.filter(bill =>
         bill.customerType?.toLowerCase() === filterCustomerType.toLowerCase()
       );
     }
 
-    // Date range filter
     if (dateRange.start && dateRange.end) {
       const start = new Date(dateRange.start);
       start.setHours(0, 0, 0, 0);
@@ -714,7 +1100,6 @@ const VisitBillPage = () => {
       });
     }
 
-    // Sorting
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'newest':
@@ -807,7 +1192,6 @@ const VisitBillPage = () => {
       doc.setTextColor(99, 102, 241);
       doc.text('Bills Report', 14, 22);
 
-      // Add company details to PDF header
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
       doc.text(`${companyDetails.name}`, 14, 30);
@@ -855,7 +1239,6 @@ const VisitBillPage = () => {
       ];
 
       const tableRows = filteredBills.map(bill => {
-        // Format discount display
         let discountDisplay = '';
         if (bill.discountType === 'percentage') {
           discountDisplay = `${bill.discountValue}%`;
@@ -899,279 +1282,6 @@ const VisitBillPage = () => {
     }
   };
 
-  const handlePrintBill = (bill) => {
-    const printWindow = window.open('', '_blank');
-
-    const processedBill = {
-      ...bill,
-      subtotal: parseFloat(bill.subtotal) || 0,
-      discountValue: parseFloat(bill.discountValue) || 0,
-      discountAmount: parseFloat(bill.discountAmount) || 0,
-      discountType: bill.discountType || 'amount',
-      tax: parseFloat(bill.tax) || 0,
-      total: parseFloat(bill.total) || 0,
-      paidAmount: parseFloat(bill.paidAmount) || 0,
-      changeAmount: parseFloat(bill.changeAmount) || 0,
-      dueAmount: (parseFloat(bill.total) || 0) - (parseFloat(bill.paidAmount) || 0)
-    };
-
-    // Format discount display
-    let discountDisplay = '';
-    if (processedBill.discountType === 'percentage') {
-      discountDisplay = `${processedBill.discountValue}% (₹${processedBill.discountAmount.toFixed(2)})`;
-    } else {
-      discountDisplay = `₹${processedBill.discountAmount.toFixed(2)}`;
-    }
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Bill - ${processedBill.billNumber}</title>
-          <style>
-            body { 
-              font-family: 'Courier New', monospace; 
-              padding: 20px; 
-              max-width: 300px; 
-              margin: 0 auto; 
-              background: #fff; 
-            }
-            .header { 
-              text-align: center; 
-              margin-bottom: 20px; 
-            }
-            .header h1 { 
-              font-size: 24px; 
-              margin-bottom: 2px; 
-              color: #000; 
-            }
-            .header h3 {
-              font-size: 14px;
-              margin: 2px 0;
-              color: #333;
-            }
-            .header p { 
-              margin: 2px 0; 
-              font-size: 12px; 
-              color: #333; 
-            }
-            .logo {
-              max-width: 80px;
-              max-height: 80px;
-              margin-bottom: 10px;
-            }
-            .info { 
-              border-top: 1px dashed #000; 
-              border-bottom: 1px dashed #000; 
-              padding: 10px 0; 
-              margin: 15px 0; 
-            }
-            .info-row { 
-              display: flex; 
-              justify-content: space-between; 
-              font-size: 12px; 
-              margin-bottom: 3px; 
-              color: #000; 
-            }
-            .customer-section {
-              margin: 10px 0;
-              padding: 8px;
-              background: #f9f9f9;
-              border: 1px solid #ddd;
-            }
-            .customer-row {
-              display: flex;
-              justify-content: space-between;
-              font-size: 11px;
-              margin-bottom: 3px;
-            }
-            .customer-type {
-              padding: 2px 6px;
-              border-radius: 3px;
-              font-size: 10px;
-              font-weight: bold;
-              background: ${processedBill.customerType === 'internal' ? '#cce5ff' : '#fff3cd'};
-              color: ${processedBill.customerType === 'internal' ? '#004085' : '#856404'};
-            }
-            .items { 
-              margin: 15px 0; 
-            }
-            .item-header { 
-              display: grid; 
-              grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr; 
-              font-weight: bold; 
-              font-size: 11px; 
-              border-bottom: 1px solid #000; 
-              padding-bottom: 5px; 
-              color: #000; 
-            }
-            .item { 
-              display: grid; 
-              grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
-              font-size: 11px; 
-              padding: 3px 0; 
-              border-bottom: 1px dotted #ccc; 
-              color: #000; 
-            }
-            .summary { 
-              margin: 15px 0; 
-              border-top: 1px solid #000; 
-              padding-top: 10px; 
-            }
-            .summary-row { 
-              display: flex; 
-              justify-content: space-between; 
-              font-size: 12px; 
-              margin-bottom: 3px; 
-              color: #000; 
-            }
-            .total { 
-              font-weight: bold; 
-              font-size: 14px; 
-              border-top: 1px dashed #000; 
-              padding-top: 5px; 
-              margin-top: 5px; 
-              color: #000; 
-            }
-            .footer { 
-              text-align: center; 
-              margin-top: 20px; 
-              font-size: 10px; 
-              border-top: 1px dashed #000; 
-              padding-top: 10px; 
-              color: #666; 
-            }
-            .amount-due {
-              font-weight: bold;
-              color: ${processedBill.dueAmount > 0 ? '#dc2626' : '#059669'};
-            }
-            .shop-details {
-              margin-bottom: 5px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <img src="/avva-logo.jpeg" class="logo" alt="Avva Inventory Logo" />
-            <h1>${companyDetails.name}</h1>
-            <p>${companyDetails.address}</p>
-            <p>${companyDetails.city}</p>
-            ${companyDetails.phone ? `<p>Phone: ${companyDetails.phone}</p>` : ''}
-            ${companyDetails.gst ? `<p>GST: ${companyDetails.gst}</p>` : ''}
-          </div>
-          
-          <div class="info">
-            <div class="info-row"><span>Bill No:</span><span>${processedBill.billNumber}</span></div>
-            <div class="info-row"><span>Date:</span><span>${new Date(processedBill.createdAt).toLocaleDateString()}</span></div>
-            <div class="info-row"><span>Time:</span><span>${new Date(processedBill.createdAt).toLocaleTimeString()}</span></div>
-            ${processedBill.counter ? `<div class="info-row"><span>Counter:</span><span>${processedBill.counter}</span></div>` : ''}
-            ${processedBill.memberId ? `<div class="info-row"><span>Member ID:</span><span>${processedBill.memberId}</span></div>` : ''}
-            ${processedBill.salesPerson ? `<div class="info-row"><span>Sales Person:</span><span>${processedBill.salesPerson}</span></div>` : ''}
-          </div>
-          
-          <div class="customer-section">
-            <div class="customer-row">
-              <span><strong>Customer Type:</strong></span>
-              <span class="customer-type">${(processedBill.customerType || 'external').toUpperCase()}</span>
-            </div>
-            <div class="customer-row">
-              <span><strong>Name:</strong></span>
-              <span>${processedBill.customerName || 'Walk-in Customer'}</span>
-            </div>
-            ${processedBill.customerPhone ? `
-            <div class="customer-row">
-              <span><strong>Phone:</strong></span>
-              <span>${processedBill.customerPhone}</span>
-            </div>` : ''}
-            ${processedBill.customerEmail ? `
-            <div class="customer-row">
-              <span><strong>Email:</strong></span>
-              <span>${processedBill.customerEmail}</span>
-            </div>` : ''}
-            ${processedBill.customerAddress ? `
-            <div class="customer-row">
-              <span><strong>Address:</strong></span>
-              <span>${processedBill.customerAddress}</span>
-            </div>` : ''}
-            ${processedBill.customerGst ? `
-            <div class="customer-row">
-              <span><strong>GST:</strong></span>
-              <span>${processedBill.customerGst}</span>
-            </div>` : ''}
-            <div class="customer-row"><span><strong>Classic Customer:</strong></span><span>${processedBill.isClassicCustomer ? 'Yes' : 'No'}</span></div>
-            <div class="customer-row"><span><strong>Sale Return:</strong></span><span>${processedBill.isSaleReturn ? 'Yes' : 'No'}</span></div>
-            <div class="customer-row"><span><strong>Card Bill:</strong></span><span>${processedBill.isCardBill ? 'Yes' : 'No'}</span></div>
-            <div class="customer-row"><span><strong>No Rewards:</strong></span><span>${processedBill.noRewards ? 'Yes' : 'No'}</span></div>
-          </div>
-          
-          <div class="items">
-            <div class="item-header">
-              <span>Item</span>
-              <span>Unit</span>
-              <span>MRP</span>
-              <span>Price</span>
-              <span>Qty</span>
-              <span>Total</span>
-            </div>
-            ${processedBill.items && processedBill.items.length > 0 ? processedBill.items.map(item => {
-      const productName = item.productName || item.product_name || 'Unknown';
-      const productModel = item.productModel || item.product_model || '';
-      const unit = item.unit || 'PCS';
-      const mrp = parseFloat(item.mrp || item.sellPrice || item.sell_price || 0);
-      const sellPrice = parseFloat(item.sellPrice || item.sell_price || 0);
-      const quantity = item.quantity || 0;
-      const total = parseFloat(item.total || 0);
-
-      return `
-                <div class="item">
-                  <span>${productName} ${productModel ? `(${productModel})` : ''}</span>
-                  <span>${unit}</span>
-                  <span>₹${mrp.toFixed(2)}</span>
-                  <span>₹${sellPrice.toFixed(2)}</span>
-                  <span>${quantity}</span>
-                  <span>₹${total.toFixed(2)}</span>
-                </div>
-              `;
-    }).join('') : '<div class="item"><span colspan="6">No items found</span></div>'}
-          </div>
-          
-          <div class="summary">
-            <div class="summary-row"><span>Subtotal:</span><span>₹${processedBill.subtotal.toFixed(2)}</span></div>
-            <div class="summary-row"><span>Discount:</span><span>${discountDisplay}</span></div>
-            <div class="summary-row"><span>Tax:</span><span>₹${processedBill.tax.toFixed(2)}</span></div>
-            <div class="summary-row total"><span>Total:</span><span>₹${processedBill.total.toFixed(2)}</span></div>
-            <div class="summary-row"><span>Amount Given:</span><span>₹${(processedBill.amountGiven || processedBill.paidAmount || 0).toFixed(2)}</span></div>
-            <div class="summary-row"><span>Balance Returned:</span><span>₹${(processedBill.balanceReturned || processedBill.changeAmount || 0).toFixed(2)}</span></div>
-            <div class="summary-row"><span>Due:</span><span class="amount-due">₹${processedBill.dueAmount.toFixed(2)}</span></div>
-            <div class="summary-row"><span>Payment:</span><span>${(processedBill.paymentMethod || 'cash').toUpperCase()}</span></div>
-          </div>
-          <div class="summary">
-            <div class="summary-row"><span>Available Points:</span><span>${(processedBill.rewardPointsAvailable || 0).toFixed(2)}</span></div>
-            <div class="summary-row"><span>Redeemed Points:</span><span>${(processedBill.rewardPointsRedeemed || 0).toFixed(2)}</span></div>
-            <div class="summary-row"><span>Earned Points:</span><span>${(processedBill.rewardPointsEarned || 0).toFixed(2)}</span></div>
-            <div class="summary-row"><span>Remaining Points:</span><span>${(processedBill.rewardPointsBalance || 0).toFixed(2)}</span></div>
-          </div>
-          
-          <div class="footer">
-            <p>Thank you for your purchase!</p>
-            <p>Goods once sold will not be taken back</p>
-            <p>** Computer generated bill **</p>
-            ${(processedBill.createdByName || processedBill.createdBy) ? `<p>Created by: ${processedBill.createdByName || processedBill.createdBy}</p>` : ''}
-          </div>
-          
-          <script>
-            window.onload = function() { 
-              setTimeout(function() {
-                window.print(); 
-                window.close();
-              }, 200);
-            }
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
   const handleCopyBillNumber = (billNumber) => {
     navigator.clipboard.writeText(billNumber);
     setCopiedBillNo(billNumber);
@@ -1179,12 +1289,7 @@ const VisitBillPage = () => {
     showMessage("success", "📋 Bill number copied!");
   };
 
-  // Pagination
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentBills = filteredBills.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredBills.length / itemsPerPage);
-
+  // Pagination functions
   const paginate = (pageNumber) => {
     if (pageNumber > 0 && pageNumber <= totalPages) {
       setCurrentPage(pageNumber);
@@ -1235,6 +1340,47 @@ const VisitBillPage = () => {
       backgroundAttachment: "fixed",
       color: "#f9fafb",
       fontFamily: "Inter, Arial, sans-serif",
+    },
+    shortcutBar: {
+      backgroundColor: "#1f2937",
+      padding: "8px 16px",
+      borderRadius: "8px",
+      marginBottom: "20px",
+      display: "flex",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: "20px",
+      border: "1px solid #374151",
+      fontSize: "12px",
+    },
+    shortcutTitle: {
+      color: "#6366f1",
+      fontWeight: "bold",
+      fontSize: "12px",
+    },
+    shortcutList: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "15px",
+    },
+    shortcutItem: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "5px",
+      backgroundColor: "rgba(0,0,0,0.3)",
+      padding: "3px 10px",
+      borderRadius: "15px",
+      fontSize: "11px",
+    },
+    kbd: {
+      backgroundColor: "#2d2d44",
+      border: "1px solid #6366f1",
+      borderRadius: "4px",
+      padding: "2px 6px",
+      fontWeight: "bold",
+      color: "#6366f1",
+      fontSize: "10px",
+      marginRight: "3px",
     },
     shopHeader: {
       backgroundColor: "#1f2937",
@@ -1721,6 +1867,19 @@ const VisitBillPage = () => {
 
   return (
     <div style={styles.container}>
+      {/* Shortcut Keys Bar */}
+      <div style={styles.shortcutBar}>
+        <div style={styles.shortcutTitle}>🔥 SHORTCUTS:</div>
+        <div style={styles.shortcutList}>
+          <div style={styles.shortcutItem}><kbd style={styles.kbd}>F8</kbd>/<kbd style={styles.kbd}>Ctrl+Shift+V</kbd>👁️View</div>
+          <div style={styles.shortcutItem}><kbd style={styles.kbd}>F9</kbd>/<kbd style={styles.kbd}>Ctrl+Shift+B</kbd>🖨️Print</div>
+          <div style={styles.shortcutItem}><kbd style={styles.kbd}>F10</kbd>/<kbd style={styles.kbd}>Ctrl+Shift+W</kbd>💬WhatsApp</div>
+          <div style={styles.shortcutItem}><kbd style={styles.kbd}>Ctrl+F</kbd>🔍Search</div>
+          <div style={styles.shortcutItem}><kbd style={styles.kbd}>Ctrl+R</kbd>🔄Refresh</div>
+          <div style={styles.shortcutItem}><kbd style={styles.kbd}>Esc</kbd>🔇Clear</div>
+        </div>
+      </div>
+
       {/* Shop Header with Company Details */}
       <div style={styles.shopHeader}>
         <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
@@ -1835,7 +1994,7 @@ const VisitBillPage = () => {
           <button
             style={styles.refreshButton}
             onClick={fetchBills}
-            title="Refresh"
+            title="Refresh (Ctrl+R)"
             onMouseEnter={(e) => {
               e.currentTarget.style.color = '#f9fafb';
               e.currentTarget.style.backgroundColor = '#1f2937';
@@ -1886,7 +2045,7 @@ const VisitBillPage = () => {
           <input
             type="text"
             style={styles.searchInput}
-            placeholder="Search bill no, customer name, phone, email..."
+            placeholder="Search bill no, customer name, phone, email... (Ctrl+F)"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -2022,7 +2181,6 @@ const VisitBillPage = () => {
               currentBills.map((bill) => {
                 const dueAmount = (bill.total || 0) - (bill.paidAmount || 0);
 
-                // Format discount display
                 let discountDisplay = '';
                 if (bill.discountType === 'percentage') {
                   discountDisplay = `${bill.discountValue}%`;
@@ -2141,7 +2299,7 @@ const VisitBillPage = () => {
                       <button
                         style={{ ...styles.actionButton, backgroundColor: '#3b82f6', color: 'white', marginRight: '4px' }}
                         onClick={() => fetchBillDetails(bill.id)}
-                        title="View Details"
+                        title="View Details (F8)"
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = '#2563eb';
                           e.currentTarget.style.transform = 'scale(1.05)';
@@ -2156,7 +2314,7 @@ const VisitBillPage = () => {
                       <button
                         style={{ ...styles.actionButton, backgroundColor: '#059669', color: 'white', marginRight: '4px' }}
                         onClick={() => handlePrintBill(bill)}
-                        title="Print Bill"
+                        title="Print Bill (F9)"
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = '#047857';
                           e.currentTarget.style.transform = 'scale(1.05)';
@@ -2176,7 +2334,7 @@ const VisitBillPage = () => {
                           backgroundColor: whatsappStatus[bill.id] === 'sent' ? '#059669' : '#25D366'
                         }}
                         onClick={() => handleWhatsAppShare(bill)}
-                        title="Share on WhatsApp"
+                        title="Share on WhatsApp (F10)"
                         disabled={whatsappStatus[bill.id] === 'sending'}
                         onMouseEnter={(e) => {
                           if (!whatsappStatus[bill.id]) {
@@ -2414,9 +2572,9 @@ const VisitBillPage = () => {
             <table style={styles.modalTable}>
               <thead>
                 <tr>
-                  <th style={styles.modalTh}>Product_Description</th>
-                  <th style={styles.modalTh}>Size</th>
-                  <th style={styles.modalTh}>Unit_Price</th>
+                  <th style={styles.modalTh}>Product Description</th>
+                  <th style={styles.modalTh}>Unit</th>
+                  <th style={styles.modalTh}>Price</th>
                   <th style={styles.modalTh}>Qty</th>
                   <th style={styles.modalTh}>Total</th>
                 </tr>
@@ -2425,7 +2583,7 @@ const VisitBillPage = () => {
                 {selectedBill.items && selectedBill.items.length > 0 ? (
                   selectedBill.items.map((item, index) => {
                     const productName = item.productName || item.product_name || 'Unknown';
-                    const productModel = item.productModel || item.product_model || '';
+                    const unit = item.unit || 'PCS';
                     const sellPrice = parseFloat(item.sellPrice || item.sell_price || 0);
                     const quantity = item.quantity || 0;
                     const total = parseFloat(item.total || 0);
@@ -2433,11 +2591,9 @@ const VisitBillPage = () => {
                     return (
                       <tr key={index}>
                         <td style={styles.modalTd}>
-                          <strong>{productName}</strong>
+                          <strong>{productName.substring(0, 30)}</strong>
                         </td>
-                        <td style={styles.modalTd}>
-                          {productModel || '-'}
-                        </td>
+                        <td style={styles.modalTd}>{unit}</td>
                         <td style={styles.modalTd}>₹{sellPrice.toFixed(2)}</td>
                         <td style={styles.modalTd}>{quantity}</td>
                         <td style={styles.modalTd}>₹{total.toFixed(2)}</td>
@@ -2454,7 +2610,6 @@ const VisitBillPage = () => {
               </tbody>
             </table>
 
-            {/* Payment History if available */}
             {selectedBill.payments && selectedBill.payments.length > 0 && (
               <div style={{ marginTop: '20px' }}>
                 <h4 style={{ color: '#f9fafb', marginBottom: '10px', fontSize: '14px' }}>Payment History</h4>
@@ -2494,7 +2649,7 @@ const VisitBillPage = () => {
                   e.currentTarget.style.transform = 'scale(1)';
                 }}
               >
-                <Printer size={16} /> Print Bill
+                <Printer size={16} /> Print Bill (F9)
               </button>
               <button
                 style={{ ...styles.actionButton, backgroundColor: '#25D366', color: 'white', padding: '12px 20px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '6px', fontSize: '14px', fontWeight: '500' }}
@@ -2511,9 +2666,9 @@ const VisitBillPage = () => {
                   e.currentTarget.style.transform = 'scale(1)';
                 }}
                 disabled={!selectedBill.customerPhone}
-                title={!selectedBill.customerPhone ? "No phone number available" : "Share on WhatsApp"}
+                title={!selectedBill.customerPhone ? "No phone number available" : "Share on WhatsApp (F10)"}
               >
-                <MessageCircle size={16} /> WhatsApp
+                <MessageCircle size={16} /> WhatsApp (F10)
               </button>
               <button
                 style={{ ...styles.actionButton, backgroundColor: '#374151', color: 'white', padding: '12px 20px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '6px', fontSize: '14px', fontWeight: '500' }}
@@ -2527,7 +2682,7 @@ const VisitBillPage = () => {
                   e.currentTarget.style.transform = 'scale(1)';
                 }}
               >
-                Close
+                Close (Esc)
               </button>
             </div>
           </div>

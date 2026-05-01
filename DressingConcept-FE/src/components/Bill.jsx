@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import axios from "axios";
 
 const API_BASE_URL = "http://localhost:5000/api";
@@ -56,9 +56,26 @@ export default function Bill() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [now, setNow] = useState(new Date());
+  const [quickProductQuery, setQuickProductQuery] = useState("");
+  const [mobileSuggestions, setMobileSuggestions] = useState([]);
+  const [showMobileSuggestions, setShowMobileSuggestions] = useState(false);
 
   const [customers, setCustomers] = useState([]);
   const [availablePoints, setAvailablePoints] = useState(0);
+
+  // Refs for focusing inputs
+  const productInputRef = useRef(null);
+  const customerNameRef = useRef(null);
+  const mobileRef = useRef(null);
+  const memberIdRef = useRef(null);
+  const salesPersonRef = useRef(null);
+  const cashReceivedRef = useRef(null);
+  const upiAmountRef = useRef(null);
+  const cardAmountRef = useRef(null);
+  const discountPercentRef = useRef(null);
+  const discountAmountRef = useRef(null);
+  const quickAddInputRef = useRef(null);
+  const mobileContainerRef = useRef(null);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -79,6 +96,288 @@ export default function Bill() {
     }, 3500);
     return () => clearTimeout(timer);
   }, [message, error]);
+
+  // Close mobile suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (mobileContainerRef.current && !mobileContainerRef.current.contains(event.target)) {
+        setShowMobileSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Helper to show temporary messages
+  const showTempMessage = (type, text) => {
+    if (type === "success") setMessage(text);
+    else setError(text);
+  };
+
+  // Filter mobile suggestions based on input
+  const filterMobileSuggestions = (input) => {
+    if (!input || input.length < 2) {
+      setMobileSuggestions([]);
+      setShowMobileSuggestions(false);
+      return;
+    }
+
+    const filtered = customers
+      .filter(customer =>
+        customer.phone &&
+        customer.phone.toString().includes(input.toString())
+      )
+      .slice(0, 8); // Show top 8 matches
+    setMobileSuggestions(filtered);
+    setShowMobileSuggestions(filtered.length > 0);
+  };
+
+  // Handle mobile number change with suggestions
+  const handleMobileChangeWithSuggestions = (value) => {
+    setMobileNumber(value);
+    filterMobileSuggestions(value);
+
+    if (value.length >= 10) {
+      fetchCustomerDetails(value);
+    } else if (value.length < 10) {
+      setAvailablePoints(0);
+      if (value.length === 0) {
+        setCustomerName("");
+        setAddress("");
+      }
+    }
+  };
+
+  // Select suggestion
+  const selectMobileSuggestion = (customer) => {
+    setMobileNumber(customer.phone);
+    setCustomerName(customer.name || "");
+    setAddress(customer.address || "");
+    setAvailablePoints(customer.reward_points || 0);
+    setShowMobileSuggestions(false);
+    // Move focus to next field after selection
+    salesPersonRef.current?.focus();
+  };
+
+  // Fetch customer details from API
+  const fetchCustomerDetails = async (value) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/billing/customer/${value}`);
+      if (response.data?.exists) {
+        const cust = response.data.customer;
+        if (cust.name && cust.name !== 'Walk-in Customer') setCustomerName(cust.name);
+        if (cust.address) setAddress(cust.address);
+        setAvailablePoints(cust.reward_points || 0);
+      } else {
+        setAvailablePoints(0);
+        // Don't clear customer name if user manually entered
+        if (!customerName || customerName === 'Walk-in Customer') {
+          setCustomerName("");
+        }
+      }
+    } catch (err) {
+      console.error("Could not fetch customer details", err);
+      setAvailablePoints(0);
+    }
+  };
+
+  // Keyboard Shortcuts Handler with alternatives
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const activeElement = document.activeElement;
+      const isTyping = activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.isContentEditable;
+
+      // F2 OR Ctrl+Shift+P - Focus Product Search
+      if (event.key === 'F2' || (event.ctrlKey && event.shiftKey && event.key === 'P')) {
+        event.preventDefault();
+        quickAddInputRef.current?.focus();
+        showTempMessage("success", "⌨️ Product search focused");
+        return;
+      }
+
+      // F3 OR Ctrl+Shift+E - Focus Customer Name
+      if (event.key === 'F3' || (event.ctrlKey && event.shiftKey && event.key === 'E')) {
+        event.preventDefault();
+        customerNameRef.current?.focus();
+        showTempMessage("success", "⌨️ Customer name focused");
+        return;
+      }
+
+      // F4 OR Ctrl+Shift+P - Focus Mobile Number
+      if (event.key === 'F4' || (event.ctrlKey && event.shiftKey && event.key === 'P')) {
+        event.preventDefault();
+        mobileRef.current?.focus();
+        showTempMessage("success", "⌨️ Mobile number focused");
+        return;
+      }
+
+      // F5 OR Ctrl+Shift+S - Focus Sales Person
+      if (event.key === 'F5' || (event.ctrlKey && event.shiftKey && event.key === 'S')) {
+        event.preventDefault();
+        salesPersonRef.current?.focus();
+        showTempMessage("success", "⌨️ Sales person focused");
+        return;
+      }
+
+      // F6 OR Ctrl+Shift+R - Focus Cash Received
+      if (event.key === 'F6' || (event.ctrlKey && event.shiftKey && event.key === 'R')) {
+        event.preventDefault();
+        cashReceivedRef.current?.focus();
+        showTempMessage("success", "⌨️ Cash received focused");
+        return;
+      }
+
+      // F7 OR Ctrl+Shift+I - Focus Member ID
+      if (event.key === 'F7' || (event.ctrlKey && event.shiftKey && event.key === 'I')) {
+        event.preventDefault();
+        memberIdRef.current?.focus();
+        showTempMessage("success", "⌨️ Member ID focused");
+        return;
+      }
+
+      // Ctrl+Shift+A - Add New Product (Alternative for Insert)
+      if ((event.ctrlKey && event.shiftKey && event.key === 'A') || event.key === 'Insert') {
+        event.preventDefault();
+        if (!isTyping) {
+          quickAddInputRef.current?.focus();
+          showTempMessage("success", "⌨️ Ready to add new product");
+        }
+        return;
+      }
+
+      // Ctrl+Enter - Add current quick product
+      if ((event.ctrlKey && event.key === 'Enter') && quickProductQuery.trim()) {
+        event.preventDefault();
+        addByQuery(quickProductQuery);
+        setQuickProductQuery("");
+        quickAddInputRef.current?.focus();
+        showTempMessage("success", "⌨️ Product added");
+        return;
+      }
+
+      // Ctrl+S - Save Bill
+      if ((event.ctrlKey || event.metaKey) && (event.key === 's' || event.key === 'S') && !event.shiftKey) {
+        event.preventDefault();
+        if (!isTyping && rows.length > 0) {
+          saveBill();
+          showTempMessage("success", "⌨️ Saving bill (Ctrl+S)");
+        } else if (rows.length === 0) {
+          setError("Add products before saving");
+        }
+        return;
+      }
+
+      // Ctrl+P - Print Bill
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'p' || event.key === 'P') && !event.shiftKey) {
+        event.preventDefault();
+        if (!isTyping && rows.length > 0) {
+          printBill();
+          showTempMessage("success", "⌨️ Printing bill (Ctrl+P)");
+        } else if (rows.length === 0) {
+          setError("Add products before printing");
+        }
+        return;
+      }
+
+      // Ctrl+N - New/Clear Bill
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'n' || event.key === 'N') && !event.shiftKey) {
+        event.preventDefault();
+        if (!isTyping) {
+          clearBill();
+          showTempMessage("success", "⌨️ New bill created (Ctrl+N)");
+        }
+        return;
+      }
+
+      // Alt+1 - Toggle Sale Return
+      if ((event.altKey && event.key === '1') || (event.ctrlKey && event.shiftKey && event.key === 'R')) {
+        event.preventDefault();
+        setSaleReturn(prev => !prev);
+        showTempMessage("success", `⌨️ Sale Return: ${!saleReturn ? 'ON' : 'OFF'}`);
+        return;
+      }
+
+      // Alt+2 - Toggle Card Bill
+      if ((event.altKey && event.key === '2') || (event.ctrlKey && event.shiftKey && event.key === 'D')) {
+        event.preventDefault();
+        setCardBill(prev => !prev);
+        showTempMessage("success", `⌨️ Card Bill: ${!cardBill ? 'ON' : 'OFF'}`);
+        return;
+      }
+
+      // Alt+3 - Toggle No Rewards
+      if ((event.altKey && event.key === '3') || (event.ctrlKey && event.shiftKey && event.key === 'W')) {
+        event.preventDefault();
+        setNoRewards(prev => !prev);
+        showTempMessage("success", `⌨️ No Rewards: ${!noRewards ? 'ON' : 'OFF'}`);
+        return;
+      }
+
+      // Alt+4 - Toggle Classic Customer
+      if ((event.altKey && event.key === '4') || (event.ctrlKey && event.shiftKey && event.key === 'L')) {
+        event.preventDefault();
+        setClassicCustomer(prev => !prev);
+        showTempMessage("success", `⌨️ Classic Customer: ${!classicCustomer ? 'ON' : 'OFF'}`);
+        return;
+      }
+
+      // Alt+C - Focus Card Amount
+      if (event.altKey && (event.key === 'c' || event.key === 'C')) {
+        event.preventDefault();
+        cardAmountRef.current?.focus();
+        showTempMessage("success", "⌨️ Card amount focused");
+        return;
+      }
+
+      // Alt+U - Focus UPI Amount
+      if (event.altKey && (event.key === 'u' || event.key === 'U')) {
+        event.preventDefault();
+        upiAmountRef.current?.focus();
+        showTempMessage("success", "⌨️ UPI amount focused");
+        return;
+      }
+
+      // Alt+D - Focus Discount Percent
+      if (event.altKey && (event.key === 'd' || event.key === 'D')) {
+        event.preventDefault();
+        discountPercentRef.current?.focus();
+        showTempMessage("success", "⌨️ Discount percent focused");
+        return;
+      }
+
+      // Alt+A - Focus Discount Amount
+      if (event.altKey && (event.key === 'a' || event.key === 'A')) {
+        event.preventDefault();
+        discountAmountRef.current?.focus();
+        showTempMessage("success", "⌨️ Discount amount focused");
+        return;
+      }
+
+      // Ctrl+Shift+X - Remove last row
+      if ((event.ctrlKey && event.shiftKey && event.key === 'X') || (event.key === 'Delete' && !isTyping)) {
+        event.preventDefault();
+        if (rows.length > 0) {
+          removeRow(rows.length - 1);
+          showTempMessage("success", "⌨️ Last product removed");
+        }
+        return;
+      }
+
+      // Escape - Clear error/message and blur focus
+      if (event.key === 'Escape') {
+        setError("");
+        setMessage("");
+        setShowMobileSuggestions(false);
+        document.activeElement?.blur();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [rows, saleReturn, cardBill, noRewards, classicCustomer, quickProductQuery]);
 
   const loadProducts = async () => {
     try {
@@ -233,7 +532,7 @@ export default function Bill() {
     setRows((current) => current.map((row, rowIndex) => (
       rowIndex === index
         ? (() => {
-          const updated = { ...row, [field]: numericFields.includes(field) ? value : value };
+          const updated = { ...row, [field]: numericFields.includes(field) ? Number(value) || 0 : value };
 
           if (field === "unitPrice" || field === "discountPercent") {
             const u = Number(updated.unitPrice) || 0;
@@ -345,58 +644,131 @@ export default function Bill() {
   };
 
   const clearBill = () => {
-    setRows([]);
-    setCustomerName("");
-    setMemberId("");
-    setMobileNumber("");
-    setSalesPerson("");
-    setAddress("");
-    setCashReceived("");
-    setUpiAmount("");
-    setCardAmount("");
-    setCardNumber("");
-    setDiscountPercent("");
-    setDiscountAmount("");
-    setPaidBefore("");
-    setBillNo(String(Math.floor(100 + Math.random() * 900)));
+    if (window.confirm("Clear current bill? All data will be lost.")) {
+      setRows([]);
+      setCustomerName("");
+      setMemberId("");
+      setMobileNumber("");
+      setSalesPerson("");
+      setAddress("");
+      setCashReceived("");
+      setUpiAmount("");
+      setCardAmount("");
+      setCardNumber("");
+      setDiscountPercent("");
+      setDiscountAmount("");
+      setPaidBefore("");
+      setSaleReturn(false);
+      setCardBill(false);
+      setNoRewards(false);
+      setClassicCustomer(false);
+      setQuickProductQuery("");
+      setMobileSuggestions([]);
+      setShowMobileSuggestions(false);
+      setBillNo(String(Math.floor(100 + Math.random() * 900)));
+      setMessage("New bill created");
+      setTimeout(() => setMessage(""), 2000);
+    }
   };
 
   return (
     <div className="sale-page">
       <style>{saleStyles}</style>
 
+      {/* Shortcut Keys Bar */}
+      <div className="shortcut-bar">
+        <div className="shortcut-title">🔥 SHORTCUTS:</div>
+        <div className="shortcut-list">
+          <span><kbd>F2</kbd>/<kbd>Ctrl+Shift+P</kbd>🔍Product</span>
+          <span><kbd>F3</kbd>/<kbd>Ctrl+Shift+E</kbd>👤Name</span>
+          <span><kbd>F4</kbd>/<kbd>Ctrl+Shift+P</kbd>📱Mobile</span>
+          <span><kbd>F5</kbd>/<kbd>Ctrl+Shift+S</kbd>👔Sales</span>
+          <span><kbd>F6</kbd>/<kbd>Ctrl+Shift+R</kbd>💰Cash</span>
+          <span><kbd>F7</kbd>/<kbd>Ctrl+Shift+I</kbd>🆔Member ID</span>
+          <span><kbd>Ctrl+Shift+A</kbd>/<kbd>Insert</kbd>➕Add Product</span>
+          <span><kbd>Ctrl+Enter</kbd>✓Add Current</span>
+          <span><kbd>Ctrl+S</kbd>💾Save</span>
+          <span><kbd>Ctrl+P</kbd>🖨️Print</span>
+          <span><kbd>Ctrl+N</kbd>🆕New</span>
+          <span><kbd>Alt+1-4</kbd>⚙️Toggles</span>
+          <span><kbd>Alt+C</kbd>💳Card</span>
+          <span><kbd>Alt+U</kbd>📱UPI</span>
+          <span><kbd>Alt+D/A</kbd>🏷️Disc</span>
+          <span><kbd>Delete</kbd>❌Remove</span>
+          <span><kbd>Esc</kbd>🔇Clear</span>
+        </div>
+      </div>
+
       <div className="sale-window">
         <div className="sale-titlebar">
-          <span>Sale</span>
-          <span>-</span>
+          <span>Sale - Billing System</span>
+          <span>⌨️ Shortcuts Active</span>
         </div>
 
         <div className="sale-header">
           <div className="header-left">
-            <label>Date <input value={formatDate(now)} readOnly /></label>
-            <label>Counter <select value={counter} onChange={(event) => setCounter(event.target.value)}><option>counter_1</option></select></label>
-            <label>Bill_No <input value={billNo} onChange={(event) => setBillNo(event.target.value)} /></label>
-            <label className="check"><input type="checkbox" checked={saleReturn} onChange={(event) => setSaleReturn(event.target.checked)} /> SALE RETURN</label>
-            <label className="check"><input type="checkbox" checked={cardBill} onChange={(event) => setCardBill(event.target.checked)} /> CARD BILL</label>
-            <label className="check"><input type="checkbox" checked={noRewards} onChange={(event) => setNoRewards(event.target.checked)} /> NO REWARDS</label>
+            <div className="field-group">
+              <label>Date</label>
+              <input value={formatDate(now)} readOnly />
+            </div>
+            <div className="field-group">
+              <label>Counter</label>
+              <select value={counter} onChange={(event) => setCounter(event.target.value)}>
+                <option>counter_1</option>
+              </select>
+            </div>
+            <div className="field-group">
+              <label>Bill No</label>
+              <input value={billNo} onChange={(event) => setBillNo(event.target.value)} />
+            </div>
+            <div className="check-group">
+              <label className="check"><input type="checkbox" checked={saleReturn} onChange={(event) => setSaleReturn(event.target.checked)} /> SALE RETURN <span className="shortcut-hint">Alt+1</span></label>
+              <label className="check"><input type="checkbox" checked={cardBill} onChange={(event) => setCardBill(event.target.checked)} /> CARD BILL <span className="shortcut-hint">Alt+2</span></label>
+              <label className="check"><input type="checkbox" checked={noRewards} onChange={(event) => setNoRewards(event.target.checked)} /> NO REWARDS <span className="shortcut-hint">Alt+3</span></label>
+            </div>
           </div>
 
           <div className="customer-name">{loggedInUserName}</div>
 
           <div className="header-middle">
-            <label className="check"><input type="checkbox" checked={classicCustomer} onChange={(event) => setClassicCustomer(event.target.checked)} /> Classic Customer</label>
-            <label>Member ID <input value={memberId} onChange={(event) => setMemberId(event.target.value)} /></label>
-            <label>Mobile Number
-              <input list="customer-phones" value={mobileNumber} onChange={(event) => handleMobileChange(event.target.value)} />
-            </label>
-            <datalist id="customer-phones">
-              {customers.map((c, idx) => (
-                <option key={idx} value={c.phone}>{c.name}</option>
-              ))}
-            </datalist>
-            <label>Sales Person
-              <input list="sales-persons" value={salesPerson} onChange={(event) => setSalesPerson(event.target.value)} />
-            </label>
+            <label className="check"><input type="checkbox" checked={classicCustomer} onChange={(event) => setClassicCustomer(event.target.checked)} /> Classic Customer <span className="shortcut-hint">Alt+4</span></label>
+            <div className="field-group">
+              <label>Member ID <span className="shortcut-hint">F7 / Ctrl+Shift+I</span></label>
+              <input ref={memberIdRef} value={memberId} onChange={(event) => setMemberId(event.target.value)} />
+            </div>
+            <div className="mobile-field-group" ref={mobileContainerRef}>
+              <label>Mobile Number <span className="shortcut-hint">F4 / Ctrl+Shift+P</span></label>
+              <input
+                ref={mobileRef}
+                value={mobileNumber}
+                onChange={(event) => handleMobileChangeWithSuggestions(event.target.value)}
+                onFocus={() => {
+                  if (mobileNumber && mobileNumber.length >= 2) {
+                    filterMobileSuggestions(mobileNumber);
+                  }
+                }}
+                placeholder="Enter mobile number"
+                autoComplete="off"
+              />
+              {showMobileSuggestions && mobileSuggestions.length > 0 && (
+                <div className="mobile-suggestions">
+                  {mobileSuggestions.map((customer, idx) => (
+                    <div
+                      key={idx}
+                      className="mobile-suggestion-item"
+                      onClick={() => selectMobileSuggestion(customer)}
+                    >
+                      <span className="suggestion-phone">{customer.phone}</span>
+                      <span className="suggestion-name">{customer.name || "No Name"}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="field-group">
+              <label>Sales Person <span className="shortcut-hint">F5 / Ctrl+Shift+S</span></label>
+              <input ref={salesPersonRef} list="sales-persons" value={salesPerson} onChange={(event) => setSalesPerson(event.target.value)} />
+            </div>
             <datalist id="sales-persons">
               {[...new Set(products.map(p => p.salesPerson).filter(Boolean))].map((sp, idx) => (
                 <option key={idx} value={sp} />
@@ -406,12 +778,24 @@ export default function Bill() {
 
           <div className="header-right">
             <div className="clock">{formatDateTime(now)}</div>
-            <label>Name <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} /></label>
-            <button type="button">Add New Member</button>
-            <label>Address <textarea value={address} onChange={(event) => setAddress(event.target.value)} /></label>
+            <div className="field-group">
+              <label>Name <span className="shortcut-hint">F3 / Ctrl+Shift+E</span></label>
+              <input ref={customerNameRef} value={customerName} onChange={(event) => setCustomerName(event.target.value)} />
+            </div>
+            <button type="button" className="add-member-btn">Add New Member</button>
+            <div className="field-group">
+              <label>Address</label>
+              <textarea value={address} onChange={(event) => setAddress(event.target.value)} rows="2" />
+            </div>
             <div className="stock-row">
-              <label>Stock In Store <input value={products.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)} readOnly /></label>
-              <label>Godown Stock <input value="0" readOnly /></label>
+              <div className="field-group">
+                <label>Stock In Store</label>
+                <input value={products.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)} readOnly />
+              </div>
+              <div className="field-group">
+                <label>Godown Stock</label>
+                <input value="0" readOnly />
+              </div>
             </div>
           </div>
         </div>
@@ -420,14 +804,24 @@ export default function Bill() {
 
         <div className="quick-add no-print">
           <input
-            placeholder="Enter Product_Id or Product_Description and press Enter"
+            ref={quickAddInputRef}
+            value={quickProductQuery}
+            onChange={(e) => setQuickProductQuery(e.target.value)}
+            placeholder="Enter Product ID or Description (F2 to focus, Ctrl+Enter to add)"
             onKeyDown={(event) => {
-              if (event.key === "Enter") {
+              if (event.key === "Enter" && !event.ctrlKey) {
                 addByQuery(event.currentTarget.value);
-                event.currentTarget.value = "";
+                setQuickProductQuery("");
               }
             }}
           />
+          <button type="button" onClick={() => {
+            if (quickProductQuery.trim()) {
+              addByQuery(quickProductQuery);
+              setQuickProductQuery("");
+              quickAddInputRef.current?.focus();
+            }
+          }}>Add Product</button>
           <button type="button" onClick={saveBill} disabled={loading}>{loading ? "Saving..." : "Save Bill"}</button>
           <button type="button" className="printer" onClick={printBill} disabled={loading}>Print</button>
           <button type="button" onClick={clearBill}>Clear</button>
@@ -437,18 +831,18 @@ export default function Bill() {
           <table className="sale-grid">
             <thead>
               <tr>
-                <th>Product_Id</th>
-                <th>Product_Description</th>
+                <th>Product ID</th>
+                <th>Product Description</th>
                 <th>Size</th>
                 <th>Tax</th>
                 <th>Unit</th>
                 <th>MRP</th>
-                <th>Unit_Price</th>
-                <th>Dis %</th>
-                <th>NetPrice</th>
-                <th>Quantity</th>
+                <th>Unit Price</th>
+                <th>Disc %</th>
+                <th>Net Price</th>
+                <th>Qty</th>
                 <th>Amount</th>
-                <th>SalesPerson</th>
+                <th>Sales Person</th>
               </tr>
             </thead>
             <tbody>
@@ -467,16 +861,15 @@ export default function Bill() {
                     <td><input type="number" value={row.discountPercent} onChange={(event) => updateRow(index, "discountPercent", event.target.value)} /></td>
                     <td><input type="number" value={netPrice} onChange={(event) => updateRow(index, "netPrice", event.target.value)} /></td>
                     <td><input type="number" min="1" max={row.stock || undefined} value={row.quantity} onChange={(event) => updateRow(index, "quantity", event.target.value)} /></td>
-                    <td>{amount}</td>
-                    <td>
+                    <td className="amount-cell">{amount}</td>
+                    <td className="action-cell">
                       <input value={row.salesPerson || ""} onChange={(event) => updateRow(index, "salesPerson", event.target.value)} />
-                      <button type="button" className="row-delete no-print" onClick={() => removeRow(index)}>x</button>
+                      <button type="button" className="row-delete" onClick={() => removeRow(index)}>✕</button>
                     </td>
                   </tr>
                 );
               })}
-
-              {blankRows.map((item) => (
+              {blankRows.slice(0, Math.max(0, 8 - rows.length)).map((item) => (
                 <tr key={`empty-${item}`} className="empty-row">
                   <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
                 </tr>
@@ -486,65 +879,72 @@ export default function Bill() {
         </div>
 
         <div className="footer-panel">
-          <div className="totals-left">
-            <div className="small-total"><span>TOTAL ITEMS</span><strong>{totals.totalItems}</strong></div>
-            <div className="small-total"><span>TOTAL QUANTITY</span><strong>{totals.totalQuantity}</strong></div>
+          <div className="footer-col">
+            <div className="info-row"><span>TOTAL ITEMS</span><strong>{totals.totalItems}</strong></div>
+            <div className="info-row"><span>TOTAL QUANTITY</span><strong>{totals.totalQuantity}</strong></div>
             <div className="payment-mode">
-              <b>Payment Mode</b>
+              <div className="section-title">Payment Mode</div>
               <fieldset>
-                <legend>Card Details [Ctrl+C]</legend>
-                <label>Amount <input value={cardAmount} onChange={(event) => setCardAmount(event.target.value)} /></label>
-                <label>Card Number <input value={cardNumber} onChange={(event) => setCardNumber(event.target.value)} /></label>
+                <legend>Card Details <span className="shortcut-hint">Alt+C</span></legend>
+                <div className="field-row"><label>Amount</label><input ref={cardAmountRef} value={cardAmount} onChange={(event) => setCardAmount(event.target.value)} /></div>
+                <div className="field-row"><label>Card No</label><input value={cardNumber} onChange={(event) => setCardNumber(event.target.value)} /></div>
               </fieldset>
             </div>
             <div className="price-strip">
-              <span>MRP</span><strong>{Math.round(totals.mrpTotal)}</strong>
-              <span>UNIT<br />PRICE</span><strong>{Math.round(totals.billValue)}</strong>
+              <div><span>MRP Total</span><strong>₹{Math.round(totals.mrpTotal)}</strong></div>
+              <div><span>Net Total</span><strong>₹{Math.round(totals.billValue)}</strong></div>
             </div>
           </div>
 
-          <div className="discount-panel">
-            <div className="small-total"><span>MRP DISCOUNT</span><strong>{Math.round(totals.mrpDiscount)}</strong></div>
-            <div className="small-total"><span>UNIT DISCOUNT</span><strong>{Math.round(totals.unitDiscount)}</strong></div>
+          <div className="footer-col">
+            <div className="info-row"><span>MRP DISCOUNT</span><strong>₹{Math.round(totals.mrpDiscount)}</strong></div>
+            <div className="info-row"><span>UNIT DISCOUNT</span><strong>₹{Math.round(totals.unitDiscount)}</strong></div>
           </div>
 
-          <div className="amount-entry">
-            <label>SaleReturn Amount <input value={saleReturn ? totals.billValue : 0} readOnly /></label>
-            <label>UPI Amount [Alt+C] <input value={upiAmount} onChange={(event) => setUpiAmount(event.target.value)} /></label>
+          <div className="footer-col">
+            <div className="info-row"><span>SaleReturn Amount</span><input value={saleReturn ? totals.billValue : 0} readOnly /></div>
+            <div className="info-row"><span>UPI Amount <span className="shortcut-hint">Alt+U</span></span><input ref={upiAmountRef} value={upiAmount} onChange={(event) => setUpiAmount(event.target.value)} /></div>
           </div>
 
-          <div className="reward-entry">
-            <b>Reward Details</b>
-            <label>Available <input value={availablePoints} readOnly /></label>
-            <label>To Redeem <input readOnly /></label>
-            <label>Amount <input readOnly /></label>
-            <label>Balance <input value={availablePoints} readOnly /></label>
+          <div className="footer-col">
+            <div className="section-title">Reward Details</div>
+            <div className="info-row"><span>Available</span><input value={availablePoints} readOnly /></div>
+            <div className="info-row"><span>To Redeem</span><input readOnly /></div>
+            <div className="info-row"><span>Amount</span><input readOnly /></div>
+            <div className="info-row"><span>Balance</span><input value={availablePoints} readOnly /></div>
           </div>
 
-          <div className="payment-details">
-            <b>Payment Details</b>
-            <label>Bill Amount <input value={totals.billValue} readOnly /></label>
-            <label>Discount(%) <input value={discountPercent} onChange={(event) => setDiscountPercent(event.target.value)} /></label>
-            <label>DiscountAmt <input value={discountAmount} onChange={(event) => setDiscountAmount(event.target.value)} /></label>
-            <label>Amount Paid <input value={totals.amountPaid} readOnly /></label>
-            <label>Paid Before <input value={paidBefore} onChange={(event) => setPaidBefore(event.target.value)} /></label>
-            <label>Cash Received <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} /></label>
-            <button type="button" className="printer" onClick={printBill}>Print</button>
+          <div className="footer-col">
+            <div className="section-title">Payment Details</div>
+            <div className="info-row"><span>Bill Amount</span><input value={totals.billValue} readOnly /></div>
+            <div className="info-row"><span>Discount % <span className="shortcut-hint">Alt+D</span></span><input ref={discountPercentRef} value={discountPercent} onChange={(event) => setDiscountPercent(event.target.value)} /></div>
+            <div className="info-row"><span>Discount Amt <span className="shortcut-hint">Alt+A</span></span><input ref={discountAmountRef} value={discountAmount} onChange={(event) => setDiscountAmount(event.target.value)} /></div>
+            <div className="info-row"><span>Amount Paid</span><input value={totals.amountPaid} readOnly /></div>
+            <div className="info-row"><span>Paid Before</span><input value={paidBefore} onChange={(event) => setPaidBefore(event.target.value)} /></div>
+            <div className="info-row"><span>Cash Received <span className="shortcut-hint">F6 / Ctrl+Shift+R</span></span><input ref={cashReceivedRef} value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} /></div>
+            <button type="button" className="print-btn" onClick={printBill}>🖨️ Print</button>
           </div>
 
           <div className="pay-board">
-            <label>TOTAL BILL VALUE <strong>{Math.round(totals.billValue)}</strong></label>
-            <label>AMOUNT TO PAY <strong>{Math.round(totals.amountToPay)}</strong></label>
-            <label>AMOUNT TO RETURN <strong>{String(Math.round(totals.amountToReturn)).padStart(3, "0")}</strong></label>
+            <div className="pay-card">
+              <div className="pay-label">TOTAL BILL</div>
+              <div className="pay-value">₹{Math.round(totals.billValue)}</div>
+            </div>
+            <div className="pay-card">
+              <div className="pay-label">AMOUNT TO PAY</div>
+              <div className="pay-value">₹{Math.round(totals.amountToPay)}</div>
+            </div>
+            <div className="pay-card return-card">
+              <div className="pay-label">RETURN</div>
+              <div className="pay-value">₹{String(Math.round(totals.amountToReturn)).padStart(3, "0")}</div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── Print-Only Thermal Receipt ── */}
+      {/* Print-Only Thermal Receipt */}
       <div className="print-only">
-
         <div className="receipt-header">
-          {/* ── LOGO: replaced SVG with actual /Dc-logo.jpg ── */}
           <div className="receipt-logo">
             <img src="/Dc-logo.jpg" alt="Dressing Concepts" className="receipt-logo-img" />
           </div>
@@ -641,7 +1041,6 @@ export default function Bill() {
             <img src="/instagram.png" alt="Instagram QR" />
           </div>
         </div>
-
       </div>
     </div>
   );
@@ -655,6 +1054,60 @@ const saleStyles = `
     font-family: Arial, Helvetica, sans-serif;
   }
 
+  /* Shortcut Bar Styles */
+  .shortcut-bar {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: #fff;
+    padding: 8px 16px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 15px;
+    font-size: 11px;
+    font-family: monospace;
+    border: 1px solid #00bcd4;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .shortcut-title {
+    font-weight: bold;
+    color: #00bcd4;
+    font-size: 12px;
+  }
+  .shortcut-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .shortcut-list span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0,0,0,0.5);
+    padding: 3px 8px;
+    border-radius: 15px;
+  }
+  .shortcut-list kbd {
+    background: #2d2d44;
+    border: 1px solid #00bcd4;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-weight: bold;
+    color: #00bcd4;
+    font-size: 10px;
+    margin-right: 4px;
+  }
+  .shortcut-hint {
+    font-size: 9px;
+    color: #ff9800;
+    margin-left: 5px;
+    font-family: monospace;
+    background: rgba(0,0,0,0.3);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
   .sale-window {
     background: #96ceca;
     border: 1px solid #6faaa5;
@@ -664,16 +1117,19 @@ const saleStyles = `
   }
 
   .sale-titlebar {
-    height: 20px;
+    height: 24px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 8px;
-    background: #f2f2f2;
-    border-bottom: 1px solid #b9b9b9;
-    font-size: 12px;
+    padding: 0 12px;
+    background: linear-gradient(90deg, #2c3e50, #1a1a2e);
+    color: #fff;
+    border-bottom: 1px solid #00bcd4;
+    font-size: 13px;
+    font-weight: bold;
   }
 
+  /* Header Styles */
   .sale-header {
     display: grid;
     grid-template-columns: 1.2fr 170px 1fr 1.25fr;
@@ -683,70 +1139,162 @@ const saleStyles = `
     font-weight: 700;
   }
 
-  .sale-header label,
-  .payment-details label,
-  .amount-entry label,
-  .payment-mode label,
-  .pay-board label {
+  .header-left, .header-middle, .header-right {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field-group {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 7px;
+    position: relative;
   }
 
-  .sale-header input,
-  .sale-header select,
-  .sale-header textarea,
-  .payment-details input,
-  .amount-entry input,
-  .payment-mode input,
-  .quick-add input {
-    height: 22px;
+  .field-group label {
+    min-width: 70px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .field-group input, .field-group select, .field-group textarea {
+    height: 26px;
     border: 1px solid #8f8f8f;
     background: #fff;
-    padding: 2px 5px;
+    padding: 2px 8px;
     font: inherit;
+    border-radius: 3px;
   }
 
-  .sale-header textarea {
+  .field-group textarea {
     height: 42px;
-    width: 210px;
+    width: 180px;
     resize: none;
+  }
+
+  /* Mobile Suggestions */
+  .mobile-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+  }
+
+  .mobile-field-group label {
+    min-width: 70px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .mobile-field-group input {
+    height: 26px;
+    border: 1px solid #8f8f8f;
+    background: #fff;
+    padding: 2px 8px;
+    font: inherit;
+    border-radius: 3px;
+    width: 180px;
+  }
+
+  .mobile-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 78px;
+    right: 0;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  }
+
+  .mobile-suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+    transition: background 0.2s;
+  }
+
+  .mobile-suggestion-item:hover {
+    background: #e3f2fd;
+  }
+
+  .suggestion-phone {
+    font-weight: bold;
+    color: #0066cc;
+    font-family: monospace;
+  }
+
+  .suggestion-name {
+    color: #555;
+    font-size: 11px;
+  }
+
+  .check-group {
+    display: flex;
+    gap: 12px;
+    margin-top: 4px;
   }
 
   .check {
     display: inline-flex !important;
+    align-items: center;
+    gap: 5px;
     margin-right: 10px;
   }
 
   .check input {
-    width: 13px;
-    height: 13px;
+    width: 14px;
+    height: 14px;
+    margin: 0;
   }
 
-  .customer-name,
-  .clock,
-  .sale-header button {
+  .customer-name {
     background: #111;
     color: #fff;
     border: 1px solid #777;
     font-weight: 800;
-    height: max-content;
-    padding: 3px 9px;
+    padding: 8px 12px;
     text-align: center;
+    border-radius: 4px;
+    align-self: start;
   }
 
   .clock {
-    margin-bottom: 7px;
-    margin-left: auto;
+    background: #111;
+    color: #fff;
+    border: 1px solid #777;
+    font-weight: 800;
+    padding: 6px 10px;
+    text-align: center;
+    font-family: monospace;
+    margin-bottom: 4px;
+  }
+
+  .add-member-btn {
+    background: #4caf50;
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-weight: 600;
+    margin-top: 4px;
   }
 
   .stock-row {
     display: flex;
     gap: 10px;
+    margin-top: 4px;
   }
 
-  .stock-row input {
+  .stock-row .field-group input {
     width: 70px;
   }
 
@@ -757,6 +1305,7 @@ const saleStyles = `
     border: 1px solid #63a55c;
     font-weight: 700;
     font-size: 12px;
+    border-radius: 4px;
   }
 
   .notice.error {
@@ -764,23 +1313,38 @@ const saleStyles = `
     border-color: #c75151;
   }
 
+  /* Quick Add */
   .quick-add {
     display: grid;
-    grid-template-columns: 1fr auto auto auto;
+    grid-template-columns: 1fr auto auto auto auto;
     gap: 8px;
-    padding: 0 10px 7px;
+    padding: 8px 12px;
   }
 
-  .quick-add button,
-  .printer {
+  .quick-add input {
+    height: 32px;
+    border: 1px solid #8f8f8f;
+    background: #fff;
+    padding: 4px 10px;
+    font: inherit;
+    border-radius: 4px;
+  }
+
+  .quick-add button {
     border: 1px solid #444;
     background: #111;
     color: #fff;
     font-weight: 700;
-    padding: 4px 12px;
+    padding: 5px 16px;
     cursor: pointer;
+    border-radius: 4px;
   }
 
+  .quick-add button:hover, .printer:hover {
+    background: #333;
+  }
+
+  /* Table Styles */
   .grid-wrap {
     background: #fff;
     border-top: 1px solid #7e7e7e;
@@ -793,61 +1357,33 @@ const saleStyles = `
     min-width: 1060px;
     border-collapse: collapse;
     table-layout: fixed;
-    font-size: 13px;
+    font-size: 12px;
   }
 
-  .sale-grid th:nth-child(1),
-  .sale-grid td:nth-child(1) { width: 105px; min-width: 105px; }
-
-  .sale-grid th:nth-child(2),
-  .sale-grid td:nth-child(2) { width: 230px; min-width: 230px; }
-
-  .sale-grid th:nth-child(3),
-  .sale-grid td:nth-child(3) { width: 90px; min-width: 90px; }
-
-  .sale-grid th:nth-child(4),
-  .sale-grid td:nth-child(4) { width: 70px; min-width: 70px; }
-
-  .sale-grid th:nth-child(5),
-  .sale-grid td:nth-child(5) { width: 80px; min-width: 80px; }
-
-  .sale-grid th:nth-child(6),
-  .sale-grid td:nth-child(6),
-  .sale-grid th:nth-child(7),
-  .sale-grid td:nth-child(7),
-  .sale-grid th:nth-child(8),
-  .sale-grid td:nth-child(8),
-  .sale-grid th:nth-child(9),
-  .sale-grid td:nth-child(9),
-  .sale-grid th:nth-child(10),
-  .sale-grid td:nth-child(10),
-  .sale-grid th:nth-child(11),
-  .sale-grid td:nth-child(11) { width: 105px; min-width: 105px; }
-
-  .sale-grid th:nth-child(12),
-  .sale-grid td:nth-child(12) { width: 120px; min-width: 120px; }
-
   .sale-grid th {
-    background: #fff;
-    border-right: 1px solid #c8c8c8;
-    border-bottom: 1px solid #a5a5a5;
-    padding: 5px 4px;
-    font-size: 15px;
+    background: #f0f0f0;
+    border-right: 1px solid #d0d0d0;
+    border-bottom: 1px solid #c0c0c0;
+    padding: 8px 6px;
+    font-size: 11px;
     text-align: left;
+    font-weight: 700;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: clip;
   }
 
   .sale-grid td {
-    border-right: 1px solid #c8c8c8;
-    border-bottom: 1px solid #d2d2d2;
-    height: 22px;
-    padding: 0 3px;
+    border-right: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e8e8e8;
+    padding: 4px 6px;
+    background: #ffffff;
   }
 
-  .sale-grid tbody tr:nth-child(even) {
-    background: #86c5bf;
+  .sale-grid tbody tr:nth-child(even) td {
+    background: #f8f9fa;
+  }
+
+  .sale-grid tbody tr:hover td {
+    background: #e3f2fd;
   }
 
   .sale-grid input {
@@ -856,131 +1392,227 @@ const saleStyles = `
     background: transparent;
     font: inherit;
     outline: none;
+    padding: 4px 0;
+  }
+
+  .sale-grid input:focus {
+    background: #fff9c4;
+    border-radius: 3px;
+    padding-left: 4px;
+  }
+
+  .amount-cell {
+    font-weight: 700;
+    color: #2c3e50;
+    text-align: right;
   }
 
   .row-delete {
-    background: #111;
+    background: #dc3545;
     color: #fff;
-    border: 0;
-    width: 20px;
-    height: 18px;
+    border: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 3px;
     cursor: pointer;
+    margin-left: 8px;
+    font-weight: bold;
+    font-size: 12px;
   }
 
+  .row-delete:hover {
+    background: #c82333;
+  }
+
+  /* Footer Panel */
   .footer-panel {
     display: grid;
-    grid-template-columns: 1.25fr 1fr 1.1fr 1.1fr 1.2fr 1fr;
-    gap: 16px;
-    padding: 8px 12px 10px;
-    font-size: 12px;
-    font-weight: 800;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    padding: 12px;
+    background: #f5f5f5;
   }
 
-  .small-total {
-    display: grid;
-    grid-template-columns: 1fr auto;
+  .footer-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #fff;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+  }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 13px;
+    font-size: 11px;
+    font-weight: 600;
   }
 
-  .small-total strong,
-  .price-strip strong,
-  .pay-board strong {
+  .info-row span {
+    color: #555;
+  }
+
+  .info-row strong {
     background: #020202;
     color: #fff;
-    display: inline-block;
-    min-width: 28px;
-    padding: 3px 7px;
-    font-size: 20px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 50px;
     text-align: center;
   }
 
+  .info-row input {
+    width: 90px;
+    height: 26px;
+    border: 1px solid #ccc;
+    background: #fff;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-align: right;
+  }
+
+  .section-title {
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #2c3e50;
+    font-size: 12px;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 3px;
+  }
+
   .payment-mode fieldset {
-    border: 1px solid rgba(255, 255, 255, 0.35);
+    border: 1px solid #ddd;
+    border-radius: 4px;
     padding: 8px;
+    margin-top: 4px;
   }
 
-  .payment-mode input {
-    width: 110px;
+  .payment-mode legend {
+    font-weight: 600;
+    font-size: 11px;
+    padding: 0 6px;
   }
 
-  .price-strip {
-    display: grid;
-    grid-template-columns: auto auto auto auto;
-    align-items: center;
-    gap: 10px;
-    margin-top: 10px;
-    font-size: 20px;
-  }
-
-  .amount-entry input,
-  .reward-entry input,
-  .payment-details input {
-    width: 100px;
-    margin-left: auto;
-  }
-
-  .payment-details,
-  .reward-entry {
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    padding: 5px 12px;
-  }
-
-  .reward-entry label,
-  .amount-entry label,
-  .payment-details label {
+  .field-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 6px;
-    white-space: nowrap;
+    font-size: 11px;
   }
 
-  .printer {
-    width: 85px;
-    height: 54px;
-    margin: 8px auto 0;
-    display: block;
-    border-radius: 2px;
+  .field-row label {
+    font-weight: 500;
   }
 
+  .field-row input {
+    width: 100px;
+    height: 24px;
+    border: 1px solid #ccc;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .price-strip {
+    margin-top: 8px;
+  }
+
+  .price-strip div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    padding: 4px 0;
+    font-size: 11px;
+  }
+
+  .price-strip strong {
+    background: #020202;
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  .print-btn {
+    width: 100%;
+    padding: 8px;
+    background: #ff9800;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    margin-top: 8px;
+  }
+
+  /* Pay Board */
   .pay-board {
-    display: grid;
-    gap: 10px;
-    align-content: start;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #fff;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
   }
 
-  .pay-board label {
-    display: grid;
-    gap: 4px;
+  .pay-card {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
   }
 
-  .pay-board strong {
-    width: 96px;
-    min-height: 48px;
-    font-size: 42px;
-    line-height: 48px;
+  .return-card {
+    background: linear-gradient(135deg, #f093fb, #f5576c);
+  }
+
+  .pay-label {
+    font-size: 9px;
+    color: rgba(255,255,255,0.8);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .pay-value {
+    font-size: 20px;
+    font-weight: bold;
+    color: #fff;
+  }
+
+  @media (max-width: 1400px) {
+    .footer-panel {
+      gap: 8px;
+    }
+    .pay-value {
+      font-size: 16px;
+    }
   }
 
   @media (max-width: 1200px) {
     .sale-window {
       min-width: 900px;
     }
+    .footer-panel {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .pay-board {
+      grid-column: span 1;
+    }
   }
 
-  /* ── Hide receipt on screen ── */
   .print-only { display: none; }
 
-  /* ════════════════════════════════════════
-     PRINT STYLES — 80mm thermal receipt
-  ════════════════════════════════════════ */
   @media print {
     @page { size: 80mm auto; margin: 0; }
-
     body * { visibility: hidden; }
     .print-only, .print-only * { visibility: visible; }
-
     .print-only {
       display: block;
       position: absolute;
@@ -993,155 +1625,16 @@ const saleStyles = `
       color: #000;
       background: #fff;
     }
-
-    /* ── Logo ── */
-    .receipt-logo {
-      display: flex;
-      justify-content: center;
-      margin-bottom: 5px;
-    }
-    .receipt-logo-img {
-      width: 62px;
-      height: 62px;
-      object-fit: contain;
-    }
-
-    /* ── Shop header ── */
-    .receipt-header {
-      text-align: center;
-      margin-bottom: 4px;
-    }
-    .receipt-shop {
-      font-size: 15px;
-      font-weight: 900;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      margin: 3px 0 2px;
-    }
-    .receipt-tagline {
-      font-size: 9px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: #555;
-      margin-bottom: 4px;
-    }
-    .receipt-divider-thin {
-      border: none;
-      border-top: 1px solid #000;
-      margin: 4px 10% 5px;
-    }
-    .receipt-addr {
-      font-size: 10.5px;
-      margin: 1.5px 0;
-      line-height: 1.45;
-    }
-
-    /* ── Dashed divider ── */
-    .receipt-dash {
-      border: none;
-      border-top: 1px dashed #000;
-      margin: 5px 0;
-    }
-
-    /* ── Bill meta ── */
-    .receipt-meta { font-size: 10.5px; }
-    .receipt-meta-row {
-      display: flex;
-      justify-content: space-between;
-      margin: 2.5px 0;
-    }
-
-    /* ── Items table ── */
-    .receipt-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 11px;
-      margin: 3px 0;
-    }
-    .receipt-table thead tr { border-bottom: 1px dashed #000; }
-    .receipt-table th {
-      padding: 3px 2px 4px;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .receipt-table td { padding: 3px 2px; vertical-align: top; }
-    .r-desc { text-align: left; width: 52%; }
-    .r-num  { text-align: right; }
-
-    /* ── Pay Amount ── */
-    .receipt-pay {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      padding: 5px 2px;
-    }
-    .receipt-pay-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .receipt-pay-value {
-      font-size: 15px;
-      font-weight: 900;
-    }
-
-    /* ── Summary rows ── */
-    .receipt-summary, .receipt-points {
-      font-size: 10.5px;
-      margin: 3px 0;
-    }
-    .receipt-row {
-      display: flex;
-      justify-content: space-between;
-      margin: 2.5px 0;
-    }
-    .receipt-savings {
-      font-weight: 700;
-    }
-
-    /* ── Customer ── */
-    .receipt-customer { font-size: 10.5px; margin: 3px 0; }
-    .receipt-cust-title {
-      font-weight: 700;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 3px;
-    }
-    .receipt-cust-name { font-weight: 700; }
-    .receipt-cust-phone { color: #333; }
-
-    /* ── Thank you ── */
-    .receipt-thankyou {
-      text-align: center;
-      font-size: 11px;
-      font-weight: 700;
-      margin: 6px 0 2px;
-    }
-    .receipt-visit {
-      text-align: center;
-      font-size: 10px;
-      color: #444;
-      margin-bottom: 6px;
-    }
-
-    /* ── QR codes ── */
-    .receipt-qr {
-      display: flex;
-      justify-content: space-around;
-      margin-top: 6px;
-      text-align: center;
-    }
-    .receipt-qr-item { display: flex; flex-direction: column; align-items: center; }
-    .receipt-qr-lbl {
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      margin-bottom: 3px;
-    }
+    .receipt-logo-img { width: 62px; height: 62px; object-fit: contain; }
+    .receipt-shop { font-size: 15px; font-weight: 900; text-align: center; }
+    .receipt-dash { border-top: 1px dashed #000; margin: 5px 0; }
+    .receipt-table { width: 100%; border-collapse: collapse; }
+    .receipt-table th, .receipt-table td { padding: 4px 2px; }
+    .r-desc { text-align: left; }
+    .r-num { text-align: right; }
+    .receipt-pay { display: flex; justify-content: space-between; margin: 10px 0; }
+    .receipt-thankyou { text-align: center; margin-top: 10px; }
+    .receipt-qr { display: flex; justify-content: space-around; margin-top: 10px; }
     .receipt-qr img { width: 52px; height: 52px; }
   }
 `;
