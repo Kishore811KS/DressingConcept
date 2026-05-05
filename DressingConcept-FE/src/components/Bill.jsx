@@ -33,7 +33,19 @@ export default function Bill() {
   }, []);
 
   const [products, setProducts] = useState([]);
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] = useState([{
+    productId: "",
+    description: "",
+    size: "",
+    tax: TAX_PERCENT,
+    unit: DEFAULT_UNIT,
+    mrp: 0,
+    unitPrice: 0,
+    discountPercent: 0,
+    netPrice: 0,
+    quantity: 1,
+    salesPerson: loggedInUserName,
+  }]);
   const [billNo, setBillNo] = useState("");
   const [counter, setCounter] = useState("counter_1");
   const [customerName, setCustomerName] = useState("");
@@ -192,8 +204,9 @@ export default function Bill() {
       // F2 OR Ctrl+Shift+P - Focus Product Search
       if (event.key === 'F2' || (event.ctrlKey && event.shiftKey && event.key === 'P')) {
         event.preventDefault();
-        quickAddInputRef.current?.focus();
-        showTempMessage("success", "⌨️ Product search focused");
+        const lastRowInput = document.querySelector('.sale-grid tbody tr:last-child input');
+        lastRowInput?.focus();
+        showTempMessage("success", "⌨️ Product entry focused");
         return;
       }
 
@@ -508,7 +521,25 @@ export default function Bill() {
 
       const applyFound = (product) => {
         const normalized = normalizeProduct(product);
-        setRows((current) => current.map((row, rowIndex) => (rowIndex === index ? normalized : row)));
+        setRows((current) => {
+          const nextRows = current.map((row, rowIndex) => (rowIndex === index ? normalized : row));
+          if (index === current.length - 1) {
+            nextRows.push({
+              productId: "",
+              description: "",
+              size: "",
+              tax: TAX_PERCENT,
+              unit: DEFAULT_UNIT,
+              mrp: 0,
+              unitPrice: 0,
+              discountPercent: 0,
+              netPrice: 0,
+              quantity: 1,
+              salesPerson: loggedInUserName,
+            });
+          }
+          return nextRows;
+        });
       };
 
       if (found) {
@@ -529,21 +560,41 @@ export default function Bill() {
       return;
     }
 
-    setRows((current) => current.map((row, rowIndex) => (
-      rowIndex === index
-        ? (() => {
-          const updated = { ...row, [field]: numericFields.includes(field) ? Number(value) || 0 : value };
+    setRows((current) => {
+      const newRows = current.map((row, rowIndex) => {
+        if (rowIndex !== index) return row;
 
-          if (field === "unitPrice" || field === "discountPercent") {
-            const u = Number(updated.unitPrice) || 0;
-            const d = Number(updated.discountPercent) || 0;
-            updated.netPrice = money(u - (u * d / 100));
-          }
+        const updated = { ...row, [field]: numericFields.includes(field) ? Number(value) || 0 : value };
 
-          return updated;
-        })()
-        : row
-    )));
+        if (field === "unitPrice" || field === "discountPercent") {
+          const u = Number(updated.unitPrice) || 0;
+          const d = Number(updated.discountPercent) || 0;
+          updated.netPrice = money(u - (u * d / 100));
+        }
+
+        return updated;
+      });
+
+      // If we're updating the last row and it now has a productId or description, add a new blank row
+      const lastRow = newRows[newRows.length - 1];
+      if (index === current.length - 1 && (lastRow.productId || lastRow.description)) {
+        newRows.push({
+          productId: "",
+          description: "",
+          size: "",
+          tax: TAX_PERCENT,
+          unit: DEFAULT_UNIT,
+          mrp: 0,
+          unitPrice: 0,
+          discountPercent: 0,
+          netPrice: 0,
+          quantity: 1,
+          salesPerson: loggedInUserName,
+        });
+      }
+
+      return newRows;
+    });
   };
 
   const removeRow = (index) => {
@@ -551,10 +602,11 @@ export default function Bill() {
   };
 
   const totals = useMemo(() => {
-    const totalItems = rows.length;
-    const totalQuantity = rows.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
-    const mrpTotal = rows.reduce((sum, row) => sum + (Number(row.mrp) || 0) * (Number(row.quantity) || 0), 0);
-    const netBeforeDiscount = rows.reduce((sum, row) => {
+    const activeRows = rows.filter(r => r.productId && r._dbId);
+    const totalItems = activeRows.length;
+    const totalQuantity = activeRows.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+    const mrpTotal = activeRows.reduce((sum, row) => sum + (Number(row.mrp) || 0) * (Number(row.quantity) || 0), 0);
+    const netBeforeDiscount = activeRows.reduce((sum, row) => {
       const quantity = Number(row.quantity) || 0;
       const netPrice = Number(row.netPrice) || 0;
       return sum + netPrice * quantity;
@@ -613,7 +665,7 @@ export default function Bill() {
         createdByName: salesPerson || counter,
         rewardPointsEarned: noRewards ? 0 : totals.billValue * 0.01,
         rewardPointsRedeemed: 0,
-        items: rows.map((row) => ({
+        items: rows.filter(r => r.productId && r._dbId).map((row) => ({
           productId: row._dbId,
           quantity: Number(row.quantity) || 1,
         })),
@@ -645,7 +697,19 @@ export default function Bill() {
 
   const clearBill = () => {
     if (window.confirm("Clear current bill? All data will be lost.")) {
-      setRows([]);
+      setRows([{
+        productId: "",
+        description: "",
+        size: "",
+        tax: TAX_PERCENT,
+        unit: DEFAULT_UNIT,
+        mrp: 0,
+        unitPrice: 0,
+        discountPercent: 0,
+        netPrice: 0,
+        quantity: 1,
+        salesPerson: loggedInUserName,
+      }]);
       setCustomerName("");
       setMemberId("");
       setMobileNumber("");
@@ -803,25 +867,7 @@ export default function Bill() {
         {(message || error) && <div className={error ? "notice error" : "notice"}>{error || message}</div>}
 
         <div className="quick-add no-print">
-          <input
-            ref={quickAddInputRef}
-            value={quickProductQuery}
-            onChange={(e) => setQuickProductQuery(e.target.value)}
-            placeholder="Enter Product ID or Description (F2 to focus, Ctrl+Enter to add)"
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.ctrlKey) {
-                addByQuery(event.currentTarget.value);
-                setQuickProductQuery("");
-              }
-            }}
-          />
-          <button type="button" onClick={() => {
-            if (quickProductQuery.trim()) {
-              addByQuery(quickProductQuery);
-              setQuickProductQuery("");
-              quickAddInputRef.current?.focus();
-            }
-          }}>Add Product</button>
+          <div style={{ flex: 1 }}></div>
           <button type="button" onClick={saveBill} disabled={loading}>{loading ? "Saving..." : "Save Bill"}</button>
           <button type="button" className="printer" onClick={printBill} disabled={loading}>Print</button>
           <button type="button" onClick={clearBill}>Clear</button>
@@ -977,7 +1023,7 @@ export default function Bill() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => {
+            {rows.filter(r => r.productId && r._dbId).map((row, index) => {
               const qty = Number(row.quantity) || 0;
               const rate = Number(row.netPrice) || Number(row.unitPrice) || 0;
               const amt = money(rate * qty);

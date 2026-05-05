@@ -11,6 +11,8 @@ from app.models.supplier import Supplier, Item
 from app.models.usertype import UserType
 from app.models.enquiry import Enquiry
 from app.models.customer_rewards import CustomerRewards
+from app.models.salary import Salary
+from app.models.hr_config import HRConfig
 
 __all__ = [
     'Attendance',
@@ -33,4 +35,6 @@ __all__ = [
     'UserType',
     'Enquiry',
     'CustomerRewards',
+    'Salary',
+    'HRConfig'
 ]

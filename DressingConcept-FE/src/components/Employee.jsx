@@ -21,7 +21,6 @@ const EmployeeManager = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
   
-  // Form state
   const [formData, setFormData] = useState({
     employee_id: '',
     full_name: '',
@@ -31,15 +30,11 @@ const EmployeeManager = () => {
     department: '',
     designation: '',
     date_of_joining: '',
-    user_type: '',
-    current_company: '',
-    company_id: '',
+    user_type: 'employee',
     aadhar_card_number: '',
     pan_card_number: '',
-    address: '',
     emergency_contact: '',
-    blood_group: '',
-    marital_status: ''
+    basic_salary: ''
   });
   
   // File upload state
@@ -87,14 +82,24 @@ const EmployeeManager = () => {
       }
       const data = await response.json();
       const userTypeNames = data.map(item => item.name);
-      setUserTypes(userTypeNames);
       
-      if (userTypeNames.length > 0 && !formData.user_type) {
-        setFormData(prev => ({ ...prev, user_type: userTypeNames[0] }));
+      if (userTypeNames.length > 0) {
+        setUserTypes(userTypeNames);
+        if (!formData.user_type) {
+          setFormData(prev => ({ ...prev, user_type: userTypeNames[0] }));
+        }
+      } else {
+        // Fallback if API returns empty list
+        const defaults = ['admin', 'employee', 'manager'];
+        setUserTypes(defaults);
+        if (!formData.user_type) {
+          setFormData(prev => ({ ...prev, user_type: 'employee' }));
+        }
       }
     } catch (err) {
       console.error('Error fetching user types:', err);
-      setUserTypes(['admin', 'employee', 'manager']);
+      const defaults = ['admin', 'employee', 'manager'];
+      setUserTypes(defaults);
       if (!formData.user_type) {
         setFormData(prev => ({ ...prev, user_type: 'employee' }));
       }
@@ -129,33 +134,6 @@ const EmployeeManager = () => {
       ...prev,
       [name]: value
     }));
-    
-    if (name === 'company_id') {
-      const selectedCompany = companies.find(c => c.id.toString() === value);
-      if (selectedCompany) {
-        setFormData(prev => ({
-          ...prev,
-          company_id: value,
-          current_company: selectedCompany.name
-        }));
-      } else {
-        setFormData(prev => ({
-          ...prev,
-          company_id: value,
-          current_company: ''
-        }));
-      }
-    }
-  };
-
-  // Handle manual company name input
-  const handleCompanyNameChange = (e) => {
-    const { value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      current_company: value,
-      company_id: ''
-    }));
   };
 
   // Handle file changes
@@ -179,15 +157,11 @@ const EmployeeManager = () => {
       department: '',
       designation: '',
       date_of_joining: '',
-      user_type: userTypes.length > 0 ? userTypes[0] : 'employee',
-      current_company: '',
-      company_id: '',
+      user_type: 'employee',
       aadhar_card_number: '',
       pan_card_number: '',
-      address: '',
       emergency_contact: '',
-      blood_group: '',
-      marital_status: ''
+      basic_salary: ''
     });
     setAadharFile(null);
     setPanFile(null);
@@ -225,7 +199,7 @@ const EmployeeManager = () => {
       const formDataToSend = new FormData();
       
       Object.keys(formData).forEach(key => {
-        if (formData[key] && key !== 'employee_id') {
+        if (formData[key] !== '' && formData[key] !== null && formData[key] !== undefined && key !== 'employee_id') {
           formDataToSend.append(key, formData[key]);
         }
       });
@@ -296,15 +270,14 @@ const EmployeeManager = () => {
       department: employee.department || '',
       designation: employee.designation || '',
       date_of_joining: employee.date_of_joining || '',
-      user_type: employee.user_type || (userTypes.length > 0 ? userTypes[0] : 'employee'),
-      current_company: employee.current_company || '',
-      company_id: employee.company_id || '',
+      user_type: employee.user_type || 'employee',
+      current_company: '',
+      company_id: '',
       aadhar_card_number: employee.aadhar_card_number || '',
       pan_card_number: employee.pan_card_number || '',
-      address: employee.address || '',
+      address: '',
       emergency_contact: employee.emergency_contact || '',
-      blood_group: employee.blood_group || '',
-      marital_status: employee.marital_status || ''
+      basic_salary: employee.basic_salary || ''
     });
     setExistingFiles({
       aadhar_attachment: employee.aadhar_attachment,
@@ -431,9 +404,8 @@ const EmployeeManager = () => {
                     <th style={styles.tableHeader}>Name</th>
                     <th style={styles.tableHeader}>Email</th>
                     <th style={styles.tableHeader}>Department</th>
-                    <th style={styles.tableHeader}>Company</th>
-                    <th style={styles.tableHeader}>User Type</th>
                     <th style={styles.tableHeader}>Phone</th>
+                    <th style={styles.tableHeader}>Salary</th>
                     <th style={styles.tableHeader}>DOJ</th>
                     <th style={styles.tableHeader}>Documents</th>
                     <th style={styles.tableHeader}>Actions</th>
@@ -445,23 +417,12 @@ const EmployeeManager = () => {
                       <td style={styles.tableCell}>{employee.employee_id}</td>
                       <td style={styles.tableCell}>
                         <strong style={styles.whiteText}>{employee.full_name}</strong>
-                        {employee.blood_group && (
-                          <div style={styles.smallText}>Blood: {employee.blood_group}</div>
-                        )}
                       </td>
                       <td style={styles.tableCell}>{employee.email}</td>
                       <td style={styles.tableCell}>{employee.department || '-'}</td>
-                      <td style={styles.tableCell}>
-                        <span style={styles.companyBadge}>
-                          {employee.current_company || '-'}
-                        </span>
-                      </td>
-                      <td style={styles.tableCell}>
-                        <span style={styles.userTypeBadge}>
-                          {employee.user_type || 'N/A'}
-                        </span>
-                      </td>
+                      <td style={styles.tableCell}>{employee.department || '-'}</td>
                       <td style={styles.tableCell}>{employee.phone_number || '-'}</td>
+                      <td style={styles.tableCell}>₹{employee.basic_salary || '0'}</td>
                       <td style={styles.tableCell}>{employee.date_of_joining || '-'}</td>
                       <td style={styles.tableCell}>
                         {employee.aadhar_attachment && (
@@ -615,65 +576,11 @@ const EmployeeManager = () => {
                         style={styles.input}
                       />
                     </div>
-                    
-                    <div style={styles.formGroup}>
-                      <label style={styles.label}>Blood Group</label>
-                      <select
-                        name="blood_group"
-                        value={formData.blood_group}
-                        onChange={handleInputChange}
-                        style={styles.input}
-                      >
-                        <option value="">Select Blood Group</option>
-                        <option value="A+">A+</option>
-                        <option value="A-">A-</option>
-                        <option value="B+">B+</option>
-                        <option value="B-">B-</option>
-                        <option value="AB+">AB+</option>
-                        <option value="AB-">AB-</option>
-                        <option value="O+">O+</option>
-                        <option value="O-">O-</option>
-                      </select>
-                    </div>
-                    
-                    <div style={styles.formGroup}>
-                      <label style={styles.label}>Marital Status</label>
-                      <select
-                        name="marital_status"
-                        value={formData.marital_status}
-                        onChange={handleInputChange}
-                        style={styles.input}
-                      >
-                        <option value="">Select Status</option>
-                        <option value="Single">Single</option>
-                        <option value="Married">Married</option>
-                        <option value="Divorced">Divorced</option>
-                        <option value="Widowed">Widowed</option>
-                      </select>
-                    </div>
                   </div>
                   
                   {/* Employment Details */}
                   <div style={styles.formSection}>
                     <h3 style={styles.sectionTitle}>Employment Details</h3>
-                    
-                    <div style={styles.formGroup}>
-                      <label style={styles.label}>User Type *</label>
-                      <select
-                        name="user_type"
-                        value={formData.user_type}
-                        onChange={handleInputChange}
-                        style={styles.input}
-                        required
-                      >
-                        <option value="">Select User Type</option>
-                        {userTypes.map((type, index) => (
-                          <option key={index} value={type}>
-                            {type.charAt(0).toUpperCase() + type.slice(1)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
                     
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Department</label>
@@ -700,52 +607,26 @@ const EmployeeManager = () => {
                     </div>
                     
                     <div style={styles.formGroup}>
-                      <label style={styles.label}>Current Company</label>
-                      <select
-                        name="company_id"
-                        value={formData.company_id}
-                        onChange={handleInputChange}
-                        style={styles.input}
-                      >
-                        <option value="">Select a company</option>
-                        {companies.map((company) => (
-                          <option key={company.id} value={company.id}>
-                            {company.name}
-                          </option>
-                        ))}
-                      </select>
-                      <small style={styles.helperText}>Or enter manually:</small>
+                      <label style={styles.label}>Per Day Salary</label>
                       <input
                         type="text"
-                        name="current_company"
-                        value={formData.current_company}
-                        onChange={handleCompanyNameChange}
-                        style={{...styles.input, marginTop: '8px'}}
-                        placeholder="Enter company name manually"
-                      />
-                    </div>
-                    
-                    <div style={styles.formGroup}>
-                      <label style={styles.label}>Address</label>
-                      <textarea
-                        name="address"
-                        value={formData.address}
+                        name="basic_salary"
+                        value={formData.basic_salary || ''}
                         onChange={handleInputChange}
-                        style={styles.textarea}
-                        rows="3"
-                        placeholder="Full address"
+                        style={styles.input}
+                        placeholder="0.00"
                       />
                     </div>
                     
                     <div style={styles.formGroup}>
-                      <label style={styles.label}>Emergency Contact</label>
+                      <label style={styles.label}>Emergency Mobile Number</label>
                       <input
                         type="text"
                         name="emergency_contact"
                         value={formData.emergency_contact}
                         onChange={handleInputChange}
                         style={styles.input}
-                        placeholder="Name: Phone Number"
+                        placeholder="Enter mobile number"
                       />
                     </div>
                   </div>
@@ -869,18 +750,6 @@ const EmployeeManager = () => {
                     <label style={styles.detailLabel}>Date of Joining:</label>
                     <span style={styles.detailValue}>{formatDate(selectedEmployee.date_of_joining)}</span>
                   </div>
-                  <div style={styles.detailItem}>
-                    <label style={styles.detailLabel}>User Type:</label>
-                    <span style={styles.detailValue}>{selectedEmployee.user_type || '-'}</span>
-                  </div>
-                  <div style={styles.detailItem}>
-                    <label style={styles.detailLabel}>Blood Group:</label>
-                    <span style={styles.detailValue}>{selectedEmployee.blood_group || '-'}</span>
-                  </div>
-                  <div style={styles.detailItem}>
-                    <label style={styles.detailLabel}>Marital Status:</label>
-                    <span style={styles.detailValue}>{selectedEmployee.marital_status || '-'}</span>
-                  </div>
                 </div>
               </div>
 
@@ -894,10 +763,6 @@ const EmployeeManager = () => {
                   <div style={styles.detailItem}>
                     <label style={styles.detailLabel}>Designation:</label>
                     <span style={styles.detailValue}>{selectedEmployee.designation || '-'}</span>
-                  </div>
-                  <div style={styles.detailItem}>
-                    <label style={styles.detailLabel}>Current Company:</label>
-                    <span style={styles.detailValue}>{selectedEmployee.current_company || '-'}</span>
                   </div>
                   <div style={styles.detailItem}>
                     <label style={styles.detailLabel}>Address:</label>

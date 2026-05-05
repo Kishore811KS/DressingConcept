@@ -69,6 +69,7 @@ def create_product():
             discount_percent=float(data.get("discountPercent", 0) or 0),
             net_price=float(data.get("netPrice", 0) or 0),
             sales_person=data.get("salesPerson", "").strip(),
+            classic_customer=float(data.get("classicCustomer", 0) or 0),
             type=data.get("type", "").strip(),
             watts=watts,
             buy_price=float(data.get("buyPrice", 0)),
@@ -171,6 +172,8 @@ def update_product(id):
             product.net_price = float(data['netPrice'] or 0)
         if data.get('salesPerson') is not None:
             product.sales_person = data['salesPerson'].strip()
+        if data.get('classicCustomer') is not None:
+            product.classic_customer = float(data['classicCustomer'] or 0)
         if data.get('type') is not None:
             product.type = data['type'].strip()
         if data.get('watts') is not None:
@@ -263,6 +266,7 @@ def bulk_create_products():
                     discount_percent=float(product_data.get("discountPercent", 0) or 0),
                     net_price=float(product_data.get("netPrice", 0) or 0),
                     sales_person=product_data.get("salesPerson", "").strip(),
+                    classic_customer=float(product_data.get("classicCustomer", 0) or 0),
                     type=product_data.get("type", "").strip(),
                     watts=product_data.get("watts"),
                     buy_price=float(product_data.get("buyPrice", 0)),

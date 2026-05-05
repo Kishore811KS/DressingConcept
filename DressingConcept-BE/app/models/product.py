@@ -17,6 +17,7 @@ class Product(db.Model):
     discount_percent = db.Column(db.Float, default=0)
     net_price = db.Column(db.Float, default=0)
     sales_person = db.Column(db.String(100))
+    classic_customer = db.Column(db.Float, default=0)
     type = db.Column(db.String(100))
     watts = db.Column(db.Float)
 
@@ -33,9 +34,10 @@ class Product(db.Model):
         discount = self.discount_percent or 0
         self.net_price = round((self.sell_price or 0) - ((self.sell_price or 0) * discount / 100), 2)
 
+        self.profit = round((self.sell_price or 0) - (self.buy_price or 0), 2)
         if self.buy_price and self.buy_price > 0:
             self.profit_percent = round(
-                ((self.sell_price - self.buy_price) / self.buy_price) * 100, 2
+                (self.profit / self.buy_price) * 100, 2
             )
         else:
             self.profit_percent = 0
@@ -56,11 +58,13 @@ class Product(db.Model):
             "discountPercent": self.discount_percent,
             "netPrice": self.net_price,
             "salesPerson": self.sales_person,
+            "classicCustomer": self.classic_customer,
             "type": self.type,
             "watts": self.watts,
             "buyPrice": self.buy_price,
             "sellPrice": self.sell_price,
             "quantity": self.quantity,
+            "profit": getattr(self, 'profit', round((self.sell_price or 0) - (self.buy_price or 0), 2)),
             "profitPercent": self.profit_percent,
             "amount": self.amount,
             "created_at": self.created_at

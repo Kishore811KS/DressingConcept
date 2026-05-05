@@ -51,6 +51,7 @@ def create_app():
     from app.routes.payment_routes import payment_tracking_bp
     from app.routes.Check_permissions_routes import check_permissions_bp
     from app.routes.restore_permissions_routes import restore_permissions_bp
+    from app.routes.salary_routes import salary_bp
 
     app.register_blueprint(login_bp, url_prefix="/api")
     app.register_blueprint(product_bp, url_prefix="/api")
@@ -61,7 +62,7 @@ def create_app():
     app.register_blueprint(service_bp)
     app.register_blueprint(user_type_bp)
     app.register_blueprint(employee_bp, url_prefix="/api")
-    app.register_blueprint(attendance_bp)
+    app.register_blueprint(attendance_bp, url_prefix='/api/attendance')
     app.register_blueprint(company_bp)
     app.register_blueprint(enquiry_bp, url_prefix="/api") 
     app.register_blueprint(discount_bp)
@@ -69,6 +70,7 @@ def create_app():
     app.register_blueprint(payment_tracking_bp)
     app.register_blueprint(check_permissions_bp)
     app.register_blueprint(restore_permissions_bp)
+    app.register_blueprint(salary_bp, url_prefix='/api/salary')
 
     # Health Check Route
     @app.route('/api/health', methods=['GET'])

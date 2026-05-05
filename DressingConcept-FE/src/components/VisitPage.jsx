@@ -101,9 +101,10 @@ const VisitBillPage = () => {
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('all');
   const [filterCustomerType, setFilterCustomerType] = useState('all');
   const [dateRange, setDateRange] = useState({
-    start: '',
-    end: ''
+    start: new Date().toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
   });
+  const [quickDate, setQuickDate] = useState('today');
   const [sortBy, setSortBy] = useState('newest');
 
   const API_BASE_URL = 'http://localhost:5000/api';
@@ -144,6 +145,39 @@ const VisitBillPage = () => {
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentBills = filteredBills.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredBills.length / itemsPerPage);
+
+  // Sales Summary calculation
+  const salesSummary = React.useMemo(() => {
+    const summary = {
+      cash: { count: 0, amount: 0 },
+      card: { count: 0, amount: 0 },
+      upi: { count: 0, amount: 0 },
+      online: { count: 0, amount: 0 },
+      netbanking: { count: 0, amount: 0 },
+      cheque: { count: 0, amount: 0 },
+      mixed: { count: 0, amount: 0 },
+      total: { count: 0, amount: 0 }
+    };
+
+    filteredBills.forEach(bill => {
+      const method = (bill.paymentMethod || 'cash').toLowerCase();
+      const amount = parseFloat(bill.total || 0);
+
+      if (summary[method]) {
+        summary[method].count += 1;
+        summary[method].amount += amount;
+      } else {
+        // Fallback to cash if unknown method
+        summary.cash.count += 1;
+        summary.cash.amount += amount;
+      }
+
+      summary.total.count += 1;
+      summary.total.amount += amount;
+    });
+
+    return summary;
+  }, [filteredBills]);
 
   // Keyboard Shortcut Handler
   useEffect(() => {
@@ -1127,7 +1161,51 @@ const VisitBillPage = () => {
     setSortBy('newest');
     setFilteredBills(bills);
     setCurrentPage(1);
+    setQuickDate('all');
     showMessage("info", "🔍 Filters cleared");
+  };
+
+  const handleQuickDateChange = (option) => {
+    setQuickDate(option);
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    let start = '';
+    let end = todayStr;
+
+    switch(option) {
+      case 'today':
+        start = todayStr;
+        break;
+      case 'yesterday':
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+        start = yesterday.toISOString().split('T')[0];
+        end = start;
+        break;
+      case 'past2days':
+        const p2d = new Date();
+        p2d.setDate(today.getDate() - 1);
+        start = p2d.toISOString().split('T')[0];
+        break;
+      case 'thisweek':
+        const week = new Date();
+        week.setDate(today.getDate() - 7);
+        start = week.toISOString().split('T')[0];
+        break;
+      case 'thismonth':
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        start = monthStart.toISOString().split('T')[0];
+        break;
+      case 'all':
+        start = '';
+        end = '';
+        break;
+      default:
+        return;
+    }
+    
+    setDateRange({ start, end });
   };
 
   const handleExportExcel = () => {
@@ -2038,6 +2116,54 @@ const VisitBillPage = () => {
         </div>
       </div>
 
+      {/* Sales Summary Cards */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '15px',
+        marginBottom: '20px'
+      }}>
+        <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #6366f1' }}>
+          <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <TrendingUp size={14} color="#6366f1" /> TOTAL SALES
+          </div>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.total.amount)}</div>
+          <div style={{ fontSize: '11px', color: '#6366f1' }}>{salesSummary.total.count} Bills</div>
+        </div>
+
+        <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #059669' }}>
+          <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+             <DollarSign size={14} color="#059669" /> CASH
+          </div>
+          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.cash.amount)}</div>
+          <div style={{ fontSize: '11px', color: '#059669' }}>{salesSummary.cash.count} Bills</div>
+        </div>
+
+        <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #3b82f6' }}>
+          <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+             <CreditCard size={14} color="#3b82f6" /> CARD
+          </div>
+          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.card.amount)}</div>
+          <div style={{ fontSize: '11px', color: '#3b82f6' }}>{salesSummary.card.count} Bills</div>
+        </div>
+
+        <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #8b5cf6' }}>
+          <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+             <Smartphone size={14} color="#8b5cf6" /> UPI
+          </div>
+          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.upi.amount)}</div>
+          <div style={{ fontSize: '11px', color: '#8b5cf6' }}>{salesSummary.upi.count} Bills</div>
+        </div>
+
+        <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #10b981' }}>
+          <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+             <Globe size={14} color="#10b981" /> ONLINE
+          </div>
+          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.online.amount)}</div>
+          <div style={{ fontSize: '11px', color: '#10b981' }}>{salesSummary.online.count} Bills</div>
+        </div>
+      </div>
+
       {/* Filters */}
       <div style={styles.filterBar}>
         <div style={styles.searchBox}>
@@ -2050,6 +2176,19 @@ const VisitBillPage = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+
+        <select
+          style={styles.filterSelect}
+          value={quickDate}
+          onChange={(e) => handleQuickDateChange(e.target.value)}
+        >
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="past2days">Past 2 Days</option>
+          <option value="thisweek">Last 7 Days</option>
+          <option value="thismonth">This Month</option>
+          <option value="all">Custom Range</option>
+        </select>
 
         <select
           style={styles.filterSelect}

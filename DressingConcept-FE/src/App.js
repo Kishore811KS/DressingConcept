@@ -26,6 +26,7 @@ import ServiceBillView from "./components/ServiceBillView";
 import UserType from "./components/UserType";
 import Employee from "./components/Employee";
 import Attendance from "./components/Attendance";
+import Salary from "./components/Salary";
 import UserSettings from "./components/UserSetting";
 import DiscountPage from "./components/DiscountPage"; // Import the discount page
 import CurrentCompany from "./components/CurrentCompany";
@@ -84,6 +85,7 @@ function Layout() {
           <Route path="/invoice" element={<Invoice />} />
           <Route path="/service" element={<Service/>}/>
           <Route path="/attendance" element={<Attendance />} />
+          <Route path="/salary" element={<Salary />} />
            <Route path="/userSettings" element={<UserSettings />} />
 
           <Route path="/discount" element={<DiscountPage />} />

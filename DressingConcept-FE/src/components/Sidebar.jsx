@@ -315,7 +315,7 @@ const Sidebar = ({ isOpen }) => {
           )}
 
           {/* Supplier Section */}
-          {isSectionVisible(["add_supplier", "supplier_list", "payment_tracking", "employee", "user_type", "attendance", "company"]) && (
+          {isSectionVisible(["add_supplier", "supplier_list", "payment_tracking", "employee", "user_type", "attendance", "salary", "company"]) && (
             <>
               <div style={styles.sectionTitle}>Suppliers & HR</div>
               {hasPermission("add_supplier") && (
@@ -353,12 +353,19 @@ const Sidebar = ({ isOpen }) => {
                 </NavLink>
               )}
 
-              {/* {hasPermission("attendance") && (
+              {hasPermission("attendance") && (
                 <NavLink to="/attendance" style={getLinkStyle}>
                   <FaCalendarCheck style={styles.icon} />
                   <span style={styles.text}>Attendance</span>
                 </NavLink>
-              )} */}
+              )}
+
+              {hasPermission("salary") && (
+                <NavLink to="/salary" style={getLinkStyle}>
+                  <FaMoneyBillWave style={styles.icon} />
+                  <span style={styles.text}>Salary</span>
+                </NavLink>
+              )}
 
               {hasPermission("company") && (
                 <NavLink to="/company" style={getLinkStyle}>

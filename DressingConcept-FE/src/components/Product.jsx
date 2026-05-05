@@ -14,12 +14,12 @@ const emptyProduct = {
   tax: "",
   unit: "PCS",
   mrp: "",
+  purchaseRate: "",
   sellPrice: "",
-  discountPercent: "",
-  netPrice: "",
+  classicCustomer: "",
+  profit: "0.00",
   quantity: "",
   amount: "0.00",
-  salesPerson: "",
 };
 
 
@@ -27,20 +27,16 @@ const toNumber = (value) => Number(value) || 0;
 
 const calculateProduct = (product) => {
   const unitPrice = toNumber(product.sellPrice) || toNumber(product.mrp);
-  const discountPercent = toNumber(product.discountPercent);
-  const calculatedNet = unitPrice - (unitPrice * discountPercent) / 100;
-  const netPrice = product.netPrice === "" || product.netPrice === null || product.netPrice === undefined
-    ? calculatedNet
-    : toNumber(product.netPrice);
+  const purchaseRate = toNumber(product.purchaseRate);
   const quantity = parseInt(product.quantity, 10) || 0;
+  const profit = unitPrice - purchaseRate;
 
   return {
     ...product,
     sellPrice: unitPrice,
-    discountPercent,
-    netPrice,
+    profit: profit.toFixed(2),
     quantity,
-    amount: (netPrice * quantity).toFixed(2),
+    amount: (unitPrice * quantity).toFixed(2),
   };
 };
 
@@ -68,8 +64,7 @@ export default function Products() {
       String(item.productCode || item.id).toLowerCase().includes(query) ||
       String(item.name || "").toLowerCase().includes(query) ||
       String(item.size || "").toLowerCase().includes(query) ||
-      String(item.unit || "").toLowerCase().includes(query) ||
-      String(item.salesPerson || "").toLowerCase().includes(query)
+      String(item.unit || "").toLowerCase().includes(query)
     ));
   }, [items, search]);
 
@@ -108,12 +103,12 @@ export default function Products() {
     Tax: item.tax,
     Unit: item.unit,
     MRP: item.mrp,
+    Purchase_Rate: item.purchaseRate,
     Unit_Price: item.sellPrice,
-    "Dis %": item.discountPercent,
-    NetPrice: item.netPrice,
+    Classic_Customer: item.classicCustomer,
+    Profit: item.profit,
     Quantity: item.quantity,
     Amount: item.amount,
-    SalesPerson: item.salesPerson,
   }));
 
   const handleExport = () => {
@@ -279,14 +274,12 @@ export default function Products() {
     size: item.size || item.model || "",
     tax: item.tax ?? "",
     unit: item.unit || "PCS",
-    mrp: item.mrp || item.buyPrice || item.sellPrice || "",
+    mrp: item.mrp || 0,
+    purchaseRate: item.buyPrice || 0,
     sellPrice: item.sellPrice || 0,
-    discountPercent: item.discountPercent || 0,
-    netPrice: item.netPrice || "",
+    classicCustomer: item.classicCustomer || 0,
     quantity: item.quantity || 0,
     amount: item.amount || 0,
-    salesPerson: item.salesPerson || "",
-    manualNet: false,
   });
 
   const loadProducts = async () => {
@@ -309,21 +302,11 @@ export default function Products() {
     setEditingItem((current) => {
       const next = { ...current, [field]: value };
 
-      if (field === "netPrice") {
-        next.manualNet = true;
-        return next;
-      }
-
-      if (!next.manualNet && (field === "discountPercent" || field === "sellPrice" || field === "mrp")) {
-        next.netPrice = "";
+      if (field === "sellPrice" || field === "mrp" || field === "purchaseRate" || field === "quantity") {
         const calculated = calculateProduct(next);
-        next.netPrice = calculated.netPrice;
+        next.profit = calculated.profit;
         next.amount = calculated.amount;
-      }
-
-      if (field === "quantity") {
-        const calculated = calculateProduct(next);
-        next.amount = calculated.amount;
+        next.sellPrice = calculated.sellPrice;
       }
 
       return next;
@@ -341,10 +324,8 @@ export default function Products() {
       unit: String(product.unit || "PCS").trim() || "PCS",
       tax: toNumber(product.tax),
       mrp: toNumber(product.mrp),
-      discountPercent: toNumber(product.discountPercent),
-      netPrice: toNumber(product.netPrice),
-      salesPerson: String(product.salesPerson || "").trim(),
-      buyPrice: toNumber(product.mrp || product.sellPrice),
+      classicCustomer: toNumber(product.classicCustomer),
+      buyPrice: toNumber(product.purchaseRate),
       sellPrice: toNumber(product.sellPrice),
       quantity: parseInt(product.quantity, 10) || 0,
     };
@@ -397,11 +378,10 @@ export default function Products() {
             tax: row.Tax || 0,
             unit: row.Unit || "PCS",
             mrp: row.MRP || 0,
+            purchaseRate: row.Purchase_Rate || row["Purchase Rate"] || 0,
             sellPrice: row.Unit_Price || row["Unit Price"] || 0,
-            discountPercent: row["Dis %"] || row["Discount %"] || 0,
-            netPrice: row.NetPrice || row["Net Price"] || "",
+            classicCustomer: row.Classic_Customer || row["Classic Customer"] || 0,
             quantity: row.Quantity || 0,
-            salesPerson: row.SalesPerson || row["Sales Person"] || "",
           });
           if (!product.name) continue;
 
@@ -481,12 +461,12 @@ export default function Products() {
                 <th style={{ ...styles.th, width: 60, textAlign: "center" }}>Tax</th>
                 <th style={{ ...styles.th, width: 60, textAlign: "center" }}>Unit</th>
                 <th style={{ ...styles.th, width: 100, textAlign: "right" }}>MRP (₹)</th>
+                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Pur Rate</th>
                 <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Unit Price</th>
-                <th style={{ ...styles.th, width: 70, textAlign: "right" }}>Dis %</th>
-                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Net Price</th>
+                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Classic Cust</th>
+                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Profit</th>
                 <th style={{ ...styles.th, width: 70, textAlign: "center" }}>Qty</th>
                 <th style={{ ...styles.th, width: 110, textAlign: "right" }}>Amount (₹)</th>
-                <th style={{ ...styles.th, width: 110 }}>Sales Person</th>
                 <th style={{ ...styles.th, width: 80, textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
@@ -518,14 +498,12 @@ export default function Products() {
                     <span style={styles.badge}>{item.unit || "PCS"}</span>
                   </td>
                   <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.mrp).toFixed(2)}</td>
+                  <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.purchaseRate).toFixed(2)}</td>
                   <td style={{ ...styles.td, textAlign: "right" }}>{toNumber(item.sellPrice).toFixed(2)}</td>
-                  <td style={{ ...styles.td, textAlign: "right", color: toNumber(item.discountPercent) > 0 ? "#34d399" : "#9ca3af" }}>
-                    {toNumber(item.discountPercent).toFixed(1)}%
-                  </td>
-                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#f9fafb" }}>{toNumber(item.netPrice).toFixed(2)}</td>
+                  <td style={{ ...styles.td, textAlign: "right", color: "#d1d5db" }}>{toNumber(item.classicCustomer).toFixed(2)}</td>
+                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#10b981" }}>{toNumber(item.profit).toFixed(2)}</td>
                   <td style={{ ...styles.td, textAlign: "center", color: toNumber(item.quantity) === 0 ? "#ef4444" : "#f9fafb" }}>{item.quantity || 0}</td>
                   <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#a5b4fc" }}>{toNumber(item.amount).toFixed(2)}</td>
-                  <td style={{ ...styles.td, color: "#d1d5db" }}>{item.salesPerson || "-"}</td>
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     <div style={styles.actionButtons}>
                       <button style={styles.editButton} onClick={() => handleEdit(item)} title="Edit (Ctrl+D)"><Edit size={15} /></button>
@@ -552,13 +530,11 @@ export default function Products() {
                   ["Product_Description *", "name", "text"],
                   ["Size", "size", "text"],
                   ["Tax", "tax", "number"],
-                  ["Unit", "unit", "text"],
                   ["MRP", "mrp", "number"],
+                  ["Purchase Rate", "purchaseRate", "number"],
                   ["Unit_Price", "sellPrice", "number"],
-                  ["Dis %", "discountPercent", "number"],
-                  ["NetPrice", "netPrice", "number"],
+                  ["Classic Customer", "classicCustomer", "number"],
                   ["Quantity", "quantity", "number"],
-                  ["SalesPerson", "salesPerson", "text"],
                 ].map(([label, field, type]) => (
                   <label key={field} style={styles.formGroup}>
                     <span style={styles.label}>{label}</span>
@@ -571,6 +547,22 @@ export default function Products() {
                     />
                   </label>
                 ))}
+                <label style={styles.formGroup}>
+                  <span style={styles.label}>Unit</span>
+                  <select
+                    style={styles.input}
+                    value={editingItem.unit || "PCS"}
+                    onChange={(event) => handleEditChange("unit", event.target.value)}
+                  >
+                    <option value="PCS">PCS</option>
+                    <option value="BOX">BOX</option>
+                    <option value="BUNDLE">BUNDLE</option>
+                  </select>
+                </label>
+                <div style={styles.formGroup}>
+                  <span style={styles.label}>Profit</span>
+                  <div style={styles.readOnly}>₹{toNumber(calculateProduct(editingItem).profit).toFixed(2)}</div>
+                </div>
                 <div style={styles.formGroup}>
                   <span style={styles.label}>Amount</span>
                   <div style={styles.readOnly}>₹{toNumber(calculateProduct(editingItem).amount).toFixed(2)}</div>

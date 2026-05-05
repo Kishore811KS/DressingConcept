@@ -84,12 +84,22 @@ def generate_employee_id():
     return "EMP001"
 
 def validate_user_type(user_type_name):
-    """Validate that user_type exists in the database"""
+    """Validate that user_type exists in the database, with fallbacks"""
+    print(f"DEBUG: Validating user_type: '{user_type_name}'")
     user_type = UserType.query.filter_by(name=user_type_name).first()
     if not user_type:
+        print(f"DEBUG: UserType '{user_type_name}' not found in DB")
+        # Fallback for common types if table is empty or missing these types
+        if user_type_name and user_type_name.lower().strip() in ['admin', 'employee', 'manager']:
+            print(f"DEBUG: Allowing '{user_type_name}' as fallback")
+            return None # Allow these types even if not in DB
+            
         # Get all valid user types for error message
         valid_types = UserType.query.all()
         valid_type_names = [ut.name for ut in valid_types]
+        if not valid_type_names:
+            valid_type_names = ['admin', 'employee', 'manager']
+            
         raise ValueError(f"Invalid user_type: {user_type_name}. Must be one of: {', '.join(valid_type_names)}")
     return user_type
 
@@ -361,6 +371,7 @@ def create_employee():
             emergency_contact=request.form.get('emergency_contact'),
             blood_group=request.form.get('blood_group'),
             marital_status=request.form.get('marital_status'),
+            basic_salary=float(request.form.get('basic_salary', 0) or 0),
             aadhar_attachment=aadhar_filename,
             pan_attachment=pan_filename
         )
@@ -478,6 +489,11 @@ def update_employee(id):
             employee.blood_group = request.form.get('blood_group')
         if request.form.get('marital_status'):
             employee.marital_status = request.form.get('marital_status')
+        if request.form.get('basic_salary') is not None:
+            try:
+                employee.basic_salary = float(request.form.get('basic_salary') or 0)
+            except:
+                pass
         
         db.session.commit()
         
