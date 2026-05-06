@@ -57,6 +57,8 @@ class Bill(db.Model):
     payment_transaction_id = db.Column(db.String(100), nullable=True)
     payment_bank_name = db.Column(db.String(100), nullable=True)
     payment_cheque_number = db.Column(db.String(50), nullable=True)
+    payment_online_phone = db.Column(db.String(20), nullable=True)
+    payment_online_ref = db.Column(db.String(100), nullable=True)
     cash_received = db.Column(db.Float, default=0)
     
     # Metadata
@@ -127,16 +129,16 @@ class Bill(db.Model):
                 'number': self.vehicle_number
             },
             'summary': {
-                'subtotal': round(self.subtotal, 2),
-                'discount': round(self.discount, 2),
+                'subtotal': round(self.subtotal or 0, 2),
+                'discount': round(self.discount or 0, 2),
                 'discountType': self.discount_type,
-                'tax': round(self.tax, 2),
+                'tax': round(self.tax or 0, 2),
                 'taxType': self.tax_type,
-                'total': round(self.total, 2)
+                'total': round(self.total or 0, 2)
             },
             'payment': {
-                'paidAmount': round(self.paid_amount, 2),
-                'changeAmount': round(self.change_amount, 2),
+                'paidAmount': round(self.paid_amount or 0, 2),
+                'changeAmount': round(self.change_amount or 0, 2),
                 'method': self.payment_method,
                 'status': self.payment_status,
                 'cardNumber': self.payment_card_number,
@@ -145,7 +147,9 @@ class Bill(db.Model):
                 'transactionId': self.payment_transaction_id,
                 'bankName': self.payment_bank_name,
                 'chequeNumber': self.payment_cheque_number,
-                'cashReceived': round(self.cash_received, 2) if self.cash_received else 0
+                'onlinePhone': self.payment_online_phone,
+                'onlineRef': self.payment_online_ref,
+                'cashReceived': round(self.cash_received or 0, 2)
             },
             'items': [item.to_dict() for item in self.items],
             'createdAt': self.created_at.isoformat() if self.created_at else None,
@@ -183,9 +187,9 @@ class BillItem(db.Model):
             'productName': self.product_name,
             'productModel': self.product_model,
             'productType': self.product_type,
-            'sellPrice': round(self.sell_price, 2),
+            'sellPrice': round(self.sell_price or 0, 2),
             'quantity': self.quantity,
-            'total': round(self.total, 2),
+            'total': round(self.total or 0, 2),
             'itemStatus': self.item_status
         }
 
@@ -210,7 +214,7 @@ class Payment(db.Model):
         return {
             'id': self.id,
             'paymentId': self.payment_id,
-            'amount': round(self.amount, 2),
+            'amount': round(self.amount or 0, 2),
             'method': self.method,
             'status': self.status,
             'reference': self.reference,

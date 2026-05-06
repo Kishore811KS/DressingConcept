@@ -45,7 +45,7 @@ def record_params(setup_state):
     if not app.secret_key:
         # Generate a secret key for the app
         app.config['SECRET_KEY'] = secrets.token_hex(32)
-        print(f"✅ Secret key configured for employee blueprint")
+        print(f"Secret key configured for employee blueprint")
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -83,25 +83,6 @@ def generate_employee_id():
             return "EMP001"
     return "EMP001"
 
-def validate_user_type(user_type_name):
-    """Validate that user_type exists in the database, with fallbacks"""
-    print(f"DEBUG: Validating user_type: '{user_type_name}'")
-    user_type = UserType.query.filter_by(name=user_type_name).first()
-    if not user_type:
-        print(f"DEBUG: UserType '{user_type_name}' not found in DB")
-        # Fallback for common types if table is empty or missing these types
-        if user_type_name and user_type_name.lower().strip() in ['admin', 'employee', 'manager']:
-            print(f"DEBUG: Allowing '{user_type_name}' as fallback")
-            return None # Allow these types even if not in DB
-            
-        # Get all valid user types for error message
-        valid_types = UserType.query.all()
-        valid_type_names = [ut.name for ut in valid_types]
-        if not valid_type_names:
-            valid_type_names = ['admin', 'employee', 'manager']
-            
-        raise ValueError(f"Invalid user_type: {user_type_name}. Must be one of: {', '.join(valid_type_names)}")
-    return user_type
 
 # ========== AUTHENTICATION ROUTES ==========
 
@@ -307,12 +288,8 @@ def create_employee():
         if existing_email:
             return jsonify({'error': 'Email already exists'}), 400
         
-        # Get user_type and validate from database
+        # Get user_type
         user_type = request.form.get('user_type', 'employee')
-        try:
-            validate_user_type(user_type)
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 400
         
         # Handle date of joining
         date_of_joining = None
@@ -404,14 +381,10 @@ def update_employee(id):
             if existing_email:
                 return jsonify({'error': 'Email already exists'}), 400
         
-        # Update user_type with validation from database if provided
+        # Update user_type if provided
         user_type = request.form.get('user_type')
         if user_type:
-            try:
-                validate_user_type(user_type)
-                employee.user_type = user_type
-            except ValueError as e:
-                return jsonify({'error': str(e)}), 400
+            employee.user_type = user_type
         
         # Handle date of joining
         if request.form.get('date_of_joining'):
@@ -543,12 +516,6 @@ def delete_employee(id):
 def get_employees_by_type(user_type):
     """Get employees by user type"""
     try:
-        # Validate user_type from database
-        try:
-            validate_user_type(user_type)
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 400
-        
         employees = Employee.query.filter_by(user_type=user_type).order_by(Employee.created_at.desc()).all()
         return jsonify([employee.to_dict() for employee in employees]), 200
     except Exception as e:

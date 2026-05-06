@@ -53,7 +53,6 @@ def search_products_for_billing():
                 Product.name.ilike(f'%{query}%'),
                 Product.description.ilike(f'%{query}%'),
                 Product.model.ilike(f'%{query}%'),
-                Product.size.ilike(f'%{query}%'),
                 Product.type.ilike(f'%{query}%')
             )
         ).filter(Product.quantity > 0).limit(10).all()
@@ -64,7 +63,6 @@ def search_products_for_billing():
             'name': p.name,
             'description': p.description or '',
             'model': p.model or '',
-            'size': p.size or '',
             'unit': p.unit or 'PCS',
             'tax': p.tax or 0,
             'mrp': p.mrp or p.buy_price or p.sell_price,
@@ -282,6 +280,8 @@ def create_bill():
         bill.payment_transaction_id = data.get('transactionId', '')
         bill.payment_bank_name = data.get('bankName', '')
         bill.payment_cheque_number = data.get('chequeNumber', '')
+        bill.payment_online_phone = data.get('onlinePhone', '')
+        bill.payment_online_ref = data.get('onlineRef', '')
         
         # Add items and update stock
         items_added = []
@@ -662,11 +662,11 @@ def get_all_bills():
                 'vehicleNumber': bill.vehicle_number,
                 'companyName': bill.company_name,
                 'companyGST': bill.company_gst,
-                'subtotal': round(bill.subtotal, 2),
-                'discount': round(bill.discount, 2),
-                'tax': round(bill.tax, 2),
-                'total': round(bill.total, 2),
-                'paidAmount': round(bill.paid_amount, 2),
+                'subtotal': round(bill.subtotal or 0, 2),
+                'discount': round(bill.discount or 0, 2),
+                'tax': round(bill.tax or 0, 2),
+                'total': round(bill.total or 0, 2),
+                'paidAmount': round(bill.paid_amount or 0, 2),
                 'paymentMethod': bill.payment_method,
                 'paymentStatus': bill.payment_status,
                 'itemCount': len(bill.items),
@@ -1244,8 +1244,8 @@ def search_warranty_by_bill():
                 'productName': item[2],  # product_name
                 'productModel': item[3] or 'N/A',  # product_model
                 'quantity': item[4],  # quantity
-                'sellPrice': float(item[5]),  # sell_price
-                'total': float(item[6]),  # total
+                'sellPrice': float(item[5] or 0),  # sell_price
+                'total': float(item[6] or 0),  # total
                 'warranty': {
                     'warrantyPeriodMonths': warranty_period_months,
                     'warrantyStartDate': warranty_start_date.isoformat() if warranty_start_date else None,

@@ -49,6 +49,7 @@ class Item(db.Model):
     status = db.Column(db.String(50), default="Active")
     attachment = db.Column(db.String(255))  # stores file path (pdf/excel/word)
     quantity = db.Column(db.Integer, default=0)  # ADDED quantity field
+    sell_price = db.Column(db.Float, default=0) # ADDED sell_price field
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -68,6 +69,7 @@ class Item(db.Model):
             'status': self.status,           
             'attachment': self.attachment,
             'quantity': self.quantity,  # ADDED quantity to dict
+            'sell_price': self.sell_price, # ADDED sell_price to dict
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

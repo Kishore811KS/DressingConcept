@@ -33,8 +33,24 @@ def ensure_product_attribute_columns():
 
     db.session.commit()
 
+def ensure_bill_payment_columns():
+    inspector = inspect(db.engine)
+    if "bills" in inspector.get_table_names():
+        existing_columns = {column["name"] for column in inspector.get_columns("bills")}
+        required_columns = {
+            "payment_online_phone": "VARCHAR(20) NULL",
+            "payment_online_ref": "VARCHAR(100) NULL",
+        }
+
+        for column_name, column_definition in required_columns.items():
+            if column_name not in existing_columns:
+                db.session.execute(text(f"ALTER TABLE bills ADD COLUMN {column_name} {column_definition}"))
+
+        db.session.commit()
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         ensure_product_attribute_columns()
+        ensure_bill_payment_columns()
     app.run(debug=True, port=5000)

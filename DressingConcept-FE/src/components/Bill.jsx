@@ -36,15 +36,13 @@ export default function Bill() {
   const [rows, setRows] = useState([{
     productId: "",
     description: "",
-    size: "",
-    tax: TAX_PERCENT,
-    unit: DEFAULT_UNIT,
-    mrp: 0,
-    unitPrice: 0,
-    discountPercent: 0,
-    netPrice: 0,
-    quantity: 1,
-    salesPerson: loggedInUserName,
+    tax: "",
+    unit: "",
+    mrp: "",
+    discountPercent: "",
+    netPrice: "",
+    quantity: "",
+    salesPerson: "",
   }]);
   const [billNo, setBillNo] = useState("");
   const [counter, setCounter] = useState("counter_1");
@@ -63,6 +61,9 @@ export default function Bill() {
   const [cardNumber, setCardNumber] = useState("");
   const [discountPercent, setDiscountPercent] = useState("");
   const [discountAmount, setDiscountAmount] = useState("");
+  const [onlineAmount, setOnlineAmount] = useState("");
+  const [onlinePhone, setOnlinePhone] = useState("");
+  const [onlineRef, setOnlineRef] = useState("");
   const [paidBefore, setPaidBefore] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -433,20 +434,17 @@ export default function Bill() {
   };
 
   const normalizeProduct = (product) => {
-    const unitPrice = money(product.sellPrice || product.sell_price);
-    const mrp = money(product.mrp || product.buyPrice || product.buy_price || unitPrice);
+    const mrp = money(product.mrp || product.sellPrice || product.sell_price || 0);
     const discountPercent = Number(product.discountPercent || 0);
-    const netPrice = money(product.netPrice || (unitPrice - (unitPrice * discountPercent / 100)));
+    const netPrice = money(product.netPrice || (mrp - (mrp * discountPercent / 100)));
 
     return {
       _dbId: product.id,
       productId: product.productCode || String(product.id),
       description: product.name || product.productName || "",
-      size: product.size || product.model || "",
       tax: Number(product.tax || product.watts || TAX_PERCENT),
       unit: product.unit || product.type || DEFAULT_UNIT,
       mrp,
-      unitPrice,
       discountPercent,
       netPrice,
       quantity: 1,
@@ -503,59 +501,89 @@ export default function Bill() {
     }
   };
 
+  const handleProductSearch = (index, value) => {
+    const query = String(value || "").trim();
+    if (!query) return;
+
+    let found = products.find((p) => (
+      String(p.id) === query ||
+      String(p.productCode || "").toLowerCase() === query.toLowerCase() ||
+      String(p.name || "").toLowerCase() === query.toLowerCase()
+    ));
+
+    const applyFound = (product) => {
+      const normalized = normalizeProduct(product);
+      setRows((current) => {
+        // Check if this product already exists in ANY other row
+        const existingIndex = current.findIndex((row, rowIndex) => 
+          rowIndex !== index && (row._dbId === normalized._dbId || (row.productId && row.productId === normalized.productId))
+        );
+
+        if (existingIndex !== -1) {
+          // Product already exists in another row, increment it
+          showTempMessage("success", `Quantity increased for ${normalized.description}`);
+          const nextRows = current.map((row, rowIndex) => {
+            if (rowIndex === existingIndex) {
+              return { ...row, quantity: (Number(row.quantity) || 0) + 1 };
+            }
+            if (rowIndex === index) {
+              // Reset the current row where we typed the duplicate
+              return {
+                productId: "",
+                description: "",
+                tax: "",
+                unit: "",
+                mrp: "",
+                discountPercent: "",
+                netPrice: "",
+                quantity: "",
+                salesPerson: "",
+              };
+            }
+            return row;
+          });
+          return nextRows;
+        }
+
+        // Not a duplicate, fill the current row
+        const nextRows = current.map((row, rowIndex) => (rowIndex === index ? normalized : row));
+        
+        // If we filled the last row, add a new blank row automatically
+        if (index === current.length - 1) {
+          nextRows.push({
+            productId: "",
+            description: "",
+            tax: "",
+            unit: "",
+            mrp: "",
+            discountPercent: "",
+            netPrice: "",
+            quantity: "",
+            salesPerson: "",
+          });
+        }
+        return nextRows;
+      });
+    };
+
+    if (found) {
+      applyFound(found);
+      return;
+    }
+
+    if (/^\d+$/.test(query)) {
+      axios.get(`${API_BASE_URL}/products/${query}`).then((res) => {
+        if (res.data) applyFound(res.data);
+      }).catch(() => {
+        // fail silently
+      });
+    }
+  };
+
   const updateRow = (index, field, value) => {
-    const numericFields = ["mrp", "unitPrice", "discountPercent", "netPrice", "quantity", "tax"];
+    const numericFields = ["mrp", "discountPercent", "netPrice", "quantity", "tax"];
 
     if (field === "productId") {
-      const query = String(value || "").trim();
-      if (!query) {
-        setRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, productId: "" } : row)));
-        return;
-      }
-
-      let found = products.find((p) => (
-        String(p.id) === query ||
-        String(p.productCode || "").toLowerCase() === query.toLowerCase() ||
-        String(p.name || "").toLowerCase() === query.toLowerCase()
-      ));
-
-      const applyFound = (product) => {
-        const normalized = normalizeProduct(product);
-        setRows((current) => {
-          const nextRows = current.map((row, rowIndex) => (rowIndex === index ? normalized : row));
-          if (index === current.length - 1) {
-            nextRows.push({
-              productId: "",
-              description: "",
-              size: "",
-              tax: TAX_PERCENT,
-              unit: DEFAULT_UNIT,
-              mrp: 0,
-              unitPrice: 0,
-              discountPercent: 0,
-              netPrice: 0,
-              quantity: 1,
-              salesPerson: loggedInUserName,
-            });
-          }
-          return nextRows;
-        });
-      };
-
-      if (found) {
-        applyFound(found);
-        return;
-      }
-
-      if (/^\d+$/.test(query)) {
-        axios.get(`${API_BASE_URL}/products/${query}`).then((res) => {
-          if (res.data) applyFound(res.data);
-        }).catch(() => {
-          setRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, productId: value } : row)));
-        });
-        return;
-      }
-
       setRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, productId: value } : row)));
       return;
     }
@@ -566,10 +594,10 @@ export default function Bill() {
 
         const updated = { ...row, [field]: numericFields.includes(field) ? Number(value) || 0 : value };
 
-        if (field === "unitPrice" || field === "discountPercent") {
-          const u = Number(updated.unitPrice) || 0;
+        if (field === "mrp" || field === "discountPercent") {
+          const m = Number(updated.mrp) || 0;
           const d = Number(updated.discountPercent) || 0;
-          updated.netPrice = money(u - (u * d / 100));
+          updated.netPrice = money(m - (m * d / 100));
         }
 
         return updated;
@@ -581,7 +609,6 @@ export default function Bill() {
         newRows.push({
           productId: "",
           description: "",
-          size: "",
           tax: TAX_PERCENT,
           unit: DEFAULT_UNIT,
           mrp: 0,
@@ -617,8 +644,9 @@ export default function Bill() {
     const cardPaid = Number(cardAmount) || 0;
     const upiPaid = Number(upiAmount) || 0;
     const cashPaid = Number(cashReceived) || 0;
+    const onlinePaid = Number(onlineAmount) || 0;
     const previousPaid = Number(paidBefore) || 0;
-    const amountPaid = money(cardPaid + upiPaid + cashPaid + previousPaid);
+    const amountPaid = money(cardPaid + upiPaid + cashPaid + onlinePaid + previousPaid);
     const amountToPay = money(Math.max(0, billValue - previousPaid));
     const amountToReturn = money(Math.max(0, amountPaid - billValue));
     const unitDiscount = money(Math.max(0, mrpTotal - netBeforeDiscount));
@@ -634,7 +662,7 @@ export default function Bill() {
       amountToReturn,
       amountPaid,
     };
-  }, [rows, discountPercent, discountAmount, cardAmount, upiAmount, cashReceived, paidBefore]);
+  }, [rows, discountPercent, discountAmount, cardAmount, upiAmount, cashReceived, onlineAmount, paidBefore]);
 
   const saveBill = async () => {
     if (rows.length === 0) {
@@ -648,7 +676,7 @@ export default function Bill() {
 
     try {
       const paidAmount = totals.amountPaid || totals.billValue;
-      const paymentMethod = cardBill || Number(cardAmount) > 0 ? "card" : Number(upiAmount) > 0 ? "upi" : "cash";
+      const paymentMethod = cardBill || Number(cardAmount) > 0 ? "card" : (Number(upiAmount) > 0 ? "upi" : (Number(onlineAmount) > 0 ? "online" : "cash"));
       const payload = {
         customerName: customerName || "Walk-in Customer",
         customerPhone: mobileNumber,
@@ -662,6 +690,8 @@ export default function Bill() {
         paymentMethod,
         cashReceived: Number(cashReceived) || 0,
         cardNumber,
+        onlinePhone,
+        onlineRef,
         createdByName: salesPerson || counter,
         rewardPointsEarned: noRewards ? 0 : totals.billValue * 0.01,
         rewardPointsRedeemed: 0,
@@ -700,15 +730,13 @@ export default function Bill() {
       setRows([{
         productId: "",
         description: "",
-        size: "",
-        tax: TAX_PERCENT,
-        unit: DEFAULT_UNIT,
-        mrp: 0,
-        unitPrice: 0,
-        discountPercent: 0,
-        netPrice: 0,
-        quantity: 1,
-        salesPerson: loggedInUserName,
+        tax: "",
+        unit: "",
+        mrp: "",
+        discountPercent: "",
+        netPrice: "",
+        quantity: "",
+        salesPerson: "",
       }]);
       setCustomerName("");
       setMemberId("");
@@ -721,6 +749,9 @@ export default function Bill() {
       setCardNumber("");
       setDiscountPercent("");
       setDiscountAmount("");
+      setOnlineAmount("");
+      setOnlinePhone("");
+      setOnlineRef("");
       setPaidBefore("");
       setSaleReturn(false);
       setCardBill(false);
@@ -795,13 +826,13 @@ export default function Bill() {
           <div className="customer-name">{loggedInUserName}</div>
 
           <div className="header-middle">
-            <label className="check"><input type="checkbox" checked={classicCustomer} onChange={(event) => setClassicCustomer(event.target.checked)} /> Classic Customer <span className="shortcut-hint">Alt+4</span></label>
+            <label className="check"><input type="checkbox" checked={classicCustomer} onChange={(event) => setClassicCustomer(event.target.checked)} /> Use Classic Mode <span className="shortcut-hint">Alt+4</span></label>
             <div className="field-group">
               <label>Member ID <span className="shortcut-hint">F7 / Ctrl+Shift+I</span></label>
               <input ref={memberIdRef} value={memberId} onChange={(event) => setMemberId(event.target.value)} />
             </div>
             <div className="mobile-field-group" ref={mobileContainerRef}>
-              <label>Mobile Number <span className="shortcut-hint">F4 / Ctrl+Shift+P</span></label>
+              <label>Classic Customer <span className="shortcut-hint">F4 / Ctrl+Shift+P</span></label>
               <input
                 ref={mobileRef}
                 value={mobileNumber}
@@ -879,11 +910,9 @@ export default function Bill() {
               <tr>
                 <th>Product ID</th>
                 <th>Product Description</th>
-                <th>Size</th>
                 <th>Tax</th>
                 <th>Unit</th>
                 <th>MRP</th>
-                <th>Unit Price</th>
                 <th>Disc %</th>
                 <th>Net Price</th>
                 <th>Qty</th>
@@ -893,17 +922,26 @@ export default function Bill() {
             </thead>
             <tbody>
               {rows.map((row, index) => {
-                const netPrice = money(row.netPrice || (row.unitPrice - row.unitPrice * ((Number(row.discountPercent) || 0) / 100)));
+                const netPrice = money(row.netPrice || (Number(row.mrp) - Number(row.mrp) * ((Number(row.discountPercent) || 0) / 100)));
                 const amount = money(netPrice * (Number(row.quantity) || 0));
                 return (
                   <tr key={row.productId || index}>
-                    <td><input value={row.productId} onChange={(event) => updateRow(index, "productId", event.target.value)} /></td>
+                    <td>
+                      <input 
+                        value={row.productId} 
+                        onChange={(event) => updateRow(index, "productId", event.target.value)} 
+                        onBlur={(event) => handleProductSearch(index, event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            handleProductSearch(index, event.target.value);
+                          }
+                        }}
+                      />
+                    </td>
                     <td><input value={row.description} onChange={(event) => updateRow(index, "description", event.target.value)} /></td>
-                    <td><input value={row.size} onChange={(event) => updateRow(index, "size", event.target.value)} /></td>
                     <td><input type="number" value={row.tax} onChange={(event) => updateRow(index, "tax", event.target.value)} /></td>
                     <td><input value={row.unit} onChange={(event) => updateRow(index, "unit", event.target.value)} /></td>
                     <td><input type="number" value={row.mrp} onChange={(event) => updateRow(index, "mrp", event.target.value)} /></td>
-                    <td><input type="number" value={row.unitPrice} onChange={(event) => updateRow(index, "unitPrice", event.target.value)} /></td>
                     <td><input type="number" value={row.discountPercent} onChange={(event) => updateRow(index, "discountPercent", event.target.value)} /></td>
                     <td><input type="number" value={netPrice} onChange={(event) => updateRow(index, "netPrice", event.target.value)} /></td>
                     <td><input type="number" min="1" max={row.stock || undefined} value={row.quantity} onChange={(event) => updateRow(index, "quantity", event.target.value)} /></td>
@@ -917,7 +955,7 @@ export default function Bill() {
               })}
               {blankRows.slice(0, Math.max(0, 8 - rows.length)).map((item) => (
                 <tr key={`empty-${item}`} className="empty-row">
-                  <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                  <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
                 </tr>
               ))}
             </tbody>
@@ -943,8 +981,10 @@ export default function Bill() {
           </div>
 
           <div className="footer-col">
-            <div className="info-row"><span>MRP DISCOUNT</span><strong>₹{Math.round(totals.mrpDiscount)}</strong></div>
-            <div className="info-row"><span>UNIT DISCOUNT</span><strong>₹{Math.round(totals.unitDiscount)}</strong></div>
+            <div className="section-title">Online Payment</div>
+            <div className="info-row"><span>Online Amount</span><input value={onlineAmount} onChange={(e) => setOnlineAmount(e.target.value)} /></div>
+            <div className="info-row"><span>Phone No</span><input value={onlinePhone} onChange={(e) => setOnlinePhone(e.target.value)} /></div>
+            <div className="info-row"><span>Reference ID</span><input value={onlineRef} onChange={(e) => setOnlineRef(e.target.value)} /></div>
           </div>
 
           <div className="footer-col">

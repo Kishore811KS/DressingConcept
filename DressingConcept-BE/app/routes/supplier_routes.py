@@ -22,12 +22,12 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Print debug information
 print("=" * 60)
-print("📁 FILE UPLOAD CONFIGURATION")
-print(f"📁 Base directory: {BASE_DIR}")
-print(f"📁 Upload folder path: {UPLOAD_FOLDER}")
-print(f"📁 Upload folder absolute: {os.path.abspath(UPLOAD_FOLDER)}")
-print(f"📁 Upload folder exists: {os.path.exists(UPLOAD_FOLDER)}")
-print(f"📁 Current working directory: {os.getcwd()}")
+print("FILE UPLOAD CONFIGURATION")
+print(f"Base directory: {BASE_DIR}")
+print(f"Upload folder path: {UPLOAD_FOLDER}")
+print(f"Upload folder absolute: {os.path.abspath(UPLOAD_FOLDER)}")
+print(f"Upload folder exists: {os.path.exists(UPLOAD_FOLDER)}")
+print(f"Current working directory: {os.getcwd()}")
 print("=" * 60)
 
 def allowed_file(filename):
@@ -45,25 +45,25 @@ def upload_file():
             return response
             
         print("=" * 50)
-        print("📤 POST /api/upload called")
+        print("POST /api/upload called")
         
         # Check if file is present in request
         if 'file' not in request.files:
-            print("❌ Error: No file part in request")
+            print("Error: No file part in request")
             return jsonify({'error': 'No file part'}), 400
         
         file = request.files['file']
         
         if file.filename == '':
-            print("❌ Error: No selected file")
+            print("Error: No selected file")
             return jsonify({'error': 'No selected file'}), 400
         
-        print(f"📄 File received: {file.filename}")
-        print(f"📁 File content type: {file.content_type}")
+        print(f"File received: {file.filename}")
+        print(f"File content type: {file.content_type}")
         
         # Validate file type
         if not allowed_file(file.filename):
-            print(f"❌ Error: File type not allowed: {file.filename}")
+            print(f"Error: File type not allowed: {file.filename}")
             return jsonify({'error': 'File type not allowed. Allowed types: pdf, doc, docx, jpg, jpeg, png, txt'}), 400
         
         # Create secure filename and add unique identifier
@@ -77,10 +77,10 @@ def upload_file():
         # Verify file was saved
         if os.path.exists(file_path):
             file_size = os.path.getsize(file_path)
-            print(f"✅ File saved successfully to: {file_path}")
-            print(f"📊 File size: {file_size} bytes")
+            print(f"File saved successfully to: {file_path}")
+            print(f"File size: {file_size} bytes")
         else:
-            print(f"❌ File was not saved properly!")
+            print(f"File was not saved properly!")
             return jsonify({'error': 'File save failed'}), 500
         
         # Return the file URL that can be stored in database
@@ -98,7 +98,7 @@ def upload_file():
         }), 200
         
     except Exception as e:
-        print(f"❌ File upload error: {str(e)}")
+        print(f"File upload error: {str(e)}")
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
@@ -110,11 +110,11 @@ def get_uploaded_file(filename):
             response = make_response()
             return response
             
-        print(f"📥 GET /uploads/{filename} called")
+        print(f"GET /uploads/{filename} called")
         
         # Security check to prevent directory traversal
         if '..' in filename or filename.startswith('/'):
-            print("❌ Security: Invalid filename")
+            print("Security: Invalid filename")
             return jsonify({'error': 'Invalid filename'}), 400
         
         # Construct full path
@@ -126,7 +126,7 @@ def get_uploaded_file(filename):
         
         # Check if file exists
         if not os.path.exists(file_path):
-            print(f"❌ File not found: {abs_path}")
+            print(f"File not found: {abs_path}")
             
             # List files in directory for debugging
             if os.path.exists(UPLOAD_FOLDER):
@@ -135,11 +135,11 @@ def get_uploaded_file(filename):
                 for f in files[:10]:  # Show first 10 files
                     print(f"   - {f}")
             else:
-                print(f"❌ Upload folder does not exist: {UPLOAD_FOLDER}")
+                print(f"Upload folder does not exist: {UPLOAD_FOLDER}")
             
             return jsonify({'error': 'File not found'}), 404
         
-        print(f"✅ File found, serving: {abs_path}")
+        print(f"File found, serving: {abs_path}")
         
         # Send the file
         return send_from_directory(
@@ -150,7 +150,7 @@ def get_uploaded_file(filename):
         )
         
     except Exception as e:
-        print(f"❌ File serving error: {str(e)}")
+        print(f"File serving error: {str(e)}")
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
@@ -213,7 +213,7 @@ def debug_uploads():
         }), 200
         
     except Exception as e:
-        print(f"❌ Debug error: {str(e)}")
+        print(f"Debug error: {str(e)}")
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
@@ -226,16 +226,16 @@ def delete_file():
             return response
             
         print("=" * 50)
-        print("🗑️ POST /api/delete-file called")
+        print("POST /api/delete-file called")
         
         data = request.get_json()
         if not data:
-            print("❌ Error: No data provided")
+            print("Error: No data provided")
             return jsonify({'error': 'No data provided'}), 400
             
         file_path = data.get('filePath')
         if not file_path:
-            print("❌ Error: No file path provided")
+            print("Error: No file path provided")
             return jsonify({'error': 'No file path provided'}), 400
         
         # Extract filename from URL path
@@ -248,17 +248,17 @@ def delete_file():
         # Check if file exists and delete it
         if os.path.exists(full_path) and os.path.isfile(full_path):
             os.remove(full_path)
-            print(f"✅ File deleted successfully: {abs_path}")
+            print(f"File deleted successfully: {abs_path}")
             return jsonify({
                 'success': True,
                 'message': 'File deleted successfully'
             }), 200
         else:
-            print(f"❌ File not found: {abs_path}")
+            print(f"File not found: {abs_path}")
             return jsonify({'error': 'File not found'}), 404
             
     except Exception as e:
-        print(f"❌ File delete error: {str(e)}")
+        print(f"File delete error: {str(e)}")
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
@@ -594,10 +594,6 @@ def create_item(supplier_id):
             print("Error: Name is required")
             return jsonify({"error": "Name is required"}), 400
             
-        if not data.get('model'):
-            print("Error: Model is required")
-            return jsonify({"error": "Model is required"}), 400
-            
         if data.get('buy_price') is None:
             print("Error: Buy price is required")
             return jsonify({"error": "Buy price is required"}), 400
@@ -605,14 +601,15 @@ def create_item(supplier_id):
         # Create new item with status, attachment, and quantity
         new_item = Item(
             name=data['name'].strip(),
-            type=data.get('type', '').strip() if data.get('type') else None,
-            model=data['model'].strip(),
+            type=data.get('type', 'PCS').strip() if data.get('type') else 'PCS',
+            model=data.get('model', '').strip() if data.get('model') else '',
             watts=float(data.get('watts', 0)),
             buy_price=float(data['buy_price']),
+            sell_price=float(data.get('sell_price', 0)),
             supplier_id=supplier_id,
             status=data.get('status', 'Active'),
             attachment=data.get('attachment', None),
-            quantity=int(data.get('quantity', 0))  # ✅ FIXED: Include quantity
+            quantity=int(data.get('quantity', 0))
         )
         
         print(f"Creating item: {new_item.name}, price: {new_item.buy_price}, status: {new_item.status}, quantity: {new_item.quantity}, attachment: {new_item.attachment}")
@@ -658,17 +655,19 @@ def update_item(item_id):
             item.name = data['name'].strip()
         if 'type' in data:
             item.type = data['type'].strip() if data['type'] else None
-        if data.get('model'):
+        if 'model' in data:
             item.model = data['model'].strip()
         if 'watts' in data:
             item.watts = float(data['watts']) if data['watts'] else 0
         if 'buy_price' in data:
             item.buy_price = float(data['buy_price']) if data['buy_price'] else 0
+        if 'sell_price' in data:
+            item.sell_price = float(data['sell_price']) if data['sell_price'] else 0
         if 'status' in data:
             item.status = data['status']
         if 'attachment' in data:
             item.attachment = data['attachment']
-        if 'quantity' in data:  # ✅ FIXED: Include quantity
+        if 'quantity' in data:
             item.quantity = int(data['quantity']) if data['quantity'] else 0
         
         item.updated_at = datetime.utcnow()

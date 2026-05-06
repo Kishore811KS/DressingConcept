@@ -77,7 +77,8 @@ def create_app():
     def health_check():
         return {
             "status": "healthy",
-            "message": "API is working"
+            "message": "API is working",
+            "version": "1.0.1"
         }, 200
 
     return app

@@ -30,5 +30,6 @@ class Attendance(db.Model):
             'status': self.status,
             'total_hours': self.total_hours,
             'overtime': self.overtime,
+            'basic_salary': self.employee.basic_salary if self.employee else 0,
             'notes': self.notes
         }

@@ -10,14 +10,13 @@ class Product(db.Model):
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.String(255))
     model = db.Column(db.String(100))
-    size = db.Column(db.String(100))
     unit = db.Column(db.String(50), default="PCS")
     tax = db.Column(db.Float, default=0)
     mrp = db.Column(db.Float, default=0)
     discount_percent = db.Column(db.Float, default=0)
     net_price = db.Column(db.Float, default=0)
     sales_person = db.Column(db.String(100))
-    classic_customer = db.Column(db.Float, default=0)
+    classic_customer = db.Column(db.String(20))
     type = db.Column(db.String(100))
     watts = db.Column(db.Float)
 
@@ -34,7 +33,7 @@ class Product(db.Model):
         discount = self.discount_percent or 0
         self.net_price = round((self.sell_price or 0) - ((self.sell_price or 0) * discount / 100), 2)
 
-        self.profit = round((self.sell_price or 0) - (self.buy_price or 0), 2)
+        self.profit = round((self.mrp or 0) - (self.buy_price or 0), 2)
         if self.buy_price and self.buy_price > 0:
             self.profit_percent = round(
                 (self.profit / self.buy_price) * 100, 2
@@ -51,7 +50,6 @@ class Product(db.Model):
             "name": self.name,
             "description": self.description,
             "model": self.model,
-            "size": self.size,
             "unit": self.unit,
             "tax": self.tax,
             "mrp": self.mrp,
@@ -64,7 +62,7 @@ class Product(db.Model):
             "buyPrice": self.buy_price,
             "sellPrice": self.sell_price,
             "quantity": self.quantity,
-            "profit": getattr(self, 'profit', round((self.sell_price or 0) - (self.buy_price or 0), 2)),
+            "profit": getattr(self, 'profit', round((self.mrp or 0) - (self.buy_price or 0), 2)),
             "profitPercent": self.profit_percent,
             "amount": self.amount,
             "created_at": self.created_at

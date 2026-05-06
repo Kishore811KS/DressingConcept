@@ -10,12 +10,10 @@ const emptyProduct = {
   id: "",
   productCode: "",
   name: "",
-  size: "",
   tax: "",
   unit: "PCS",
   mrp: "",
   purchaseRate: "",
-  sellPrice: "",
   classicCustomer: "",
   profit: "0.00",
   quantity: "",
@@ -26,17 +24,16 @@ const emptyProduct = {
 const toNumber = (value) => Number(value) || 0;
 
 const calculateProduct = (product) => {
-  const unitPrice = toNumber(product.sellPrice) || toNumber(product.mrp);
+  const mrp = toNumber(product.mrp);
   const purchaseRate = toNumber(product.purchaseRate);
   const quantity = parseInt(product.quantity, 10) || 0;
-  const profit = unitPrice - purchaseRate;
+  const profit = mrp - purchaseRate;
 
   return {
     ...product,
-    sellPrice: unitPrice,
     profit: profit.toFixed(2),
     quantity,
-    amount: (unitPrice * quantity).toFixed(2),
+    amount: (mrp * quantity).toFixed(2),
   };
 };
 
@@ -63,7 +60,6 @@ export default function Products() {
     return items.filter((item) => (
       String(item.productCode || item.id).toLowerCase().includes(query) ||
       String(item.name || "").toLowerCase().includes(query) ||
-      String(item.size || "").toLowerCase().includes(query) ||
       String(item.unit || "").toLowerCase().includes(query)
     ));
   }, [items, search]);
@@ -99,7 +95,6 @@ export default function Products() {
   const rowsForExport = (list) => list.map((item) => ({
     Product_Id: item.productCode || item.id,
     Product_Description: item.name,
-    Size: item.size,
     Tax: item.tax,
     Unit: item.unit,
     MRP: item.mrp,
@@ -114,8 +109,8 @@ export default function Products() {
   const handleExport = () => {
     const worksheet = XLSX.utils.json_to_sheet(rowsForExport(items));
     worksheet["!cols"] = [
-      { wch: 14 }, { wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
-      { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 16 },
+      { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+      { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 16 },
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
@@ -271,13 +266,12 @@ export default function Products() {
     id: item.id,
     productCode: item.productCode || item.id || "",
     name: item.name || "",
-    size: item.size || item.model || "",
     tax: item.tax ?? "",
     unit: item.unit || "PCS",
     mrp: item.mrp || 0,
     purchaseRate: item.buyPrice || 0,
     sellPrice: item.sellPrice || 0,
-    classicCustomer: item.classicCustomer || 0,
+    classicCustomer: item.classicCustomer || "",
     quantity: item.quantity || 0,
     amount: item.amount || 0,
   });
@@ -319,8 +313,6 @@ export default function Products() {
       productCode: String(product.productCode || "").trim(),
       name: String(product.name || "").trim(),
       description: String(product.name || "").trim(),
-      model: String(product.size || "").trim(),
-      size: String(product.size || "").trim(),
       unit: String(product.unit || "PCS").trim() || "PCS",
       tax: toNumber(product.tax),
       mrp: toNumber(product.mrp),
@@ -374,7 +366,6 @@ export default function Products() {
           const product = calculateProduct({
             productCode: row.Product_Id || row["Product ID"] || "",
             name: row.Product_Description || row["Product Description"] || "",
-            size: row.Size || "",
             tax: row.Tax || 0,
             unit: row.Unit || "PCS",
             mrp: row.MRP || 0,
@@ -445,7 +436,7 @@ export default function Products() {
               style={styles.searchInput}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by Product_Id, Product_Description, Size, Unit... (Ctrl+F)"
+              placeholder="Search by Product_Id, Product_Description, Unit... (Ctrl+F)"
             />
           </div>
         </div>
@@ -457,13 +448,11 @@ export default function Products() {
                 <th style={{ ...styles.th, width: 50, textAlign: "center" }}>#</th>
                 <th style={{ ...styles.th, width: 110 }}>Product ID</th>
                 <th style={{ ...styles.th, width: 220, textAlign: "left" }}>Description</th>
-                <th style={{ ...styles.th, width: 90, textAlign: "center" }}>Size</th>
                 <th style={{ ...styles.th, width: 60, textAlign: "center" }}>Tax</th>
                 <th style={{ ...styles.th, width: 60, textAlign: "center" }}>Unit</th>
                 <th style={{ ...styles.th, width: 100, textAlign: "right" }}>MRP (₹)</th>
                 <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Pur Rate</th>
-                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Unit Price</th>
-                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Classic Cust</th>
+                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Classic (Mobile)</th>
                 <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Profit</th>
                 <th style={{ ...styles.th, width: 70, textAlign: "center" }}>Qty</th>
                 <th style={{ ...styles.th, width: 110, textAlign: "right" }}>Amount (₹)</th>
@@ -472,9 +461,9 @@ export default function Products() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="14" style={styles.emptyState}>Loading products...</td></tr>
+                <tr><td colSpan="12" style={styles.emptyState}>Loading products...</td></tr>
               ) : filteredItems.length === 0 ? (
-                <tr><td colSpan="14" style={styles.emptyState}>No products found. Press F4 to add new product.</td></tr>
+                <tr><td colSpan="12" style={styles.emptyState}>No products found. Press F4 to add new product.</td></tr>
               ) : filteredItems.map((item, idx) => (
                 <tr
                   key={item.id}
@@ -492,15 +481,13 @@ export default function Products() {
                   </td>
                   <td style={{ ...styles.td, fontFamily: "monospace", color: "#a5b4fc", fontSize: 12 }}>{item.productCode || item.id}</td>
                   <td style={{ ...styles.td, fontWeight: 500 }}>{item.name || "-"}</td>
-                  <td style={{ ...styles.td, textAlign: "center", color: "#d1d5db" }}>{item.size || "-"}</td>
                   <td style={{ ...styles.td, textAlign: "center", color: "#d1d5db" }}>{toNumber(item.tax).toFixed(1)}</td>
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     <span style={styles.badge}>{item.unit || "PCS"}</span>
                   </td>
                   <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.mrp).toFixed(2)}</td>
                   <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.purchaseRate).toFixed(2)}</td>
-                  <td style={{ ...styles.td, textAlign: "right" }}>{toNumber(item.sellPrice).toFixed(2)}</td>
-                  <td style={{ ...styles.td, textAlign: "right", color: "#d1d5db" }}>{toNumber(item.classicCustomer).toFixed(2)}</td>
+                  <td style={{ ...styles.td, textAlign: "right", color: "#d1d5db" }}>{item.classicCustomer || "-"}</td>
                   <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#10b981" }}>{toNumber(item.profit).toFixed(2)}</td>
                   <td style={{ ...styles.td, textAlign: "center", color: toNumber(item.quantity) === 0 ? "#ef4444" : "#f9fafb" }}>{item.quantity || 0}</td>
                   <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#a5b4fc" }}>{toNumber(item.amount).toFixed(2)}</td>
@@ -528,12 +515,10 @@ export default function Products() {
                 {[
                   ["Product_Id", "productCode", "text"],
                   ["Product_Description *", "name", "text"],
-                  ["Size", "size", "text"],
                   ["Tax", "tax", "number"],
                   ["MRP", "mrp", "number"],
                   ["Purchase Rate", "purchaseRate", "number"],
-                  ["Unit_Price", "sellPrice", "number"],
-                  ["Classic Customer", "classicCustomer", "number"],
+                  ["Classic Customer (Mobile No)", "classicCustomer", "text"],
                   ["Quantity", "quantity", "number"],
                 ].map(([label, field, type]) => (
                   <label key={field} style={styles.formGroup}>

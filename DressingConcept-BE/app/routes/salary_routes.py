@@ -4,6 +4,7 @@ from datetime import datetime
 import calendar
 from app import db
 from app.models import Salary, Employee, Attendance, HRConfig
+from sqlalchemy import func
 import logging
 
 salary_bp = Blueprint('salary', __name__)
@@ -33,8 +34,8 @@ def calculate_salaries():
             # Calculate attendance based on status
             attendances = Attendance.query.filter(
                 Attendance.employee_id == emp.id,
-                db.extract('month', Attendance.date) == month,
-                db.extract('year', Attendance.date) == year
+                func.month(Attendance.date) == month,
+                func.year(Attendance.date) == year
             ).all()
             
             present_days = sum(1 for a in attendances if a.status == 'present')

@@ -10,7 +10,6 @@ import logging
 from flask_cors import CORS
 
 attendance_bp = Blueprint('attendance', __name__)
-CORS(attendance_bp)
 logger = logging.getLogger(__name__)
 
 
@@ -430,8 +429,8 @@ def list_monthly_attendance():
         for emp in employees:
             attendances = Attendance.query.filter(
                 Attendance.employee_id == emp.id,
-                db.extract('month', Attendance.date) == month,
-                db.extract('year', Attendance.date) == year
+                func.month(Attendance.date) == month,
+                func.year(Attendance.date) == year
             ).all()
             
             present = sum(1 for a in attendances if a.status == 'present')
@@ -480,6 +479,7 @@ def list_attendance():
                     date=target_date,
                     status='present'
                 )
+                attendance.employee = emp  # Explicitly set to ensure to_dict() works
                 db.session.add(attendance)
                 db.session.flush()
                 

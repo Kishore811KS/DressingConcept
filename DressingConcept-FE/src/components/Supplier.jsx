@@ -22,7 +22,7 @@ const SupplierPage = () => {
   // State for current item form
   const [currentItem, setCurrentItem] = useState({
     name: '',
-    type: '',
+    type: 'PCS',
     model: '',
     watts: '',
     buyPrice: '',
@@ -247,10 +247,16 @@ const SupplierPage = () => {
         address: currentSupplier.address || null
       };
 
-      console.log('Sending supplier data:', supplierData);
+      const isEditing = !!currentSupplier.id;
+      const url = isEditing 
+        ? `${BASE_URL}/api/suppliers/${currentSupplier.id}` 
+        : `${BASE_URL}/api/suppliers`;
+      const method = isEditing ? 'PUT' : 'POST';
 
-      const response = await fetch(`${BASE_URL}/api/suppliers`, {
-        method: 'POST',
+      console.log(`${method} supplier data:`, supplierData);
+
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -259,28 +265,29 @@ const SupplierPage = () => {
         body: JSON.stringify(supplierData)
       });
 
-      console.log('Response status:', response.status);
-
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Error response:', errorData);
-        throw new Error(errorData.error || 'Failed to create supplier');
+        throw new Error(errorData.error || `Failed to ${isEditing ? 'update' : 'create'} supplier`);
       }
 
       const data = await response.json();
-      console.log('Success response:', data);
       
       if (data.success) {
-        const newSupplier = data.supplier;
-        setSuppliers([...suppliers, newSupplier]);
-        setSelectedSupplier(newSupplier);
+        const savedSupplier = data.supplier;
+        if (isEditing) {
+          setSuppliers(suppliers.map(s => s.id === savedSupplier.id ? savedSupplier : s));
+          alert('Supplier updated successfully!');
+        } else {
+          setSuppliers([...suppliers, savedSupplier]);
+          setSelectedSupplier(savedSupplier);
+          setCurrentStep(2);
+        }
         setShowSupplierPopup(false);
-        setCurrentStep(2);
       }
     } catch (err) {
       setError(err.message);
-      console.error('Error creating supplier:', err);
-      alert('Failed to create supplier. Please try again.');
+      console.error(`Error ${currentSupplier.id ? 'updating' : 'creating'} supplier:`, err);
+      alert(`Failed to ${currentSupplier.id ? 'update' : 'create'} supplier. Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -313,8 +320,8 @@ const SupplierPage = () => {
         
         const itemData = {
           name: currentItem.name,
-          type: currentItem.type || null,
-          model: currentItem.model,
+          type: currentItem.type || 'PCS',
+          model: currentItem.model || '',
           watts: parseFloat(currentItem.watts) || 0,
           buy_price: parseFloat(currentItem.buyPrice) || 0,
           quantity: parseInt(currentItem.quantity) || 0,
@@ -364,7 +371,7 @@ const SupplierPage = () => {
           // Reset form
           setCurrentItem({
             name: '',
-            type: '',
+            type: 'PCS',
             model: '',
             watts: '',
             buyPrice: '',
@@ -512,6 +519,21 @@ const SupplierPage = () => {
     setShowSupplierPopup(true);
   };
 
+  // Start editing existing supplier
+  const handleEditSupplier = (supplier, e) => {
+    e.stopPropagation();
+    setIsAddingNew(false);
+    setCurrentSupplier({
+      id: supplier.id,
+      name: supplier.name || '',
+      email: supplier.email || '',
+      phone: supplier.phone || '',
+      address: supplier.address || '',
+      company: supplier.company || ''
+    });
+    setShowSupplierPopup(true);
+  };
+
   // Go back to supplier selection
   const goToSupplierSelection = () => {
     setIsAddingNew(false);
@@ -536,7 +558,7 @@ const SupplierPage = () => {
   const openItemPopup = () => {
     setCurrentItem({
       name: '',
-      type: '',
+      type: 'PCS',
       model: '',
       watts: '',
       buyPrice: '',
@@ -696,6 +718,20 @@ const SupplierPage = () => {
       justifyContent: "center",
       transition: "all 0.2s",
       color: "#3b82f6",
+      fontSize: "16px",
+      marginRight: "5px",
+    },
+    editButton: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      padding: "8px",
+      borderRadius: "6px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      transition: "all 0.2s",
+      color: "#fbbf24",
       fontSize: "16px",
       marginRight: "5px",
     },
@@ -1235,6 +1271,13 @@ const SupplierPage = () => {
                                 👁️
                               </button>
                               <button
+                                style={styles.editButton || styles.viewButton}
+                                onClick={(e) => handleEditSupplier(supplier, e)}
+                                title="Edit Supplier"
+                              >
+                                ✏️
+                              </button>
+                              <button
                                 style={styles.deleteButton}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1375,8 +1418,6 @@ const SupplierPage = () => {
               <tr>
                 <th style={styles.th}>Item Name</th>
                 <th style={styles.th}>Type</th>
-                <th style={styles.th}>Model</th>
-                <th style={styles.th}>Warranty</th>
                 <th style={styles.th}>Buy Price (₹)</th>
                 <th style={styles.th}>Quantity</th>
                 <th style={styles.th}>Attachment</th>
@@ -1405,12 +1446,6 @@ const SupplierPage = () => {
                       <span style={{ background: '#334155', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>
                         {item.type || '—'}
                       </span>
-                    </td>
-                    <td style={styles.td}>
-                      <span style={{ fontFamily: 'monospace' }}>{item.model}</span>
-                    </td>
-                    <td style={styles.td}>
-                      <span style={{ color: '#f59e0b' }}>{item.watts}W</span>
                     </td>
                     <td style={styles.td}>
                       <span style={{ fontWeight: '600', color: '#10b981' }}>₹{item.buy_price?.toFixed(2)}</span>
@@ -1483,8 +1518,6 @@ const SupplierPage = () => {
                   <tr>
                     <th style={styles.th}>Item Name</th>
                     <th style={styles.th}>Type</th>
-                    <th style={styles.th}>Model</th>
-                    <th style={styles.th}>Warranty</th>
                     <th style={styles.th}>Buy Price (₹)</th>
                     <th style={styles.th}>Quantity</th>
                     <th style={styles.th}>Attachment</th>
@@ -1505,12 +1538,6 @@ const SupplierPage = () => {
                         <span style={{ background: '#334155', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>
                           {item.type || '—'}
                         </span>
-                      </td>
-                      <td style={styles.td}>
-                        <span style={{ fontFamily: 'monospace' }}>{item.model}</span>
-                      </td>
-                      <td style={styles.td}>
-                        <span style={{ color: '#f59e0b' }}>{item.watts}W</span>
                       </td>
                       <td style={styles.td}>
                         <span style={{ fontWeight: '600', color: '#10b981' }}>₹{item.buy_price?.toFixed(2)}</span>
@@ -1697,46 +1724,20 @@ const SupplierPage = () => {
                   disabled={loading}
                 />
               </div>
-
+              
               <div style={styles.formGroup}>
                 <label style={styles.label}>Type</label>
-                <input
-                  type="text"
+                <select
                   name="type"
                   value={currentItem.type}
                   onChange={handleItemChange}
-                  placeholder="e.g., Electronics"
                   style={styles.input}
                   disabled={loading}
-                />
-              </div>
-
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Model</label>
-                <input
-                  type="text"
-                  name="model"
-                  value={currentItem.model}
-                  onChange={handleItemChange}
-                  placeholder="e.g., B22-9W"
-                  style={styles.input}
-                  disabled={loading}
-                />
-              </div>
-
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Warranty</label>
-                <input
-                  type="number"
-                  name="watts"
-                  value={currentItem.watts}
-                  onChange={handleItemChange}
-                  placeholder="e.g., 9"
-                  min="0"
-                  step="1"
-                  style={styles.input}
-                  disabled={loading}
-                />
+                >
+                  <option value="PCS">PCS</option>
+                  <option value="BUNDLE">BUNDLE</option>
+                  <option value="BOX">BOX</option>
+                </select>
               </div>
 
               <div style={styles.formGroup}>
@@ -1767,6 +1768,10 @@ const SupplierPage = () => {
                   style={styles.input}
                   disabled={loading}
                 />
+              </div>
+
+              <div style={styles.formGroup}>
+                 {/* Placeholder for grid balance */}
               </div>
 
               <div style={{ ...styles.formGroup, ...styles.fullWidth }}>

@@ -62,7 +62,6 @@ def create_product():
             name=data.get("name", "").strip(),
             description=data.get("description", "").strip(),
             model=data.get("model", "").strip(),
-            size=data.get("size", "").strip(),
             unit=data.get("unit", "PCS").strip() or "PCS",
             tax=float(data.get("tax", 0) or 0),
             mrp=float(data.get("mrp", data.get("buyPrice", 0)) or 0),
@@ -158,8 +157,6 @@ def update_product(id):
             product.description = data['description'].strip()
         if data.get('model') is not None:
             product.model = data['model'].strip()
-        if data.get('size') is not None:
-            product.size = data['size'].strip()
         if data.get('unit') is not None:
             product.unit = data['unit'].strip() or "PCS"
         if data.get('tax') is not None:
@@ -259,7 +256,6 @@ def bulk_create_products():
                     name=product_data.get("name", "").strip(),
                     description=product_data.get("description", "").strip(),
                     model=product_data.get("model", "").strip(),
-                    size=product_data.get("size", "").strip(),
                     unit=product_data.get("unit", "PCS").strip() or "PCS",
                     tax=float(product_data.get("tax", 0) or 0),
                     mrp=float(product_data.get("mrp", product_data.get("buyPrice", 0)) or 0),
