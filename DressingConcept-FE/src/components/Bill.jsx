@@ -210,7 +210,6 @@ export default function Bill() {
     try {
       const response = await axios.get(`${API_BASE_URL}/products?page=1&per_page=1000`);
       const all = Array.isArray(response.data?.items) ? response.data.items : [];
-      // Filter out soft-deleted / placeholder products
       const activeProducts = all.filter((p) => !isDeletedProduct(p));
       setProducts(activeProducts);
       console.log("Loaded products:", activeProducts.length);
@@ -249,7 +248,6 @@ export default function Bill() {
     };
   };
 
-  // Improved function to add or update product in the bill
   const addOrUpdateProduct = useCallback((product, targetRowIndex = null) => {
     if (!product || isDeletedProduct(product)) {
       setError("Cannot add deleted/invalid product");
@@ -257,20 +255,14 @@ export default function Bill() {
     }
 
     const normalized = normalizeProduct(product);
-    let foundRowIndex = -1;
-    let isDuplicate = false;
 
-    // Check if product already exists in rows (by _dbId or productId)
     setRows((currentRows) => {
-      // Find if product exists in any row
       const existingIndex = currentRows.findIndex((row) =>
         row._dbId === normalized._dbId ||
         (row.productId && row.productId === normalized.productId)
       );
 
       if (existingIndex !== -1) {
-        // Product exists - increment quantity
-        isDuplicate = true;
         const updatedRows = currentRows.map((row, idx) => {
           if (idx === existingIndex) {
             const newQuantity = (Number(row.quantity) || 0) + 1;
@@ -281,7 +273,6 @@ export default function Bill() {
 
         showTempMessage("success", `✅ Quantity increased for ${normalized.description}`);
 
-        // Focus the row where quantity was updated after a short delay
         setTimeout(() => {
           if (rowInputRefs.current[existingIndex]) {
             rowInputRefs.current[existingIndex].focus();
@@ -291,20 +282,16 @@ export default function Bill() {
 
         return updatedRows;
       } else {
-        // New product - add to bill
         let updatedRows;
 
         if (targetRowIndex !== null && currentRows[targetRowIndex] && !currentRows[targetRowIndex].productId) {
-          // Replace the empty row at targetRowIndex
           updatedRows = currentRows.map((row, idx) =>
             idx === targetRowIndex ? normalized : row
           );
         } else {
-          // Add new row at the end
           updatedRows = [...currentRows, normalized];
         }
 
-        // Ensure there's always a blank row at the end
         const lastRow = updatedRows[updatedRows.length - 1];
         if (lastRow.productId && lastRow.productId !== "") {
           updatedRows.push({
@@ -322,7 +309,6 @@ export default function Bill() {
 
         showTempMessage("success", `✅ Added ${normalized.description}`);
 
-        // Focus the next empty row after adding
         const nextEmptyIndex = updatedRows.findIndex(row => !row.productId);
         setTimeout(() => {
           if (nextEmptyIndex !== -1 && rowInputRefs.current[nextEmptyIndex]) {
@@ -335,27 +321,24 @@ export default function Bill() {
       }
     });
 
-    return !isDuplicate; // Return true if new product was added
+    return true;
   }, [salesPerson, loggedInUserName]);
 
   const addByQuery = async (value) => {
     const query = String(value || "").trim();
     if (!query) return false;
 
-    // First try to find in local products list (filtering out deleted products)
     let found = products.find((product) => (
       String(product.id) === query ||
       String(product.productCode || "").toLowerCase() === query.toLowerCase() ||
       String(product.name || "").toLowerCase() === query.toLowerCase()
     ));
 
-    // If not found locally and it's a numeric ID, try API
     if (!found && /^\d+$/.test(query)) {
       try {
         const response = await axios.get(`${API_BASE_URL}/products/${query}`);
         if (response.data && !isDeletedProduct(response.data)) {
           found = response.data;
-          // Add to local products cache
           setProducts(prev => [...prev, found]);
         }
       } catch (err) {
@@ -365,9 +348,9 @@ export default function Bill() {
 
     if (found) {
       const currentActiveRowIndex = activeRowIndex;
-      const added = addOrUpdateProduct(found, currentActiveRowIndex);
+      addOrUpdateProduct(found, currentActiveRowIndex);
       setQuickProductQuery("");
-      return added;
+      return true;
     } else {
       setError(`❌ Product "${query}" not found in stock.`);
       return false;
@@ -381,7 +364,6 @@ export default function Bill() {
       return;
     }
 
-    // Find product in local list (filtering out deleted products)
     let found = products.find((p) => (
       String(p.id) === query ||
       String(p.productCode || "").toLowerCase() === query.toLowerCase() ||
@@ -398,13 +380,11 @@ export default function Bill() {
       const normalized = normalizeProduct(product);
 
       setRows((current) => {
-        // Check if this product already exists in ANY other row
         const existingIndex = current.findIndex((row, rowIndex) =>
           rowIndex !== index && (row._dbId === normalized._dbId || (row.productId && row.productId === normalized.productId))
         );
 
         if (existingIndex !== -1) {
-          // Product already exists - increment quantity instead of adding new row
           showTempMessage("success", `✅ Quantity increased for ${normalized.description}`);
 
           const nextRows = current.map((row, rowIndex) => {
@@ -412,7 +392,6 @@ export default function Bill() {
               return { ...row, quantity: (Number(row.quantity) || 0) + 1 };
             }
             if (rowIndex === index) {
-              // Clear the current row where we typed the duplicate
               return {
                 productId: "",
                 description: "",
@@ -432,10 +411,8 @@ export default function Bill() {
           return nextRows;
         }
 
-        // Not a duplicate - fill the current row
         const nextRows = current.map((row, rowIndex) => (rowIndex === index ? normalized : row));
 
-        // If we filled the current row and it's the last or near last, add a new blank row
         if (index === current.length - 1 || !nextRows[nextRows.length - 1].productId === "") {
           const lastFilledIndex = nextRows.findIndex((row, idx) => idx === nextRows.length - 1 && row.productId);
           if (lastFilledIndex !== -1 || index === current.length - 1) {
@@ -463,12 +440,10 @@ export default function Bill() {
       return;
     }
 
-    // If not found locally and it's numeric, try API
     if (/^\d+$/.test(query)) {
       axios.get(`${API_BASE_URL}/products/${query}`).then((res) => {
         if (res.data && !isDeletedProduct(res.data)) {
           applyFound(res.data);
-          // Add to local cache
           setProducts(prev => [...prev, res.data]);
         } else {
           setError(`❌ Product "${query}" not found or is deleted.`);
@@ -513,7 +488,6 @@ export default function Bill() {
 
   const removeRow = (index) => {
     setRows((current) => current.filter((_, rowIndex) => rowIndex !== index));
-    // After removing, focus the previous row or the same index if available
     setTimeout(() => {
       const newIndex = Math.min(index, rows.length - 2);
       if (rowInputRefs.current[newIndex]) {
@@ -521,6 +495,26 @@ export default function Bill() {
       }
     }, 50);
   };
+
+  // Calculate payment totals
+  const paymentTotals = useMemo(() => {
+    const cash = Number(cashReceived) || 0;
+    const upi = Number(upiAmount) || 0;
+    const card = Number(cardAmount) || 0;
+    const online = Number(onlineAmount) || 0;
+    const previous = Number(paidBefore) || 0;
+
+    const totalPaid = money(cash + upi + card + online + previous);
+
+    return {
+      cash,
+      upi,
+      card,
+      online,
+      previous,
+      totalPaid
+    };
+  }, [cashReceived, upiAmount, cardAmount, onlineAmount, paidBefore]);
 
   const totals = useMemo(() => {
     const activeRows = rows.filter(r => r.productId && r._dbId);
@@ -535,32 +529,68 @@ export default function Bill() {
     const manualPercentDiscount = netBeforeDiscount * ((Number(discountPercent) || 0) / 100);
     const manualDiscount = money(manualPercentDiscount + (Number(discountAmount) || 0));
     const billValue = money(Math.max(0, netBeforeDiscount - manualDiscount));
-    const cardPaid = Number(cardAmount) || 0;
-    const upiPaid = Number(upiAmount) || 0;
-    const cashPaid = Number(cashReceived) || 0;
-    const onlinePaid = Number(onlineAmount) || 0;
-    const previousPaid = Number(paidBefore) || 0;
-    const amountPaid = money(cardPaid + upiPaid + cashPaid + onlinePaid + previousPaid);
-    const amountToPay = money(Math.max(0, billValue - previousPaid));
-    const amountToReturn = money(Math.max(0, amountPaid - billValue));
-    const unitDiscount = money(Math.max(0, mrpTotal - netBeforeDiscount));
+
+    // Calculate balance/return
+    const balanceDue = money(Math.max(0, billValue - paymentTotals.totalPaid));
+    const returnAmount = money(Math.max(0, paymentTotals.totalPaid - billValue));
+
+    // Check if payment is complete (exact amount or overpayment)
+    const isPaymentComplete = paymentTotals.totalPaid >= billValue;
+    const isExactPayment = paymentTotals.totalPaid === billValue;
+    const isOverPayment = paymentTotals.totalPaid > billValue;
 
     return {
       totalItems,
       totalQuantity,
       mrpTotal: money(mrpTotal),
-      unitDiscount,
-      mrpDiscount: money(unitDiscount + manualDiscount),
+      netBeforeDiscount,
+      manualDiscount,
       billValue,
-      amountToPay,
-      amountToReturn,
-      amountPaid,
+      totalPaid: paymentTotals.totalPaid,
+      balanceDue,
+      returnAmount,
+      isPaymentComplete,
+      isExactPayment,
+      isOverPayment,
+      canSave: paymentTotals.totalPaid >= billValue && billValue > 0,
     };
-  }, [rows, discountPercent, discountAmount, cardAmount, upiAmount, cashReceived, onlineAmount, paidBefore]);
+  }, [rows, discountPercent, discountAmount, paymentTotals]);
+
+  // Update payment fields when numbers change
+  const handlePaymentChange = (type, value) => {
+    const numValue = value === "" ? "" : Number(value);
+
+    switch (type) {
+      case 'cash':
+        setCashReceived(numValue);
+        break;
+      case 'upi':
+        setUpiAmount(numValue);
+        break;
+      case 'card':
+        setCardAmount(numValue);
+        break;
+      case 'online':
+        setOnlineAmount(numValue);
+        break;
+      case 'paidBefore':
+        setPaidBefore(numValue);
+        break;
+      default:
+        break;
+    }
+  };
 
   const saveBill = async () => {
-    if (rows.length === 0) {
-      setError("Add at least one product before saving.");
+    // Validate payment before saving
+    if (!totals.canSave) {
+      if (totals.billValue === 0) {
+        setError("Add at least one product before saving.");
+      } else if (paymentTotals.totalPaid < totals.billValue) {
+        setError(`Payment incomplete. Please pay remaining amount: ₹${totals.balanceDue}`);
+      } else if (paymentTotals.totalPaid > totals.billValue) {
+        setError(`Overpayment detected. Please return ₹${totals.returnAmount} to customer.`);
+      }
       return null;
     }
 
@@ -569,8 +599,12 @@ export default function Bill() {
     setMessage("");
 
     try {
-      const paidAmount = totals.amountPaid || totals.billValue;
-      const paymentMethod = cardBill || Number(cardAmount) > 0 ? "card" : (Number(upiAmount) > 0 ? "upi" : (Number(onlineAmount) > 0 ? "online" : "cash"));
+      // Determine primary payment method
+      let paymentMethod = "cash";
+      if (paymentTotals.card > 0) paymentMethod = "card";
+      else if (paymentTotals.upi > 0) paymentMethod = "upi";
+      else if (paymentTotals.online > 0) paymentMethod = "online";
+
       const payload = {
         customerName: customerName || "Walk-in Customer",
         customerPhone: mobileNumber,
@@ -580,12 +614,16 @@ export default function Bill() {
         discountType: Number(discountPercent) > 0 ? "percentage" : "amount",
         tax: 0,
         taxType: "percentage",
-        paidAmount: Number(paidAmount),
+        paidAmount: Number(totals.totalPaid),
         paymentMethod,
-        cashReceived: Number(cashReceived) || 0,
+        cashReceived: paymentTotals.cash,
+        upiAmount: paymentTotals.upi,
+        cardAmount: paymentTotals.card,
         cardNumber,
+        onlineAmount: paymentTotals.online,
         onlinePhone,
         onlineRef,
+        paidBefore: paymentTotals.previous,
         createdByName: salesPerson || counter,
         rewardPointsEarned: noRewards ? 0 : totals.billValue * 0.01,
         rewardPointsRedeemed: 0,
@@ -602,7 +640,7 @@ export default function Bill() {
 
       const savedNumber = response.data?.billNumber || billNo;
       setBillNo(savedNumber);
-      setMessage(`Bill saved: ${savedNumber}`);
+      setMessage(`Bill saved successfully! Bill No: ${savedNumber}`);
       await loadProducts();
       return savedNumber;
     } catch (err) {
@@ -615,6 +653,17 @@ export default function Bill() {
   };
 
   const printBill = async () => {
+    if (!totals.canSave) {
+      if (totals.billValue === 0) {
+        setError("Add products before printing");
+      } else if (paymentTotals.totalPaid < totals.billValue) {
+        setError(`Cannot print: Payment incomplete. Please pay ₹${totals.balanceDue}`);
+      } else if (paymentTotals.totalPaid > totals.billValue) {
+        setError(`Cannot print: Overpayment detected. Please return ₹${totals.returnAmount}`);
+      }
+      return;
+    }
+
     const saved = await saveBill();
     if (saved) setTimeout(() => window.print(), 100);
   };
@@ -665,6 +714,46 @@ export default function Bill() {
     setActiveRowIndex(index);
   };
 
+  // Handle quick add key press
+  const handleQuickAddKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (quickProductQuery.trim()) {
+        addByQuery(quickProductQuery);
+        setQuickProductQuery("");
+      }
+    }
+  };
+
+  // Focus quick add input
+  const focusQuickAdd = () => {
+    if (quickAddInputRef.current) {
+      quickAddInputRef.current.focus();
+      quickAddInputRef.current.select();
+    }
+  };
+
+  // Focus first empty product field
+  const focusFirstEmptyProductField = () => {
+    let targetIndex = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (!rows[i]?.productId || rows[i].productId === "") {
+        targetIndex = i;
+        break;
+      }
+    }
+
+    if (targetIndex === -1 && rows.length > 0) {
+      targetIndex = rows.length - 1;
+    }
+
+    if (targetIndex !== -1 && rowInputRefs.current[targetIndex]) {
+      setActiveRowIndex(targetIndex);
+      rowInputRefs.current[targetIndex].focus();
+      rowInputRefs.current[targetIndex].select();
+    }
+  };
+
   // Keyboard Shortcuts Handler
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -673,31 +762,20 @@ export default function Bill() {
         activeElement?.tagName === 'TEXTAREA' ||
         activeElement?.isContentEditable;
 
-      // F2 OR Ctrl+Shift+P - Focus Product Search (first empty Product ID field)
-      if (event.key === 'F2' || (event.ctrlKey && event.shiftKey && event.key === 'P')) {
+      // F2 - Focus Product Search
+      if (event.key === 'F2') {
         event.preventDefault();
         event.stopPropagation();
+        focusFirstEmptyProductField();
+        showTempMessage("success", "⌨️ Product entry active — start typing");
+        return;
+      }
 
-        // Find the first empty product ID field
-        let targetIndex = -1;
-        for (let i = 0; i < rows.length; i++) {
-          if (!rows[i]?.productId || rows[i].productId === "") {
-            targetIndex = i;
-            break;
-          }
-        }
-
-        // If all rows have products, use the last row (which should be blank)
-        if (targetIndex === -1 && rows.length > 0) {
-          targetIndex = rows.length - 1;
-        }
-
-        if (targetIndex !== -1 && rowInputRefs.current[targetIndex]) {
-          setActiveRowIndex(targetIndex);
-          rowInputRefs.current[targetIndex].focus();
-          rowInputRefs.current[targetIndex].select();
-          showTempMessage("success", "⌨️ Product entry active — start typing");
-        }
+      // Ctrl+Shift+A OR Insert - Focus Quick Add input
+      if ((event.ctrlKey && event.shiftKey && event.key === 'A') || event.key === 'Insert') {
+        event.preventDefault();
+        focusQuickAdd();
+        showTempMessage("success", "⌨️ Quick add active — type product ID/name and press Enter");
         return;
       }
 
@@ -738,14 +816,6 @@ export default function Bill() {
         event.preventDefault();
         memberIdRef.current?.focus();
         showTempMessage("success", "⌨️ Member ID focused");
-        return;
-      }
-
-      // Ctrl+Shift+A - Focus quick add input
-      if (event.ctrlKey && event.shiftKey && event.key === 'A') {
-        event.preventDefault();
-        quickAddInputRef.current?.focus();
-        showTempMessage("success", "⌨️ Ready to add new product");
         return;
       }
 
@@ -852,18 +922,18 @@ export default function Bill() {
         return;
       }
 
-      // Delete - Remove last row (only if not typing in input)
+      // Delete - Remove last product
       if (event.key === 'Delete' && !isTyping) {
         event.preventDefault();
-        if (rows.filter(r => r.productId && r._dbId).length > 0) {
-          const lastFilledIndex = rows.length - 1;
-          while (lastFilledIndex >= 0 && (!rows[lastFilledIndex]?.productId)) {
-            lastFilledIndex--;
+        const filledRows = rows.filter(r => r.productId && r._dbId);
+        if (filledRows.length > 0) {
+          for (let i = rows.length - 1; i >= 0; i--) {
+            if (rows[i].productId && rows[i]._dbId) {
+              removeRow(i);
+              break;
+            }
           }
-          if (lastFilledIndex >= 0) {
-            removeRow(lastFilledIndex);
-            showTempMessage("success", "⌨️ Last product removed");
-          }
+          showTempMessage("success", "⌨️ Last product removed");
         }
         return;
       }
@@ -880,7 +950,7 @@ export default function Bill() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [rows, saleReturn, cardBill, noRewards, classicCustomer, quickProductQuery]);
+  }, [rows, saleReturn, cardBill, noRewards, classicCustomer, quickProductQuery, paymentTotals, totals]);
 
   return (
     <div className="sale-page">
@@ -890,14 +960,13 @@ export default function Bill() {
       <div className="shortcut-bar">
         <div className="shortcut-title">🔥 SHORTCUTS:</div>
         <div className="shortcut-list">
-          <span><kbd>F2</kbd>🔍Product</span>
+          <span><kbd>F2</kbd>🔍Product Entry</span>
+          <span><kbd>Insert</kbd>/<kbd>Ctrl+Shift+A</kbd>➕Quick Add</span>
           <span><kbd>F3</kbd>👤Name</span>
           <span><kbd>F4</kbd>📱Mobile</span>
           <span><kbd>F5</kbd>👔Sales</span>
           <span><kbd>F6</kbd>💰Cash</span>
           <span><kbd>F7</kbd>🆔Member ID</span>
-          <span><kbd>Ctrl+Shift+A</kbd>➕Add Product</span>
-          <span><kbd>Ctrl+Enter</kbd>✓Add Current</span>
           <span><kbd>Ctrl+S</kbd>💾Save</span>
           <span><kbd>Ctrl+P</kbd>🖨️Print</span>
           <span><kbd>Ctrl+N</kbd>🆕New</span>
@@ -1011,27 +1080,25 @@ export default function Bill() {
         {(message || error) && <div className={error ? "notice error" : "notice"}>{error || message}</div>}
 
         <div className="quick-add no-print">
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#333' }}>Quick Add:</span>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1 }}>
+            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#333' }}>Quick Add (<kbd style={{ background: '#333', color: '#fff', padding: '2px 6px', borderRadius: '3px' }}>Insert</kbd>):</span>
             <input
               ref={quickAddInputRef}
               value={quickProductQuery}
               onChange={(e) => setQuickProductQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  addByQuery(quickProductQuery);
-                  setQuickProductQuery("");
-                }
-              }}
-              placeholder="Product ID, Code, or Name"
-              style={{ flex: 1 }}
+              onKeyDown={handleQuickAddKeyDown}
+              placeholder="Product ID, Code, or Name then press Enter"
+              style={{ flex: 1, minWidth: '250px' }}
             />
-            <span className="shortcut-hint" style={{ fontSize: '10px' }}>Ctrl+Enter to add</span>
+            <span className="shortcut-hint">Press Enter to add → automatically moves to next line</span>
           </div>
           <div>
-            <button type="button" onClick={saveBill} disabled={loading}>{loading ? "Saving..." : "Save Bill"}</button>
-            <button type="button" className="printer" onClick={printBill} disabled={loading}>Print</button>
+            <button type="button" onClick={saveBill} disabled={loading || !totals.canSave}>
+              {loading ? "Saving..." : "Save Bill"}
+            </button>
+            <button type="button" className="printer" onClick={printBill} disabled={loading || !totals.canSave}>
+              Print
+            </button>
             <button type="button" onClick={clearBill}>Clear</button>
           </div>
         </div>
@@ -1086,7 +1153,7 @@ export default function Bill() {
                             }
                           }
                         }}
-                        placeholder="Product ID"
+                        placeholder="Product ID (F2 to focus)"
                       />
                     </td>
                     <td><input value={row.description} onChange={(event) => updateRow(index, "description", event.target.value)} /></td>
@@ -1121,8 +1188,19 @@ export default function Bill() {
               <div className="section-title">Payment Mode</div>
               <fieldset>
                 <legend>Card Details <span className="shortcut-hint">Alt+C</span></legend>
-                <div className="field-row"><label>Amount</label><input ref={cardAmountRef} value={cardAmount} onChange={(event) => setCardAmount(event.target.value)} /></div>
-                <div className="field-row"><label>Card No</label><input value={cardNumber} onChange={(event) => setCardNumber(event.target.value)} /></div>
+                <div className="field-row">
+                  <label>Amount</label>
+                  <input
+                    ref={cardAmountRef}
+                    type="number"
+                    value={cardAmount}
+                    onChange={(event) => handlePaymentChange('card', event.target.value)}
+                  />
+                </div>
+                <div className="field-row">
+                  <label>Card No</label>
+                  <input value={cardNumber} onChange={(event) => setCardNumber(event.target.value)} />
+                </div>
               </fieldset>
             </div>
             <div className="price-strip">
@@ -1133,14 +1211,38 @@ export default function Bill() {
 
           <div className="footer-col">
             <div className="section-title">Online Payment</div>
-            <div className="info-row"><span>Online Amount</span><input value={onlineAmount} onChange={(e) => setOnlineAmount(e.target.value)} /></div>
-            <div className="info-row"><span>Phone No</span><input value={onlinePhone} onChange={(e) => setOnlinePhone(e.target.value)} /></div>
-            <div className="info-row"><span>Reference ID</span><input value={onlineRef} onChange={(e) => setOnlineRef(e.target.value)} /></div>
+            <div className="info-row">
+              <span>Online Amount</span>
+              <input
+                type="number"
+                value={onlineAmount}
+                onChange={(e) => handlePaymentChange('online', e.target.value)}
+              />
+            </div>
+            <div className="info-row">
+              <span>Phone No</span>
+              <input value={onlinePhone} onChange={(e) => setOnlinePhone(e.target.value)} />
+            </div>
+            <div className="info-row">
+              <span>Reference ID</span>
+              <input value={onlineRef} onChange={(e) => setOnlineRef(e.target.value)} />
+            </div>
           </div>
 
           <div className="footer-col">
-            <div className="info-row"><span>SaleReturn Amount</span><input value={saleReturn ? totals.billValue : 0} readOnly /></div>
-            <div className="info-row"><span>UPI Amount <span className="shortcut-hint">Alt+U</span></span><input ref={upiAmountRef} value={upiAmount} onChange={(event) => setUpiAmount(event.target.value)} /></div>
+            <div className="info-row">
+              <span>SaleReturn Amount</span>
+              <input value={saleReturn ? totals.billValue : 0} readOnly />
+            </div>
+            <div className="info-row">
+              <span>UPI Amount <span className="shortcut-hint">Alt+U</span></span>
+              <input
+                ref={upiAmountRef}
+                type="number"
+                value={upiAmount}
+                onChange={(event) => handlePaymentChange('upi', event.target.value)}
+              />
+            </div>
           </div>
 
           <div className="footer-col">
@@ -1153,13 +1255,38 @@ export default function Bill() {
 
           <div className="footer-col">
             <div className="section-title">Payment Details</div>
-            <div className="info-row"><span>Bill Amount</span><input value={totals.billValue} readOnly /></div>
-            <div className="info-row"><span>Discount % <span className="shortcut-hint">Alt+D</span></span><input ref={discountPercentRef} value={discountPercent} onChange={(event) => setDiscountPercent(event.target.value)} /></div>
-            <div className="info-row"><span>Discount Amt <span className="shortcut-hint">Alt+A</span></span><input ref={discountAmountRef} value={discountAmount} onChange={(event) => setDiscountAmount(event.target.value)} /></div>
-            <div className="info-row"><span>Amount Paid</span><input value={totals.amountPaid} readOnly /></div>
-            <div className="info-row"><span>Paid Before</span><input value={paidBefore} onChange={(event) => setPaidBefore(event.target.value)} /></div>
-            <div className="info-row"><span>Cash Received <span className="shortcut-hint">F6</span></span><input ref={cashReceivedRef} value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} /></div>
-            <button type="button" className="print-btn" onClick={printBill}>🖨️ Print</button>
+            <div className="info-row">
+              <span>Bill Amount</span>
+              <input value={totals.billValue} readOnly className={totals.billValue > 0 ? "amount-highlight" : ""} />
+            </div>
+            <div className="info-row">
+              <span>Discount % <span className="shortcut-hint">Alt+D</span></span>
+              <input ref={discountPercentRef} value={discountPercent} onChange={(event) => setDiscountPercent(event.target.value)} />
+            </div>
+            <div className="info-row">
+              <span>Discount Amt <span className="shortcut-hint">Alt+A</span></span>
+              <input ref={discountAmountRef} value={discountAmount} onChange={(event) => setDiscountAmount(event.target.value)} />
+            </div>
+            <div className="info-row">
+              <span>Total Paid</span>
+              <input value={totals.totalPaid} readOnly className={totals.totalPaid >= totals.billValue ? "payment-success" : "payment-pending"} />
+            </div>
+            <div className="info-row">
+              <span>Paid Before</span>
+              <input type="number" value={paidBefore} onChange={(event) => handlePaymentChange('paidBefore', event.target.value)} />
+            </div>
+            <div className="info-row">
+              <span>Cash Received <span className="shortcut-hint">F6</span></span>
+              <input
+                ref={cashReceivedRef}
+                type="number"
+                value={cashReceived}
+                onChange={(event) => handlePaymentChange('cash', event.target.value)}
+              />
+            </div>
+            <button type="button" className="print-btn" onClick={printBill} disabled={!totals.canSave}>
+              🖨️ Print
+            </button>
           </div>
 
           <div className="pay-board">
@@ -1168,13 +1295,28 @@ export default function Bill() {
               <div className="pay-value">₹{Math.round(totals.billValue)}</div>
             </div>
             <div className="pay-card">
-              <div className="pay-label">AMOUNT TO PAY</div>
-              <div className="pay-value">₹{Math.round(totals.amountToPay)}</div>
+              <div className="pay-label">TOTAL PAID</div>
+              <div className="pay-value">₹{Math.round(totals.totalPaid)}</div>
+            </div>
+            <div className="pay-card">
+              <div className="pay-label">BALANCE DUE</div>
+              <div className="pay-value" style={{ color: totals.balanceDue > 0 ? '#ff6b6b' : '#51cf66' }}>
+                ₹{Math.round(totals.balanceDue)}
+              </div>
             </div>
             <div className="pay-card return-card">
               <div className="pay-label">RETURN</div>
-              <div className="pay-value">₹{String(Math.round(totals.amountToReturn)).padStart(3, "0")}</div>
+              <div className="pay-value">₹{Math.round(totals.returnAmount)}</div>
             </div>
+            {!totals.canSave && totals.billValue > 0 && (
+              <div className="payment-warning">
+                {paymentTotals.totalPaid < totals.billValue ?
+                  `⚠️ Need ₹${Math.round(totals.balanceDue)} more` :
+                  paymentTotals.totalPaid > totals.billValue ?
+                    `⚠️ Overpayment by ₹${Math.round(totals.returnAmount)}` :
+                    "⚠️ Payment required"}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1232,9 +1374,17 @@ export default function Bill() {
 
         <div className="receipt-dash" />
 
-        <div className="receipt-pay">
-          <span className="receipt-pay-label">Pay Amount</span>
-          <span className="receipt-pay-value">₹ {Math.round(totals.billValue)}/-</span>
+        <div className="receipt-payment-breakdown">
+          <div className="receipt-row"><span>Bill Amount:</span><span>₹ {Math.round(totals.billValue)}</span></div>
+          {paymentTotals.cash > 0 && <div className="receipt-row"><span>Cash:</span><span>₹ {Math.round(paymentTotals.cash)}</span></div>}
+          {paymentTotals.upi > 0 && <div className="receipt-row"><span>UPI:</span><span>₹ {Math.round(paymentTotals.upi)}</span></div>}
+          {paymentTotals.card > 0 && <div className="receipt-row"><span>Card:</span><span>₹ {Math.round(paymentTotals.card)}</span></div>}
+          {paymentTotals.online > 0 && <div className="receipt-row"><span>Online:</span><span>₹ {Math.round(paymentTotals.online)}</span></div>}
+          {paymentTotals.previous > 0 && <div className="receipt-row"><span>Paid Before:</span><span>₹ {Math.round(paymentTotals.previous)}</span></div>}
+          <div className="receipt-row receipt-total-paid"><span>Total Paid:</span><span>₹ {Math.round(totals.totalPaid)}</span></div>
+          {totals.returnAmount > 0 && (
+            <div className="receipt-row receipt-return"><span>Return Amount:</span><span>₹ {Math.round(totals.returnAmount)}</span></div>
+          )}
         </div>
 
         <div className="receipt-dash" />
@@ -1244,7 +1394,7 @@ export default function Bill() {
           <div className="receipt-row"><span>MRP Total:</span><span>₹ {Math.round(totals.mrpTotal)}</span></div>
           <div className="receipt-row receipt-savings">
             <span>You Saved:</span>
-            <span>₹ {Math.round(totals.mrpDiscount)}</span>
+            <span>₹ {Math.round(totals.mrpTotal - totals.billValue)}</span>
           </div>
         </div>
 
@@ -1291,7 +1441,6 @@ const saleStyles = `
     font-family: Arial, Helvetica, sans-serif;
   }
 
-  /* Shortcut Bar Styles */
   .shortcut-bar {
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
     color: #fff;
@@ -1366,7 +1515,6 @@ const saleStyles = `
     font-weight: bold;
   }
 
-  /* Header Styles */
   .sale-header {
     display: grid;
     grid-template-columns: 1.2fr 170px 1fr 1.25fr;
@@ -1410,7 +1558,6 @@ const saleStyles = `
     resize: none;
   }
 
-  /* Mobile Suggestions */
   .mobile-field-group {
     display: flex;
     flex-direction: column;
@@ -1550,7 +1697,6 @@ const saleStyles = `
     border-color: #c75151;
   }
 
-  /* Quick Add */
   .quick-add {
     display: flex;
     justify-content: space-between;
@@ -1567,7 +1713,6 @@ const saleStyles = `
     padding: 4px 10px;
     font: inherit;
     border-radius: 4px;
-    width: 300px;
   }
 
   .quick-add button {
@@ -1580,11 +1725,15 @@ const saleStyles = `
     border-radius: 4px;
   }
 
-  .quick-add button:hover {
+  .quick-add button:hover:not(:disabled) {
     background: #333;
   }
 
-  /* Table Styles */
+  .quick-add button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .grid-wrap {
     background: #fff;
     border-top: 1px solid #7e7e7e;
@@ -1664,7 +1813,6 @@ const saleStyles = `
     background: #c82333;
   }
 
-  /* Footer Panel */
   .footer-panel {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
@@ -1706,13 +1854,31 @@ const saleStyles = `
   }
 
   .info-row input {
-    width: 90px;
+    width: 120px;
     height: 26px;
     border: 1px solid #ccc;
     background: #fff;
     padding: 2px 6px;
     border-radius: 3px;
     text-align: right;
+  }
+
+  .info-row input.amount-highlight {
+    background: #fff3cd;
+    border-color: #ffc107;
+    font-weight: bold;
+  }
+
+  .info-row input.payment-success {
+    background: #d4edda;
+    border-color: #28a745;
+    color: #155724;
+    font-weight: bold;
+  }
+
+  .info-row input.payment-pending {
+    background: #fff3cd;
+    border-color: #ffc107;
   }
 
   .section-title {
@@ -1790,7 +1956,11 @@ const saleStyles = `
     margin-top: 8px;
   }
 
-  /* Pay Board */
+  .print-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .pay-board {
     display: flex;
     flex-direction: column;
@@ -1824,6 +1994,18 @@ const saleStyles = `
     font-size: 20px;
     font-weight: bold;
     color: #fff;
+  }
+
+  .payment-warning {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    color: #856404;
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    text-align: center;
+    font-weight: bold;
+    margin-top: 8px;
   }
 
   @media (max-width: 1400px) {
@@ -1872,7 +2054,10 @@ const saleStyles = `
     .receipt-table th, .receipt-table td { padding: 4px 2px; }
     .r-desc { text-align: left; }
     .r-num { text-align: right; }
-    .receipt-pay { display: flex; justify-content: space-between; margin: 10px 0; }
+    .receipt-payment-breakdown { margin: 10px 0; }
+    .receipt-row { display: flex; justify-content: space-between; margin: 3px 0; }
+    .receipt-total-paid { font-weight: bold; margin-top: 5px; padding-top: 5px; border-top: 1px dashed #000; }
+    .receipt-return { color: #dc3545; font-weight: bold; }
     .receipt-thankyou { text-align: center; margin-top: 10px; }
     .receipt-qr { display: flex; justify-content: space-around; margin-top: 10px; }
     .receipt-qr img { width: 52px; height: 52px; }
