@@ -72,12 +72,13 @@ export default function Bill() {
   const [quickProductQuery, setQuickProductQuery] = useState("");
   const [mobileSuggestions, setMobileSuggestions] = useState([]);
   const [showMobileSuggestions, setShowMobileSuggestions] = useState(false);
+  const [activeRowIndex, setActiveRowIndex] = useState(0);
 
   const [customers, setCustomers] = useState([]);
   const [availablePoints, setAvailablePoints] = useState(0);
 
   // Refs for focusing inputs
-  const productInputRef = useRef(null);
+  const rowInputRefs = useRef([]);
   const customerNameRef = useRef(null);
   const mobileRef = useRef(null);
   const memberIdRef = useRef(null);
@@ -140,7 +141,7 @@ export default function Bill() {
         customer.phone &&
         customer.phone.toString().includes(input.toString())
       )
-      .slice(0, 8); // Show top 8 matches
+      .slice(0, 8);
     setMobileSuggestions(filtered);
     setShowMobileSuggestions(filtered.length > 0);
   };
@@ -168,7 +169,6 @@ export default function Bill() {
     setAddress(customer.address || "");
     setAvailablePoints(customer.reward_points || 0);
     setShowMobileSuggestions(false);
-    // Move focus to next field after selection
     salesPersonRef.current?.focus();
   };
 
@@ -183,7 +183,6 @@ export default function Bill() {
         setAvailablePoints(cust.reward_points || 0);
       } else {
         setAvailablePoints(0);
-        // Don't clear customer name if user manually entered
         if (!customerName || customerName === 'Walk-in Customer') {
           setCustomerName("");
         }
@@ -194,209 +193,27 @@ export default function Bill() {
     }
   };
 
-  // Keyboard Shortcuts Handler with alternatives
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      const activeElement = document.activeElement;
-      const isTyping = activeElement?.tagName === 'INPUT' ||
-        activeElement?.tagName === 'TEXTAREA' ||
-        activeElement?.isContentEditable;
-
-      // F2 OR Ctrl+Shift+P - Focus Product Search
-      if (event.key === 'F2' || (event.ctrlKey && event.shiftKey && event.key === 'P')) {
-        event.preventDefault();
-        const lastRowInput = document.querySelector('.sale-grid tbody tr:last-child input');
-        lastRowInput?.focus();
-        showTempMessage("success", "⌨️ Product entry focused");
-        return;
-      }
-
-      // F3 OR Ctrl+Shift+E - Focus Customer Name
-      if (event.key === 'F3' || (event.ctrlKey && event.shiftKey && event.key === 'E')) {
-        event.preventDefault();
-        customerNameRef.current?.focus();
-        showTempMessage("success", "⌨️ Customer name focused");
-        return;
-      }
-
-      // F4 OR Ctrl+Shift+P - Focus Mobile Number
-      if (event.key === 'F4' || (event.ctrlKey && event.shiftKey && event.key === 'P')) {
-        event.preventDefault();
-        mobileRef.current?.focus();
-        showTempMessage("success", "⌨️ Mobile number focused");
-        return;
-      }
-
-      // F5 OR Ctrl+Shift+S - Focus Sales Person
-      if (event.key === 'F5' || (event.ctrlKey && event.shiftKey && event.key === 'S')) {
-        event.preventDefault();
-        salesPersonRef.current?.focus();
-        showTempMessage("success", "⌨️ Sales person focused");
-        return;
-      }
-
-      // F6 OR Ctrl+Shift+R - Focus Cash Received
-      if (event.key === 'F6' || (event.ctrlKey && event.shiftKey && event.key === 'R')) {
-        event.preventDefault();
-        cashReceivedRef.current?.focus();
-        showTempMessage("success", "⌨️ Cash received focused");
-        return;
-      }
-
-      // F7 OR Ctrl+Shift+I - Focus Member ID
-      if (event.key === 'F7' || (event.ctrlKey && event.shiftKey && event.key === 'I')) {
-        event.preventDefault();
-        memberIdRef.current?.focus();
-        showTempMessage("success", "⌨️ Member ID focused");
-        return;
-      }
-
-      // Ctrl+Shift+A - Add New Product (Alternative for Insert)
-      if ((event.ctrlKey && event.shiftKey && event.key === 'A') || event.key === 'Insert') {
-        event.preventDefault();
-        if (!isTyping) {
-          quickAddInputRef.current?.focus();
-          showTempMessage("success", "⌨️ Ready to add new product");
-        }
-        return;
-      }
-
-      // Ctrl+Enter - Add current quick product
-      if ((event.ctrlKey && event.key === 'Enter') && quickProductQuery.trim()) {
-        event.preventDefault();
-        addByQuery(quickProductQuery);
-        setQuickProductQuery("");
-        quickAddInputRef.current?.focus();
-        showTempMessage("success", "⌨️ Product added");
-        return;
-      }
-
-      // Ctrl+S - Save Bill
-      if ((event.ctrlKey || event.metaKey) && (event.key === 's' || event.key === 'S') && !event.shiftKey) {
-        event.preventDefault();
-        if (!isTyping && rows.length > 0) {
-          saveBill();
-          showTempMessage("success", "⌨️ Saving bill (Ctrl+S)");
-        } else if (rows.length === 0) {
-          setError("Add products before saving");
-        }
-        return;
-      }
-
-      // Ctrl+P - Print Bill
-      if ((event.ctrlKey || event.metaKey) && (event.key === 'p' || event.key === 'P') && !event.shiftKey) {
-        event.preventDefault();
-        if (!isTyping && rows.length > 0) {
-          printBill();
-          showTempMessage("success", "⌨️ Printing bill (Ctrl+P)");
-        } else if (rows.length === 0) {
-          setError("Add products before printing");
-        }
-        return;
-      }
-
-      // Ctrl+N - New/Clear Bill
-      if ((event.ctrlKey || event.metaKey) && (event.key === 'n' || event.key === 'N') && !event.shiftKey) {
-        event.preventDefault();
-        if (!isTyping) {
-          clearBill();
-          showTempMessage("success", "⌨️ New bill created (Ctrl+N)");
-        }
-        return;
-      }
-
-      // Alt+1 - Toggle Sale Return
-      if ((event.altKey && event.key === '1') || (event.ctrlKey && event.shiftKey && event.key === 'R')) {
-        event.preventDefault();
-        setSaleReturn(prev => !prev);
-        showTempMessage("success", `⌨️ Sale Return: ${!saleReturn ? 'ON' : 'OFF'}`);
-        return;
-      }
-
-      // Alt+2 - Toggle Card Bill
-      if ((event.altKey && event.key === '2') || (event.ctrlKey && event.shiftKey && event.key === 'D')) {
-        event.preventDefault();
-        setCardBill(prev => !prev);
-        showTempMessage("success", `⌨️ Card Bill: ${!cardBill ? 'ON' : 'OFF'}`);
-        return;
-      }
-
-      // Alt+3 - Toggle No Rewards
-      if ((event.altKey && event.key === '3') || (event.ctrlKey && event.shiftKey && event.key === 'W')) {
-        event.preventDefault();
-        setNoRewards(prev => !prev);
-        showTempMessage("success", `⌨️ No Rewards: ${!noRewards ? 'ON' : 'OFF'}`);
-        return;
-      }
-
-      // Alt+4 - Toggle Classic Customer
-      if ((event.altKey && event.key === '4') || (event.ctrlKey && event.shiftKey && event.key === 'L')) {
-        event.preventDefault();
-        setClassicCustomer(prev => !prev);
-        showTempMessage("success", `⌨️ Classic Customer: ${!classicCustomer ? 'ON' : 'OFF'}`);
-        return;
-      }
-
-      // Alt+C - Focus Card Amount
-      if (event.altKey && (event.key === 'c' || event.key === 'C')) {
-        event.preventDefault();
-        cardAmountRef.current?.focus();
-        showTempMessage("success", "⌨️ Card amount focused");
-        return;
-      }
-
-      // Alt+U - Focus UPI Amount
-      if (event.altKey && (event.key === 'u' || event.key === 'U')) {
-        event.preventDefault();
-        upiAmountRef.current?.focus();
-        showTempMessage("success", "⌨️ UPI amount focused");
-        return;
-      }
-
-      // Alt+D - Focus Discount Percent
-      if (event.altKey && (event.key === 'd' || event.key === 'D')) {
-        event.preventDefault();
-        discountPercentRef.current?.focus();
-        showTempMessage("success", "⌨️ Discount percent focused");
-        return;
-      }
-
-      // Alt+A - Focus Discount Amount
-      if (event.altKey && (event.key === 'a' || event.key === 'A')) {
-        event.preventDefault();
-        discountAmountRef.current?.focus();
-        showTempMessage("success", "⌨️ Discount amount focused");
-        return;
-      }
-
-      // Ctrl+Shift+X - Remove last row
-      if ((event.ctrlKey && event.shiftKey && event.key === 'X') || (event.key === 'Delete' && !isTyping)) {
-        event.preventDefault();
-        if (rows.length > 0) {
-          removeRow(rows.length - 1);
-          showTempMessage("success", "⌨️ Last product removed");
-        }
-        return;
-      }
-
-      // Escape - Clear error/message and blur focus
-      if (event.key === 'Escape') {
-        setError("");
-        setMessage("");
-        setShowMobileSuggestions(false);
-        document.activeElement?.blur();
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [rows, saleReturn, cardBill, noRewards, classicCustomer, quickProductQuery]);
+  // Helper: returns true if this product is a deleted/placeholder entry
+  const isDeletedProduct = (p) => {
+    const name = String(p.name || p.productName || "");
+    const code = String(p.productCode || p.id || "");
+    return (
+      name.includes("___DELETED___") ||
+      name.includes("DELETED") ||
+      name.startsWith("__DELETED") ||
+      code.startsWith("DEL-") ||
+      code.includes("DEL-")
+    );
+  };
 
   const loadProducts = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/products?page=1&per_page=1000`);
-      setProducts(Array.isArray(response.data?.items) ? response.data.items : []);
+      const all = Array.isArray(response.data?.items) ? response.data.items : [];
+      // Filter out soft-deleted / placeholder products
+      const activeProducts = all.filter((p) => !isDeletedProduct(p));
+      setProducts(activeProducts);
+      console.log("Loaded products:", activeProducts.length);
     } catch (err) {
       setProducts([]);
       setError("Products not loaded. Please start backend and refresh.");
@@ -409,27 +226,6 @@ export default function Bill() {
       setCustomers(response.data?.customers || []);
     } catch (err) {
       console.error("Customers not loaded", err);
-    }
-  };
-
-  const handleMobileChange = async (value) => {
-    setMobileNumber(value);
-    if (value.length >= 10) {
-      try {
-        const response = await axios.get(`${API_BASE_URL}/billing/customer/${value}`);
-        if (response.data?.exists) {
-          const cust = response.data.customer;
-          if (cust.name && cust.name !== 'Walk-in Customer') setCustomerName(cust.name);
-          if (cust.address) setAddress(cust.address);
-          setAvailablePoints(cust.reward_points || 0);
-        } else {
-          setAvailablePoints(0);
-        }
-      } catch (err) {
-        console.error("Could not fetch customer details", err);
-      }
-    } else {
-      setAvailablePoints(0);
     }
   };
 
@@ -453,58 +249,139 @@ export default function Bill() {
     };
   };
 
-  const addProduct = (product) => {
-    if (!product) return;
-    const next = normalizeProduct(product);
+  // Improved function to add or update product in the bill
+  const addOrUpdateProduct = useCallback((product, targetRowIndex = null) => {
+    if (!product || isDeletedProduct(product)) {
+      setError("Cannot add deleted/invalid product");
+      return false;
+    }
 
-    setRows((current) => {
-      const existingIndex = current.findIndex((row) => row._dbId === next._dbId);
-      if (existingIndex === -1) return [...current, next];
+    const normalized = normalizeProduct(product);
+    let foundRowIndex = -1;
+    let isDuplicate = false;
 
-      return current.map((row, index) => (
-        index === existingIndex
-          ? { ...row, quantity: Math.min(row.stock || row.quantity + 1, row.quantity + 1) }
-          : row
-      ));
+    // Check if product already exists in rows (by _dbId or productId)
+    setRows((currentRows) => {
+      // Find if product exists in any row
+      const existingIndex = currentRows.findIndex((row) =>
+        row._dbId === normalized._dbId ||
+        (row.productId && row.productId === normalized.productId)
+      );
+
+      if (existingIndex !== -1) {
+        // Product exists - increment quantity
+        isDuplicate = true;
+        const updatedRows = currentRows.map((row, idx) => {
+          if (idx === existingIndex) {
+            const newQuantity = (Number(row.quantity) || 0) + 1;
+            return { ...row, quantity: newQuantity };
+          }
+          return row;
+        });
+
+        showTempMessage("success", `✅ Quantity increased for ${normalized.description}`);
+
+        // Focus the row where quantity was updated after a short delay
+        setTimeout(() => {
+          if (rowInputRefs.current[existingIndex]) {
+            rowInputRefs.current[existingIndex].focus();
+            rowInputRefs.current[existingIndex].select();
+          }
+        }, 100);
+
+        return updatedRows;
+      } else {
+        // New product - add to bill
+        let updatedRows;
+
+        if (targetRowIndex !== null && currentRows[targetRowIndex] && !currentRows[targetRowIndex].productId) {
+          // Replace the empty row at targetRowIndex
+          updatedRows = currentRows.map((row, idx) =>
+            idx === targetRowIndex ? normalized : row
+          );
+        } else {
+          // Add new row at the end
+          updatedRows = [...currentRows, normalized];
+        }
+
+        // Ensure there's always a blank row at the end
+        const lastRow = updatedRows[updatedRows.length - 1];
+        if (lastRow.productId && lastRow.productId !== "") {
+          updatedRows.push({
+            productId: "",
+            description: "",
+            tax: "",
+            unit: "",
+            mrp: "",
+            discountPercent: "",
+            netPrice: "",
+            quantity: "",
+            salesPerson: "",
+          });
+        }
+
+        showTempMessage("success", `✅ Added ${normalized.description}`);
+
+        // Focus the next empty row after adding
+        const nextEmptyIndex = updatedRows.findIndex(row => !row.productId);
+        setTimeout(() => {
+          if (nextEmptyIndex !== -1 && rowInputRefs.current[nextEmptyIndex]) {
+            rowInputRefs.current[nextEmptyIndex].focus();
+            rowInputRefs.current[nextEmptyIndex].select();
+          }
+        }, 100);
+
+        return updatedRows;
+      }
     });
-  };
+
+    return !isDuplicate; // Return true if new product was added
+  }, [salesPerson, loggedInUserName]);
 
   const addByQuery = async (value) => {
     const query = String(value || "").trim();
-    if (!query) return;
+    if (!query) return false;
 
+    // First try to find in local products list (filtering out deleted products)
     let found = products.find((product) => (
       String(product.id) === query ||
       String(product.productCode || "").toLowerCase() === query.toLowerCase() ||
       String(product.name || "").toLowerCase() === query.toLowerCase()
     ));
 
-    if (!found) {
+    // If not found locally and it's a numeric ID, try API
+    if (!found && /^\d+$/.test(query)) {
       try {
-        if (/^\d+$/.test(query)) {
-          const response = await axios.get(`${API_BASE_URL}/products/${query}`);
+        const response = await axios.get(`${API_BASE_URL}/products/${query}`);
+        if (response.data && !isDeletedProduct(response.data)) {
           found = response.data;
-        } else {
-          const response = await axios.get(`${API_BASE_URL}/billing/search-products?q=${encodeURIComponent(query)}`);
-          found = Array.isArray(response.data) ? response.data[0] : null;
+          // Add to local products cache
+          setProducts(prev => [...prev, found]);
         }
       } catch (err) {
-        found = null;
+        console.log("Product not found in API");
       }
     }
 
     if (found) {
-      addProduct(found);
-      setError("");
+      const currentActiveRowIndex = activeRowIndex;
+      const added = addOrUpdateProduct(found, currentActiveRowIndex);
+      setQuickProductQuery("");
+      return added;
     } else {
-      setError("Product not found in stock.");
+      setError(`❌ Product "${query}" not found in stock.`);
+      return false;
     }
   };
 
-  const handleProductSearch = (index, value) => {
+  const handleProductSearch = (index, value, onDone) => {
     const query = String(value || "").trim();
-    if (!query) return;
+    if (!query) {
+      if (onDone) onDone(index, false);
+      return;
+    }
 
+    // Find product in local list (filtering out deleted products)
     let found = products.find((p) => (
       String(p.id) === query ||
       String(p.productCode || "").toLowerCase() === query.toLowerCase() ||
@@ -512,22 +389,30 @@ export default function Bill() {
     ));
 
     const applyFound = (product) => {
+      if (isDeletedProduct(product)) {
+        setError("Cannot add deleted product");
+        if (onDone) onDone(index, false);
+        return;
+      }
+
       const normalized = normalizeProduct(product);
+
       setRows((current) => {
         // Check if this product already exists in ANY other row
-        const existingIndex = current.findIndex((row, rowIndex) => 
+        const existingIndex = current.findIndex((row, rowIndex) =>
           rowIndex !== index && (row._dbId === normalized._dbId || (row.productId && row.productId === normalized.productId))
         );
 
         if (existingIndex !== -1) {
-          // Product already exists in another row, increment it
-          showTempMessage("success", `Quantity increased for ${normalized.description}`);
+          // Product already exists - increment quantity instead of adding new row
+          showTempMessage("success", `✅ Quantity increased for ${normalized.description}`);
+
           const nextRows = current.map((row, rowIndex) => {
             if (rowIndex === existingIndex) {
               return { ...row, quantity: (Number(row.quantity) || 0) + 1 };
             }
             if (rowIndex === index) {
-              // Reset the current row where we typed the duplicate
+              // Clear the current row where we typed the duplicate
               return {
                 productId: "",
                 description: "",
@@ -542,26 +427,33 @@ export default function Bill() {
             }
             return row;
           });
+
+          if (onDone) setTimeout(() => onDone(existingIndex, true), 100);
           return nextRows;
         }
 
-        // Not a duplicate, fill the current row
+        // Not a duplicate - fill the current row
         const nextRows = current.map((row, rowIndex) => (rowIndex === index ? normalized : row));
-        
-        // If we filled the last row, add a new blank row automatically
-        if (index === current.length - 1) {
-          nextRows.push({
-            productId: "",
-            description: "",
-            tax: "",
-            unit: "",
-            mrp: "",
-            discountPercent: "",
-            netPrice: "",
-            quantity: "",
-            salesPerson: "",
-          });
+
+        // If we filled the current row and it's the last or near last, add a new blank row
+        if (index === current.length - 1 || !nextRows[nextRows.length - 1].productId === "") {
+          const lastFilledIndex = nextRows.findIndex((row, idx) => idx === nextRows.length - 1 && row.productId);
+          if (lastFilledIndex !== -1 || index === current.length - 1) {
+            nextRows.push({
+              productId: "",
+              description: "",
+              tax: "",
+              unit: "",
+              mrp: "",
+              discountPercent: "",
+              netPrice: "",
+              quantity: "",
+              salesPerson: "",
+            });
+          }
         }
+
+        if (onDone) setTimeout(() => onDone(index + 1, false), 100);
         return nextRows;
       });
     };
@@ -571,12 +463,24 @@ export default function Bill() {
       return;
     }
 
+    // If not found locally and it's numeric, try API
     if (/^\d+$/.test(query)) {
       axios.get(`${API_BASE_URL}/products/${query}`).then((res) => {
-        if (res.data) applyFound(res.data);
+        if (res.data && !isDeletedProduct(res.data)) {
+          applyFound(res.data);
+          // Add to local cache
+          setProducts(prev => [...prev, res.data]);
+        } else {
+          setError(`❌ Product "${query}" not found or is deleted.`);
+          if (onDone) onDone(index, false);
+        }
       }).catch(() => {
-        // fail silently
+        setError(`❌ Product "${query}" not found.`);
+        if (onDone) onDone(index, false);
       });
+    } else {
+      setError(`❌ Product "${query}" not found.`);
+      if (onDone) onDone(index, false);
     }
   };
 
@@ -603,29 +507,19 @@ export default function Bill() {
         return updated;
       });
 
-      // If we're updating the last row and it now has a productId or description, add a new blank row
-      const lastRow = newRows[newRows.length - 1];
-      if (index === current.length - 1 && (lastRow.productId || lastRow.description)) {
-        newRows.push({
-          productId: "",
-          description: "",
-          tax: TAX_PERCENT,
-          unit: DEFAULT_UNIT,
-          mrp: 0,
-          unitPrice: 0,
-          discountPercent: 0,
-          netPrice: 0,
-          quantity: 1,
-          salesPerson: loggedInUserName,
-        });
-      }
-
       return newRows;
     });
   };
 
   const removeRow = (index) => {
     setRows((current) => current.filter((_, rowIndex) => rowIndex !== index));
+    // After removing, focus the previous row or the same index if available
+    setTimeout(() => {
+      const newIndex = Math.min(index, rows.length - 2);
+      if (rowInputRefs.current[newIndex]) {
+        rowInputRefs.current[newIndex].focus();
+      }
+    }, 50);
   };
 
   const totals = useMemo(() => {
@@ -686,7 +580,7 @@ export default function Bill() {
         discountType: Number(discountPercent) > 0 ? "percentage" : "amount",
         tax: 0,
         taxType: "percentage",
-        paidAmount,
+        paidAmount: Number(paidAmount),
         paymentMethod,
         cashReceived: Number(cashReceived) || 0,
         cardNumber,
@@ -766,6 +660,228 @@ export default function Bill() {
     }
   };
 
+  // Set active row index when focusing
+  const handleRowFocus = (index) => {
+    setActiveRowIndex(index);
+  };
+
+  // Keyboard Shortcuts Handler
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const activeElement = document.activeElement;
+      const isTyping = activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.isContentEditable;
+
+      // F2 OR Ctrl+Shift+P - Focus Product Search (first empty Product ID field)
+      if (event.key === 'F2' || (event.ctrlKey && event.shiftKey && event.key === 'P')) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        // Find the first empty product ID field
+        let targetIndex = -1;
+        for (let i = 0; i < rows.length; i++) {
+          if (!rows[i]?.productId || rows[i].productId === "") {
+            targetIndex = i;
+            break;
+          }
+        }
+
+        // If all rows have products, use the last row (which should be blank)
+        if (targetIndex === -1 && rows.length > 0) {
+          targetIndex = rows.length - 1;
+        }
+
+        if (targetIndex !== -1 && rowInputRefs.current[targetIndex]) {
+          setActiveRowIndex(targetIndex);
+          rowInputRefs.current[targetIndex].focus();
+          rowInputRefs.current[targetIndex].select();
+          showTempMessage("success", "⌨️ Product entry active — start typing");
+        }
+        return;
+      }
+
+      // F3 - Focus Customer Name
+      if (event.key === 'F3') {
+        event.preventDefault();
+        customerNameRef.current?.focus();
+        showTempMessage("success", "⌨️ Customer name focused");
+        return;
+      }
+
+      // F4 - Focus Mobile Number
+      if (event.key === 'F4') {
+        event.preventDefault();
+        mobileRef.current?.focus();
+        showTempMessage("success", "⌨️ Mobile number focused");
+        return;
+      }
+
+      // F5 - Focus Sales Person
+      if (event.key === 'F5') {
+        event.preventDefault();
+        salesPersonRef.current?.focus();
+        showTempMessage("success", "⌨️ Sales person focused");
+        return;
+      }
+
+      // F6 - Focus Cash Received
+      if (event.key === 'F6') {
+        event.preventDefault();
+        cashReceivedRef.current?.focus();
+        showTempMessage("success", "⌨️ Cash received focused");
+        return;
+      }
+
+      // F7 - Focus Member ID
+      if (event.key === 'F7') {
+        event.preventDefault();
+        memberIdRef.current?.focus();
+        showTempMessage("success", "⌨️ Member ID focused");
+        return;
+      }
+
+      // Ctrl+Shift+A - Focus quick add input
+      if (event.ctrlKey && event.shiftKey && event.key === 'A') {
+        event.preventDefault();
+        quickAddInputRef.current?.focus();
+        showTempMessage("success", "⌨️ Ready to add new product");
+        return;
+      }
+
+      // Ctrl+Enter - Add current quick product
+      if ((event.ctrlKey && event.key === 'Enter') && quickProductQuery.trim()) {
+        event.preventDefault();
+        addByQuery(quickProductQuery);
+        setQuickProductQuery("");
+        setTimeout(() => quickAddInputRef.current?.focus(), 100);
+        showTempMessage("success", "⌨️ Product added");
+        return;
+      }
+
+      // Ctrl+S - Save Bill
+      if ((event.ctrlKey || event.metaKey) && (event.key === 's' || event.key === 'S')) {
+        event.preventDefault();
+        if (rows.filter(r => r.productId && r._dbId).length > 0) {
+          saveBill();
+        } else {
+          setError("Add products before saving");
+        }
+        return;
+      }
+
+      // Ctrl+P - Print Bill
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'p' || event.key === 'P')) {
+        event.preventDefault();
+        if (rows.filter(r => r.productId && r._dbId).length > 0) {
+          printBill();
+        } else {
+          setError("Add products before printing");
+        }
+        return;
+      }
+
+      // Ctrl+N - New/Clear Bill
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'n' || event.key === 'N')) {
+        event.preventDefault();
+        clearBill();
+        return;
+      }
+
+      // Alt+1 - Toggle Sale Return
+      if (event.altKey && event.key === '1') {
+        event.preventDefault();
+        setSaleReturn(prev => !prev);
+        showTempMessage("success", `⌨️ Sale Return: ${!saleReturn ? 'ON' : 'OFF'}`);
+        return;
+      }
+
+      // Alt+2 - Toggle Card Bill
+      if (event.altKey && event.key === '2') {
+        event.preventDefault();
+        setCardBill(prev => !prev);
+        showTempMessage("success", `⌨️ Card Bill: ${!cardBill ? 'ON' : 'OFF'}`);
+        return;
+      }
+
+      // Alt+3 - Toggle No Rewards
+      if (event.altKey && event.key === '3') {
+        event.preventDefault();
+        setNoRewards(prev => !prev);
+        showTempMessage("success", `⌨️ No Rewards: ${!noRewards ? 'ON' : 'OFF'}`);
+        return;
+      }
+
+      // Alt+4 - Toggle Classic Customer
+      if (event.altKey && event.key === '4') {
+        event.preventDefault();
+        setClassicCustomer(prev => !prev);
+        showTempMessage("success", `⌨️ Classic Customer: ${!classicCustomer ? 'ON' : 'OFF'}`);
+        return;
+      }
+
+      // Alt+C - Focus Card Amount
+      if (event.altKey && event.key === 'c') {
+        event.preventDefault();
+        cardAmountRef.current?.focus();
+        showTempMessage("success", "⌨️ Card amount focused");
+        return;
+      }
+
+      // Alt+U - Focus UPI Amount
+      if (event.altKey && event.key === 'u') {
+        event.preventDefault();
+        upiAmountRef.current?.focus();
+        showTempMessage("success", "⌨️ UPI amount focused");
+        return;
+      }
+
+      // Alt+D - Focus Discount Percent
+      if (event.altKey && event.key === 'd') {
+        event.preventDefault();
+        discountPercentRef.current?.focus();
+        showTempMessage("success", "⌨️ Discount percent focused");
+        return;
+      }
+
+      // Alt+A - Focus Discount Amount
+      if (event.altKey && event.key === 'a') {
+        event.preventDefault();
+        discountAmountRef.current?.focus();
+        showTempMessage("success", "⌨️ Discount amount focused");
+        return;
+      }
+
+      // Delete - Remove last row (only if not typing in input)
+      if (event.key === 'Delete' && !isTyping) {
+        event.preventDefault();
+        if (rows.filter(r => r.productId && r._dbId).length > 0) {
+          const lastFilledIndex = rows.length - 1;
+          while (lastFilledIndex >= 0 && (!rows[lastFilledIndex]?.productId)) {
+            lastFilledIndex--;
+          }
+          if (lastFilledIndex >= 0) {
+            removeRow(lastFilledIndex);
+            showTempMessage("success", "⌨️ Last product removed");
+          }
+        }
+        return;
+      }
+
+      // Escape - Clear error/message and blur focus
+      if (event.key === 'Escape') {
+        setError("");
+        setMessage("");
+        setShowMobileSuggestions(false);
+        document.activeElement?.blur();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [rows, saleReturn, cardBill, noRewards, classicCustomer, quickProductQuery]);
+
   return (
     <div className="sale-page">
       <style>{saleStyles}</style>
@@ -774,21 +890,18 @@ export default function Bill() {
       <div className="shortcut-bar">
         <div className="shortcut-title">🔥 SHORTCUTS:</div>
         <div className="shortcut-list">
-          <span><kbd>F2</kbd>/<kbd>Ctrl+Shift+P</kbd>🔍Product</span>
-          <span><kbd>F3</kbd>/<kbd>Ctrl+Shift+E</kbd>👤Name</span>
-          <span><kbd>F4</kbd>/<kbd>Ctrl+Shift+P</kbd>📱Mobile</span>
-          <span><kbd>F5</kbd>/<kbd>Ctrl+Shift+S</kbd>👔Sales</span>
-          <span><kbd>F6</kbd>/<kbd>Ctrl+Shift+R</kbd>💰Cash</span>
-          <span><kbd>F7</kbd>/<kbd>Ctrl+Shift+I</kbd>🆔Member ID</span>
-          <span><kbd>Ctrl+Shift+A</kbd>/<kbd>Insert</kbd>➕Add Product</span>
+          <span><kbd>F2</kbd>🔍Product</span>
+          <span><kbd>F3</kbd>👤Name</span>
+          <span><kbd>F4</kbd>📱Mobile</span>
+          <span><kbd>F5</kbd>👔Sales</span>
+          <span><kbd>F6</kbd>💰Cash</span>
+          <span><kbd>F7</kbd>🆔Member ID</span>
+          <span><kbd>Ctrl+Shift+A</kbd>➕Add Product</span>
           <span><kbd>Ctrl+Enter</kbd>✓Add Current</span>
           <span><kbd>Ctrl+S</kbd>💾Save</span>
           <span><kbd>Ctrl+P</kbd>🖨️Print</span>
           <span><kbd>Ctrl+N</kbd>🆕New</span>
           <span><kbd>Alt+1-4</kbd>⚙️Toggles</span>
-          <span><kbd>Alt+C</kbd>💳Card</span>
-          <span><kbd>Alt+U</kbd>📱UPI</span>
-          <span><kbd>Alt+D/A</kbd>🏷️Disc</span>
           <span><kbd>Delete</kbd>❌Remove</span>
           <span><kbd>Esc</kbd>🔇Clear</span>
         </div>
@@ -828,11 +941,11 @@ export default function Bill() {
           <div className="header-middle">
             <label className="check"><input type="checkbox" checked={classicCustomer} onChange={(event) => setClassicCustomer(event.target.checked)} /> Use Classic Mode <span className="shortcut-hint">Alt+4</span></label>
             <div className="field-group">
-              <label>Member ID <span className="shortcut-hint">F7 / Ctrl+Shift+I</span></label>
+              <label>Member ID <span className="shortcut-hint">F7</span></label>
               <input ref={memberIdRef} value={memberId} onChange={(event) => setMemberId(event.target.value)} />
             </div>
             <div className="mobile-field-group" ref={mobileContainerRef}>
-              <label>Classic Customer <span className="shortcut-hint">F4 / Ctrl+Shift+P</span></label>
+              <label>Classic Customer <span className="shortcut-hint">F4</span></label>
               <input
                 ref={mobileRef}
                 value={mobileNumber}
@@ -861,7 +974,7 @@ export default function Bill() {
               )}
             </div>
             <div className="field-group">
-              <label>Sales Person <span className="shortcut-hint">F5 / Ctrl+Shift+S</span></label>
+              <label>Sales Person <span className="shortcut-hint">F5</span></label>
               <input ref={salesPersonRef} list="sales-persons" value={salesPerson} onChange={(event) => setSalesPerson(event.target.value)} />
             </div>
             <datalist id="sales-persons">
@@ -874,7 +987,7 @@ export default function Bill() {
           <div className="header-right">
             <div className="clock">{formatDateTime(now)}</div>
             <div className="field-group">
-              <label>Name <span className="shortcut-hint">F3 / Ctrl+Shift+E</span></label>
+              <label>Name <span className="shortcut-hint">F3</span></label>
               <input ref={customerNameRef} value={customerName} onChange={(event) => setCustomerName(event.target.value)} />
             </div>
             <button type="button" className="add-member-btn">Add New Member</button>
@@ -898,10 +1011,29 @@ export default function Bill() {
         {(message || error) && <div className={error ? "notice error" : "notice"}>{error || message}</div>}
 
         <div className="quick-add no-print">
-          <div style={{ flex: 1 }}></div>
-          <button type="button" onClick={saveBill} disabled={loading}>{loading ? "Saving..." : "Save Bill"}</button>
-          <button type="button" className="printer" onClick={printBill} disabled={loading}>Print</button>
-          <button type="button" onClick={clearBill}>Clear</button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#333' }}>Quick Add:</span>
+            <input
+              ref={quickAddInputRef}
+              value={quickProductQuery}
+              onChange={(e) => setQuickProductQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addByQuery(quickProductQuery);
+                  setQuickProductQuery("");
+                }
+              }}
+              placeholder="Product ID, Code, or Name"
+              style={{ flex: 1 }}
+            />
+            <span className="shortcut-hint" style={{ fontSize: '10px' }}>Ctrl+Enter to add</span>
+          </div>
+          <div>
+            <button type="button" onClick={saveBill} disabled={loading}>{loading ? "Saving..." : "Save Bill"}</button>
+            <button type="button" className="printer" onClick={printBill} disabled={loading}>Print</button>
+            <button type="button" onClick={clearBill}>Clear</button>
+          </div>
         </div>
 
         <div className="grid-wrap">
@@ -925,17 +1057,36 @@ export default function Bill() {
                 const netPrice = money(row.netPrice || (Number(row.mrp) - Number(row.mrp) * ((Number(row.discountPercent) || 0) / 100)));
                 const amount = money(netPrice * (Number(row.quantity) || 0));
                 return (
-                  <tr key={row.productId || index}>
+                  <tr key={`row-${index}-${row._dbId || 'empty'}`}>
                     <td>
-                      <input 
-                        value={row.productId} 
-                        onChange={(event) => updateRow(index, "productId", event.target.value)} 
-                        onBlur={(event) => handleProductSearch(index, event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
+                      <input
+                        ref={(el) => { rowInputRefs.current[index] = el; }}
+                        value={row.productId}
+                        onChange={(event) => updateRow(index, "productId", event.target.value)}
+                        onFocus={() => handleRowFocus(index)}
+                        onBlur={(event) => {
+                          if (event.target.value && !row.description) {
                             handleProductSearch(index, event.target.value);
                           }
                         }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            const typedValue = event.target.value;
+                            if (typedValue) {
+                              handleProductSearch(index, typedValue, (targetIndex) => {
+                                setTimeout(() => {
+                                  const targetInput = rowInputRefs.current[targetIndex];
+                                  if (targetInput) {
+                                    targetInput.focus();
+                                    targetInput.select();
+                                  }
+                                }, 50);
+                              });
+                            }
+                          }
+                        }}
+                        placeholder="Product ID"
                       />
                     </td>
                     <td><input value={row.description} onChange={(event) => updateRow(index, "description", event.target.value)} /></td>
@@ -1007,7 +1158,7 @@ export default function Bill() {
             <div className="info-row"><span>Discount Amt <span className="shortcut-hint">Alt+A</span></span><input ref={discountAmountRef} value={discountAmount} onChange={(event) => setDiscountAmount(event.target.value)} /></div>
             <div className="info-row"><span>Amount Paid</span><input value={totals.amountPaid} readOnly /></div>
             <div className="info-row"><span>Paid Before</span><input value={paidBefore} onChange={(event) => setPaidBefore(event.target.value)} /></div>
-            <div className="info-row"><span>Cash Received <span className="shortcut-hint">F6 / Ctrl+Shift+R</span></span><input ref={cashReceivedRef} value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} /></div>
+            <div className="info-row"><span>Cash Received <span className="shortcut-hint">F6</span></span><input ref={cashReceivedRef} value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} /></div>
             <button type="button" className="print-btn" onClick={printBill}>🖨️ Print</button>
           </div>
 
@@ -1401,10 +1552,12 @@ const saleStyles = `
 
   /* Quick Add */
   .quick-add {
-    display: grid;
-    grid-template-columns: 1fr auto auto auto auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     gap: 8px;
     padding: 8px 12px;
+    background: #e8e8e8;
   }
 
   .quick-add input {
@@ -1414,6 +1567,7 @@ const saleStyles = `
     padding: 4px 10px;
     font: inherit;
     border-radius: 4px;
+    width: 300px;
   }
 
   .quick-add button {
@@ -1426,7 +1580,7 @@ const saleStyles = `
     border-radius: 4px;
   }
 
-  .quick-add button:hover, .printer:hover {
+  .quick-add button:hover {
     background: #333;
   }
 
