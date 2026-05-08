@@ -1,7 +1,7 @@
 // ItemsByTypePage.jsx
 import React, { useEffect, useState } from "react";
-import { 
-  Download, Upload, Trash2, Search, RefreshCw, 
+import {
+  Download, Upload, Trash2, Search, RefreshCw,
   ArrowLeft, Package, Grid, List, Edit2, X,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from "lucide-react";
@@ -20,10 +20,10 @@ export default function ItemsByTypePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [viewMode, setViewMode] = useState("types"); // 'types' or 'products'
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -58,9 +58,9 @@ export default function ItemsByTypePage() {
       // Fetch all products (no pagination params to get all for type grouping)
       const res = await fetch(`${API_URL}?page=1&per_page=1000`);
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      
+
       const data = await res.json();
-      
+
       // Handle different response formats (based on ItemsPage.jsx)
       let productsArray = [];
       if (data && data.items && Array.isArray(data.items)) {
@@ -73,22 +73,22 @@ export default function ItemsByTypePage() {
         console.warn('Unexpected API response format:', data);
         productsArray = [];
       }
-      
+
       // Calculate values for each product and ensure valid items
       const processedItems = productsArray
         .filter(item => item && item.id) // Filter out invalid items
         .map(item => calculateValues(item));
-      
+
       setItems(processedItems);
-      
+
       // Extract unique types safely
       const uniqueTypes = [...new Set(processedItems
         .map(item => item.type || '')
         .filter(type => type && type.trim() !== '')
       )].sort();
-      
+
       setTypes(uniqueTypes);
-      
+
       if (processedItems.length > 0) {
         showMessage("success", `Loaded ${processedItems.length} products successfully!`);
       }
@@ -110,7 +110,7 @@ export default function ItemsByTypePage() {
     const profitPercent = buy > 0 ? (((sell - buy) / buy) * 100).toFixed(2) : "0.00";
     const amount = (sell * qty).toFixed(2);
 
-    return { 
+    return {
       ...item,
       id: item.id, // Explicitly preserve ID
       name: item.name || '',
@@ -120,7 +120,7 @@ export default function ItemsByTypePage() {
       buyPrice: buy,
       sellPrice: sell,
       quantity: qty,
-      profitPercent, 
+      profitPercent,
       amount,
     };
   };
@@ -186,7 +186,7 @@ export default function ItemsByTypePage() {
 
       // Update local state
       const updatedItem = calculateValues({ ...editingItem, ...productData });
-      setItems(prev => prev.map(item => 
+      setItems(prev => prev.map(item =>
         item.id === editingItem.id ? updatedItem : item
       ));
 
@@ -217,7 +217,7 @@ export default function ItemsByTypePage() {
       const res = await fetch(`${API_URL}/${id}`, {
         method: "DELETE",
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.message || "Failed to delete product");
@@ -260,7 +260,7 @@ export default function ItemsByTypePage() {
   // ================= EXPORT TO EXCEL =================
   const handleExport = () => {
     try {
-      const dataToExport = selectedType 
+      const dataToExport = selectedType
         ? items.filter(item => item.type === selectedType)
         : items;
 
@@ -302,12 +302,12 @@ export default function ItemsByTypePage() {
       });
 
       const date = new Date().toISOString().split('T')[0];
-      const filename = selectedType 
+      const filename = selectedType
         ? `Products_${selectedType.replace(/[^a-z0-9]/gi, '_')}_${date}.xlsx`
         : `All_Products_${date}.xlsx`;
-      
+
       saveAs(file, filename);
-      
+
       showMessage("success", `Exported ${exportData.length} items successfully!`);
     } catch (err) {
       console.error("Export error:", err);
@@ -318,11 +318,11 @@ export default function ItemsByTypePage() {
   // ================= FILTER ITEMS =================
   const getFilteredItems = (itemsList = items) => {
     let filtered = itemsList;
-    
+
     if (selectedType) {
       filtered = filtered.filter(item => item.type === selectedType);
     }
-    
+
     if (search) {
       const searchLower = search.toLowerCase();
       filtered = filtered.filter(item =>
@@ -331,7 +331,7 @@ export default function ItemsByTypePage() {
         (item.watts || '').toString().includes(search)
       );
     }
-    
+
     return filtered;
   };
 
@@ -364,13 +364,13 @@ export default function ItemsByTypePage() {
   const getTypeStats = (type) => {
     const typeItems = items.filter(item => item.type === type);
     const totalItems = typeItems.length;
-    const totalValue = typeItems.reduce((sum, item) => 
+    const totalValue = typeItems.reduce((sum, item) =>
       sum + (parseFloat(item.amount) || 0), 0
     ).toFixed(2);
-    const totalQuantity = typeItems.reduce((sum, item) => 
+    const totalQuantity = typeItems.reduce((sum, item) =>
       sum + (item.quantity || 0), 0
     );
-    
+
     return { totalItems, totalValue, totalQuantity };
   };
 
@@ -517,7 +517,7 @@ export default function ItemsByTypePage() {
         boxShadow: "0 0 0 2px rgba(99, 102, 241, 0.2)",
       }
     },
-    
+
     // Types Grid Styles
     typesGrid: {
       display: "grid",
@@ -866,7 +866,7 @@ export default function ItemsByTypePage() {
         <div style={styles.modalContent}>
           <div style={styles.modalHeader}>
             <h3 style={styles.modalTitle}>Edit Product</h3>
-            <button 
+            <button
               style={styles.closeButton}
               onClick={() => setShowEditModal(false)}
             >
@@ -954,14 +954,14 @@ export default function ItemsByTypePage() {
           </div>
 
           <div style={styles.modalFooter}>
-            <button 
+            <button
               style={styles.button}
               onClick={() => setShowEditModal(false)}
             >
               Cancel
             </button>
-            <button 
-              style={{...styles.button, backgroundColor: '#6366f1', borderColor: '#6366f1', color: '#fff'}}
+            <button
+              style={{ ...styles.button, backgroundColor: '#6366f1', borderColor: '#6366f1', color: '#fff' }}
               onClick={handleSaveEdit}
               disabled={saving}
             >
@@ -977,9 +977,9 @@ export default function ItemsByTypePage() {
   const Pagination = () => {
     const totalPages = getTotalPages();
     const filteredItems = getFilteredItems();
-    
+
     if (totalPages <= 1 || filteredItems.length === 0) return null;
-    
+
     const startItem = ((currentPage - 1) * ITEMS_PER_PAGE) + 1;
     const endItem = Math.min(currentPage * ITEMS_PER_PAGE, filteredItems.length);
 
@@ -987,7 +987,7 @@ export default function ItemsByTypePage() {
     const getPageNumbers = () => {
       const pages = [];
       const maxVisiblePages = 5;
-      
+
       if (totalPages <= maxVisiblePages) {
         for (let i = 1; i <= totalPages; i++) {
           pages.push(i);
@@ -1009,7 +1009,7 @@ export default function ItemsByTypePage() {
           pages.push(totalPages);
         }
       }
-      
+
       return pages;
     };
 
@@ -1041,7 +1041,7 @@ export default function ItemsByTypePage() {
           >
             <ChevronLeft size={16} />
           </button>
-          
+
           <div style={styles.pageNumbers}>
             {getPageNumbers().map((page, index) => (
               page === '...' ? (
@@ -1108,7 +1108,7 @@ export default function ItemsByTypePage() {
             <Package size={28} color="#6366f1" />
             {viewMode === "products" ? `${selectedType || ''} Products` : "Products by Type"}
           </h1>
-          <button 
+          <button
             style={styles.refreshButton}
             onClick={loadProducts}
             title="Refresh"
@@ -1153,9 +1153,9 @@ export default function ItemsByTypePage() {
       {message.text && (
         <div style={{
           ...styles.message,
-          ...(message.type === "success" ? styles.successMessage : 
-             message.type === "error" ? styles.errorMessage : 
-             styles.infoMessage)
+          ...(message.type === "success" ? styles.successMessage :
+            message.type === "error" ? styles.errorMessage :
+              styles.infoMessage)
         }}>
           {message.text}
         </div>
@@ -1174,7 +1174,7 @@ export default function ItemsByTypePage() {
           />
         </div>
         <span style={{ color: "#9ca3af", fontSize: "13px" }}>
-          {viewMode === "products" 
+          {viewMode === "products"
             ? `${filteredItems.length} product(s)`
             : `${types.length} type(s)`
           }
@@ -1214,7 +1214,7 @@ export default function ItemsByTypePage() {
                       <Package size={24} color="#6366f1" />
                     </div>
                     <h3 style={styles.typeName}>{type}</h3>
-                    
+
                     <div style={styles.typeStats}>
                       <div style={styles.statItem}>
                         <div style={styles.statLabel}>Products</div>
@@ -1243,8 +1243,8 @@ export default function ItemsByTypePage() {
           <div style={styles.tableContainer}>
             {filteredItems.length === 0 ? (
               <div style={styles.emptyState}>
-                {search 
-                  ? "No products match your search" 
+                {search
+                  ? "No products match your search"
                   : `No products found in type "${selectedType || ''}"`
                 }
               </div>
@@ -1271,53 +1271,53 @@ export default function ItemsByTypePage() {
                           <span style={styles.productName}>{item.name || '-'}</span>
                         </div>
                       </td>
-                      
+
                       <td style={styles.td}>
                         <span style={styles.productModel}>{item.model || '-'}</span>
                       </td>
-                      
+
                       <td style={styles.td}>
                         <span>{item.watts || '-'}</span>
                       </td>
-                      
+
                       <td style={styles.td}>
                         <span style={styles.buyPrice}>₹{item.buyPrice.toFixed(2)}</span>
                       </td>
-                      
+
                       <td style={styles.td}>
                         <span style={styles.sellPrice}>₹{item.sellPrice.toFixed(2)}</span>
                       </td>
-                      
+
                       <td style={styles.td}>
                         <span style={styles.quantity}>{item.quantity}</span>
                       </td>
-                      
+
                       <td style={styles.td}>
                         <span style={{
                           ...styles.profitBadge,
-                          ...(parseFloat(item.profitPercent) >= 0 
-                            ? styles.profitPositive 
+                          ...(parseFloat(item.profitPercent) >= 0
+                            ? styles.profitPositive
                             : styles.profitNegative)
                         }}>
                           {item.profitPercent}%
                         </span>
                       </td>
-                      
+
                       <td style={styles.td}>
                         <span>₹{parseFloat(item.amount).toFixed(2)}</span>
                       </td>
-                      
+
                       <td style={styles.td}>
                         <div style={styles.actionButtons}>
                           <button
-                            style={{...styles.iconButton, ...styles.editButton}}
+                            style={{ ...styles.iconButton, ...styles.editButton }}
                             onClick={() => handleEditItem(item)}
                             title="Edit"
                           >
                             <Edit2 size={16} />
                           </button>
                           <button
-                            style={{...styles.iconButton, ...styles.deleteButton}}
+                            style={{ ...styles.iconButton, ...styles.deleteButton }}
                             onClick={() => handleDelete(item.id)}
                             title="Delete"
                           >
@@ -1331,7 +1331,7 @@ export default function ItemsByTypePage() {
               </table>
             )}
           </div>
-          
+
           {/* Pagination */}
           <Pagination />
         </>
