@@ -23,6 +23,7 @@ const Attendance = () => {
   const [workingDays, setWorkingDays] = useState(22);
   const [isEditingWorkingDays, setIsEditingWorkingDays] = useState(false);
   const [toast, setToast] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const API_BASE_URL = "http://localhost:5000/api";
   const token = localStorage.getItem("token");
@@ -114,6 +115,18 @@ const Attendance = () => {
     return { present, leave, paidLeave, halfDay, absent, workingDays: workingDays }; 
   }, [employeesAttendance, workingDays]);
 
+  const filteredAttendance = useMemo(() => {
+    return employeesAttendance.filter(emp => 
+      (emp.employee_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [employeesAttendance, searchTerm]);
+
+  const filteredMonthlySummary = useMemo(() => {
+    return monthlySummary.filter(emp => 
+      (emp.employee_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [monthlySummary, searchTerm]);
+
   const styles = {
     container: {
       padding: "24px",
@@ -157,6 +170,15 @@ const Attendance = () => {
       fontWeight: "500",
       cursor: "pointer",
       outline: "none"
+    },
+    searchInput: {
+      padding: "8px 16px",
+      borderRadius: "8px",
+      border: "1px solid #ddd",
+      backgroundColor: "#fff",
+      fontSize: "14px",
+      outline: "none",
+      width: "250px"
     },
     exportBtn: {
       padding: "8px 16px",
@@ -310,6 +332,13 @@ const Attendance = () => {
           <span style={styles.subtitle}>Auto-marked daily · Admin can override</span>
         </div>
         <div style={styles.controls}>
+          <input 
+            type="text" 
+            placeholder="Search employee..." 
+            style={styles.searchInput}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
           <select style={styles.select} value={`${selectedYear}-${selectedMonth}`}>
             <option value="2026-5">May 2026</option>
           </select>
@@ -379,7 +408,7 @@ const Attendance = () => {
             </tr>
           </thead>
           <tbody>
-            {employeesAttendance.map((emp) => (
+            {filteredAttendance.map((emp) => (
               <tr key={emp.id}>
                 <td style={styles.td}>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -430,7 +459,7 @@ const Attendance = () => {
             </tr>
           </thead>
           <tbody>
-             {monthlySummary.map((emp) => (
+             {filteredMonthlySummary.map((emp) => (
               <tr key={emp.employee_id}>
                 <td style={styles.td}>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>

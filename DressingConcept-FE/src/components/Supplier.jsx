@@ -3,10 +3,10 @@ import React, { useState, useEffect } from 'react';
 const SupplierPage = () => {
   // State for current step (1: Supplier Details, 2: Add Items)
   const [currentStep, setCurrentStep] = useState(1);
-  
+
   // State for suppliers list
   const [suppliers, setSuppliers] = useState([]);
-  
+
   // State for current supplier form
   const [currentSupplier, setCurrentSupplier] = useState({
     name: '',
@@ -18,7 +18,7 @@ const SupplierPage = () => {
 
   // State for items list - now each supplier has their own items
   const [items, setItems] = useState([]);
-  
+
   // State for current item form
   const [currentItem, setCurrentItem] = useState({
     name: '',
@@ -27,7 +27,7 @@ const SupplierPage = () => {
     watts: '',
     buyPrice: '',
     quantity: 0,
-    attachment: ''     
+    attachment: ''
   });
 
   // State for file upload
@@ -44,7 +44,7 @@ const SupplierPage = () => {
   // State for popup visibility
   const [showSupplierPopup, setShowSupplierPopup] = useState(false);
   const [showItemPopup, setShowItemPopup] = useState(false);
-  
+
   // State for view items popup
   const [showViewItemsPopup, setShowViewItemsPopup] = useState(false);
   const [viewingSupplier, setViewingSupplier] = useState(null);
@@ -86,7 +86,7 @@ const SupplierPage = () => {
       });
       const data = await response.json();
       setIsAuthenticated(data.authenticated);
-      
+
       if (data.authenticated) {
         fetchSuppliers();
       } else {
@@ -109,7 +109,7 @@ const SupplierPage = () => {
           'Content-Type': 'application/json',
         }
       });
-      
+
       if (!response.ok) {
         if (response.status === 401) {
           window.location.href = '/login';
@@ -117,11 +117,11 @@ const SupplierPage = () => {
         }
         throw new Error('Failed to fetch suppliers');
       }
-      
+
       const data = await response.json();
       if (data.success) {
         setSuppliers(data.suppliers);
-        
+
         // Extract all items from suppliers
         const allItems = [];
         data.suppliers.forEach(supplier => {
@@ -167,24 +167,24 @@ const SupplierPage = () => {
         e.target.value = null;
         return;
       }
-      
+
       // Check file type
       const allowedTypes = [
-        'image/jpeg', 'image/jpg', 'image/png', 
-        'application/pdf', 
-        'application/msword', 
+        'image/jpeg', 'image/jpg', 'image/png',
+        'application/pdf',
+        'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'text/plain'
       ];
-      
+
       if (!allowedTypes.includes(file.type)) {
         alert('File type not allowed. Please upload PDF, DOC, DOCX, JPG, PNG, or TXT files.');
         e.target.value = null;
         return;
       }
-      
+
       setSelectedFile(file);
-      
+
       // Create preview for images
       if (file.type.startsWith('image/')) {
         const previewUrl = URL.createObjectURL(file);
@@ -192,7 +192,7 @@ const SupplierPage = () => {
       } else {
         setFilePreview(null);
       }
-      
+
       // Clear any previous attachment path
       setCurrentItem(prev => ({
         ...prev,
@@ -204,24 +204,24 @@ const SupplierPage = () => {
   // Upload file to server
   const uploadFile = async (file) => {
     if (!file) return null;
-    
+
     try {
       setUploadingFile(true);
       const formData = new FormData();
       formData.append('file', file);
-      
+
       const response = await fetch(`${BASE_URL}/api/upload`, {
         method: 'POST',
         body: formData,
         credentials: 'include',
         mode: 'cors'
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to upload file');
       }
-      
+
       const data = await response.json();
       return data.filePath; // Returns path like "/uploads/filename.jpg"
     } catch (err) {
@@ -238,7 +238,7 @@ const SupplierPage = () => {
     e.preventDefault();
     try {
       setLoading(true);
-      
+
       const supplierData = {
         name: currentSupplier.name || 'Unnamed Supplier',
         company: currentSupplier.company || 'Unnamed Company',
@@ -248,8 +248,8 @@ const SupplierPage = () => {
       };
 
       const isEditing = !!currentSupplier.id;
-      const url = isEditing 
-        ? `${BASE_URL}/api/suppliers/${currentSupplier.id}` 
+      const url = isEditing
+        ? `${BASE_URL}/api/suppliers/${currentSupplier.id}`
         : `${BASE_URL}/api/suppliers`;
       const method = isEditing ? 'PUT' : 'POST';
 
@@ -271,7 +271,7 @@ const SupplierPage = () => {
       }
 
       const data = await response.json();
-      
+
       if (data.success) {
         const savedSupplier = data.supplier;
         if (isEditing) {
@@ -299,7 +299,7 @@ const SupplierPage = () => {
     if (selectedSupplier) {
       try {
         setLoading(true);
-        
+
         // Upload file if selected
         let attachmentPath = null;
         if (selectedFile) {
@@ -317,7 +317,7 @@ const SupplierPage = () => {
             }
           }
         }
-        
+
         const itemData = {
           name: currentItem.name,
           type: currentItem.type || 'PCS',
@@ -351,23 +351,23 @@ const SupplierPage = () => {
 
         const data = await response.json();
         console.log('Item success response:', data);
-        
+
         if (data.success) {
           const newItem = data.item;
-          
+
           // Add to global items array
           setItems([...items, newItem]);
-          
+
           // Update supplier's items in suppliers list
-          setSuppliers(suppliers.map(supplier => 
-            supplier.id === selectedSupplier.id 
-              ? { 
-                  ...supplier, 
-                  items: [...(supplier.items || []), newItem] 
-                }
+          setSuppliers(suppliers.map(supplier =>
+            supplier.id === selectedSupplier.id
+              ? {
+                ...supplier,
+                items: [...(supplier.items || []), newItem]
+              }
               : supplier
           ));
-          
+
           // Reset form
           setCurrentItem({
             name: '',
@@ -378,20 +378,20 @@ const SupplierPage = () => {
             quantity: 0,
             attachment: ''
           });
-          
+
           // Clear file selection and preview
           setSelectedFile(null);
           if (filePreview) {
             URL.revokeObjectURL(filePreview);
             setFilePreview(null);
           }
-          
+
           // Reset file input
           const fileInput = document.querySelector('input[type="file"]');
           if (fileInput) fileInput.value = '';
-          
+
           setShowItemPopup(false);
-          
+
           // Show success message
           alert('Item added successfully! It will be automatically added to inventory.');
         }
@@ -437,22 +437,22 @@ const SupplierPage = () => {
         const data = await response.json();
         if (data.success) {
           const itemToDelete = items.find(item => item.id === itemId);
-          
+
           // Remove from global items
           setItems(items.filter(item => item.id !== itemId));
-          
+
           // Remove from supplier's items
           if (itemToDelete) {
-            setSuppliers(suppliers.map(supplier => 
-              supplier.id === itemToDelete.supplier_id 
-                ? { 
-                    ...supplier, 
-                    items: (supplier.items || []).filter(item => item.id !== itemId) 
-                  }
+            setSuppliers(suppliers.map(supplier =>
+              supplier.id === itemToDelete.supplier_id
+                ? {
+                  ...supplier,
+                  items: (supplier.items || []).filter(item => item.id !== itemId)
+                }
                 : supplier
             ));
           }
-          
+
           alert('Item deleted successfully!');
         }
       } catch (err) {
@@ -485,15 +485,15 @@ const SupplierPage = () => {
         if (data.success) {
           // Remove all items associated with this supplier from global items
           setItems(items.filter(item => item.supplier_id !== supplierId));
-          
+
           // Remove the supplier
           setSuppliers(suppliers.filter(supplier => supplier.id !== supplierId));
-          
+
           if (selectedSupplier?.id === supplierId) {
             setSelectedSupplier(null);
             setCurrentStep(1);
           }
-          
+
           alert('Supplier deleted successfully!');
         }
       } catch (err) {
@@ -596,7 +596,7 @@ const SupplierPage = () => {
   // Filter suppliers based on search term
   const getFilteredSuppliers = () => {
     if (!searchTerm) return suppliers;
-    
+
     return suppliers.filter(supplier => {
       if (searchField === 'all') {
         return (
@@ -1154,7 +1154,7 @@ const SupplierPage = () => {
         <div style={styles.header}>
           <div style={styles.headerTitle}>
             <h1 style={styles.title}>Supplier Management</h1>
-            <button 
+            <button
               onClick={startNewSupplier}
               style={styles.addNewButton}
             >
@@ -1165,7 +1165,7 @@ const SupplierPage = () => {
 
         {/* Search Section */}
         <div style={styles.searchContainer}>
-          <select 
+          <select
             style={styles.searchSelect}
             value={searchField}
             onChange={(e) => setSearchField(e.target.value)}
@@ -1177,7 +1177,7 @@ const SupplierPage = () => {
             <option value="phone">Phone</option>
             <option value="address">Address</option>
           </select>
-          
+
           <input
             type="text"
             style={styles.searchInput}
@@ -1199,7 +1199,7 @@ const SupplierPage = () => {
               Showing {currentSuppliers.length} of {filteredSuppliers.length} suppliers
             </span>
           </div>
-          
+
           {loading && suppliers.length === 0 ? (
             <div style={styles.noData}>Loading suppliers...</div>
           ) : filteredSuppliers.length > 0 ? (
@@ -1224,7 +1224,7 @@ const SupplierPage = () => {
                       const totalQuantity = supplierItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
                       const pendingCount = supplierItems.filter(item => item.status === 'Pending').length;
                       return (
-                        <tr 
+                        <tr
                           key={supplier.id}
                           onClick={() => selectSupplier(supplier)}
                           style={{ cursor: 'pointer' }}
@@ -1309,7 +1309,7 @@ const SupplierPage = () => {
                   >
                     ←
                   </button>
-                  
+
                   {[...Array(totalPages)].map((_, index) => {
                     const pageNumber = index + 1;
                     // Show first page, last page, and pages around current page
@@ -1338,7 +1338,7 @@ const SupplierPage = () => {
                     }
                     return null;
                   })}
-                  
+
                   <button
                     style={{
                       ...styles.pageButton,
@@ -1374,13 +1374,13 @@ const SupplierPage = () => {
           </div>
 
           <div style={styles.buttonGroup}>
-            <button 
+            <button
               style={{ ...styles.button, ...styles.primaryButton }}
               onClick={openItemPopup}
             >
               + Add Item
             </button>
-            <button 
+            <button
               style={{ ...styles.button, ...styles.successButton }}
               onClick={finishAndReset}
             >
@@ -1455,9 +1455,9 @@ const SupplierPage = () => {
                     </td>
                     <td style={styles.td}>
                       {item.attachment ? (
-                        <a 
+                        <a
                           href={getAttachmentUrl(item.attachment)}
-                          target="_blank" 
+                          target="_blank"
                           rel="noopener noreferrer"
                           style={styles.attachmentLink}
                           onClick={(e) => e.stopPropagation()}
@@ -1495,22 +1495,22 @@ const SupplierPage = () => {
 
     return (
       <div style={styles.overlay} onClick={closePopup}>
-        <div style={{...styles.popup, width: "900px"}} onClick={(e) => e.stopPropagation()}>
-          <button 
+        <div style={{ ...styles.popup, width: "900px" }} onClick={(e) => e.stopPropagation()}>
+          <button
             style={styles.closeButton}
             onClick={closePopup}
           >
             ✕
           </button>
-          
+
           <div style={styles.popupHeader}>
             <h2 style={styles.popupTitle}>Items for {viewingSupplier.company}</h2>
             <div style={styles.popupSubtitle}>
-              Supplier: {viewingSupplier.name} | Total Items: {supplierItems.length} | 
+              Supplier: {viewingSupplier.name} | Total Items: {supplierItems.length} |
               Total Quantity: {supplierItems.reduce((sum, item) => sum + (item.quantity || 0), 0)}
             </div>
           </div>
-          
+
           {supplierItems.length > 0 ? (
             <div style={styles.tableContainer}>
               <table style={styles.table}>
@@ -1547,9 +1547,9 @@ const SupplierPage = () => {
                       </td>
                       <td style={styles.td}>
                         {item.attachment ? (
-                          <a 
+                          <a
                             href={getAttachmentUrl(item.attachment)}
-                            target="_blank" 
+                            target="_blank"
                             rel="noopener noreferrer"
                             style={styles.attachmentLink}
                           >
@@ -1569,7 +1569,7 @@ const SupplierPage = () => {
           )}
 
           <div style={styles.popupButtonGroup}>
-            <button 
+            <button
               onClick={closePopup}
               style={styles.submitButton}
             >
@@ -1588,18 +1588,18 @@ const SupplierPage = () => {
     return (
       <div style={styles.overlay} onClick={closePopup}>
         <div style={styles.popup} onClick={(e) => e.stopPropagation()}>
-          <button 
+          <button
             style={styles.closeButton}
             onClick={closePopup}
           >
             ✕
           </button>
-          
+
           <div style={styles.popupHeader}>
             <h2 style={styles.popupTitle}>Add New Supplier</h2>
             <div style={styles.popupSubtitle}>Fill in the supplier details below</div>
           </div>
-          
+
           <form onSubmit={saveSupplierAndNext}>
             <div style={styles.formGrid}>
               <div style={styles.formGroup}>
@@ -1669,16 +1669,16 @@ const SupplierPage = () => {
             </div>
 
             <div style={styles.popupButtonGroup}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={closePopup}
                 style={styles.cancelButton}
                 disabled={loading}
               >
                 Cancel
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 style={styles.submitButton}
                 disabled={loading}
               >
@@ -1698,18 +1698,18 @@ const SupplierPage = () => {
     return (
       <div style={styles.overlay} onClick={closePopup}>
         <div style={styles.popup} onClick={(e) => e.stopPropagation()}>
-          <button 
+          <button
             style={styles.closeButton}
             onClick={closePopup}
           >
             ✕
           </button>
-          
+
           <div style={styles.popupHeader}>
             <h2 style={styles.popupTitle}>Add New Item</h2>
             <div style={styles.popupSubtitle}>Enter item details for {selectedSupplier?.company}</div>
           </div>
-          
+
           <form onSubmit={addItem}>
             <div style={styles.formGrid}>
               <div style={styles.formGroup}>
@@ -1719,12 +1719,12 @@ const SupplierPage = () => {
                   name="name"
                   value={currentItem.name}
                   onChange={handleItemChange}
-                  placeholder="e.g., LED Bulb"
+                  placeholder="e.g., Shirt box.."
                   style={styles.input}
                   disabled={loading}
                 />
               </div>
-              
+
               <div style={styles.formGroup}>
                 <label style={styles.label}>Type</label>
                 <select
@@ -1771,7 +1771,7 @@ const SupplierPage = () => {
               </div>
 
               <div style={styles.formGroup}>
-                 {/* Placeholder for grid balance */}
+                {/* Placeholder for grid balance */}
               </div>
 
               <div style={{ ...styles.formGroup, ...styles.fullWidth }}>
@@ -1807,16 +1807,16 @@ const SupplierPage = () => {
             </div>
 
             <div style={styles.popupButtonGroup}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={closePopup}
                 style={styles.cancelButton}
                 disabled={loading}
               >
                 Cancel
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 style={styles.submitButton}
                 disabled={loading || uploadingFile}
               >

@@ -93,10 +93,11 @@ const BillItemsPage = () => {
             const itemsWithBillInfo = detailedBill.items.map(item => ({
               id: item.id,
               product_id: item.product_id,
-              product_name: item.product_name,
-              product_model: item.product_model,
-              product_type: item.product_type,
-              sell_price: item.sell_price,
+              product_code: (item.productCode || '').replace(/^DEL-/, ''),
+              product_name: (item.productName || item.product_name || '').replace(/^___DELETED___/, ''),
+              product_model: item.productModel || item.product_model,
+              product_type: item.productType || item.product_type,
+              sell_price: item.sellPrice || item.sell_price,
               quantity: item.quantity,
               total: item.total,
               billNumber: detailedBill.billNumber,
@@ -150,16 +151,14 @@ const BillItemsPage = () => {
     if (searchTerm) {
       filtered = filtered.filter(item => {
         const productName = item.product_name || '';
-        const productModel = item.product_model || '';
-        const productType = item.product_type || '';
-        const itemId = item.id ? item.id.toString() : '';
+        const productCode = item.product_code || '';
+        const billNumber = item.billNumber || '';
         
         const searchLower = searchTerm.toLowerCase();
         return (
           productName.toLowerCase().includes(searchLower) ||
-          productModel.toLowerCase().includes(searchLower) ||
-          productType.toLowerCase().includes(searchLower) ||
-          itemId.includes(searchLower)
+          productCode.toLowerCase().includes(searchLower) ||
+          billNumber.toLowerCase().includes(searchLower)
         );
       });
     }
@@ -178,14 +177,12 @@ const BillItemsPage = () => {
   const handleExportExcel = () => {
     try {
       const exportData = filteredItems.map(item => ({
-        'ID': item.id || '',
-        'Date': item.billDate ? new Date(item.billDate).toLocaleDateString() : '',
-        'Product Name': item.product_name || '',
-        'Model': item.product_model || '',
-        'Type': item.product_type || '',
-        'Price (₹)': item.sell_price || 0,
-        'Quantity': item.quantity || 0,
-        'Total (₹)': item.total || 0
+        'ID': item.product_code || item.product_id || '',
+        'Date & Time': item.billDate ? new Date(item.billDate).toLocaleString() : '',
+        'Bill No': item.billNumber || '',
+        'Product': item.product_name || '',
+        'Qty': item.quantity || 0,
+        'Price (₹)': item.sell_price || 0
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -237,18 +234,15 @@ const BillItemsPage = () => {
       doc.text(`Total Items: ${filteredItems.length}`, 14, 40);
       
       const tableColumn = [
-        'ID', 'Date', 'Product', 'Model', 'Type', 'Price', 'Qty', 'Total'
+        'ID', 'Date & Time', 'Product', 'Qty', 'Price'
       ];
       
       const tableRows = filteredItems.map(item => [
-        item.id || '',
-        item.billDate ? new Date(item.billDate).toLocaleDateString() : '',
+        item.product_code || item.product_id || '',
+        item.billDate ? new Date(item.billDate).toLocaleString() : '',
         item.product_name || '',
-        item.product_model || '',
-        item.product_type || '',
-        `₹${item.sell_price || 0}`,
         item.quantity || 0,
-        `₹${item.total || 0}`
+        `₹${item.sell_price || 0}`
       ]);
       
       doc.autoTable({
@@ -681,7 +675,7 @@ const BillItemsPage = () => {
           <input
             type="text"
             style={styles.searchInput}
-            placeholder="Search by ID, product, model, or type..."
+            placeholder="Search by ID or product..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -703,20 +697,17 @@ const BillItemsPage = () => {
           <thead>
             <tr>
               <th style={styles.th}>ID</th>
-              <th style={styles.th}>Date</th>
+              <th style={styles.th}>Date & Time</th>
               <th style={styles.th}>Product</th>
-              <th style={styles.th}>Model</th>
-              <th style={styles.th}>Type</th>
-              <th style={styles.th}>Price</th>
               <th style={styles.th}>Qty</th>
-              <th style={styles.th}>Total</th>
+              <th style={styles.th}>Price</th>
               <th style={styles.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {currentItems.length === 0 ? (
               <tr>
-                <td colSpan="9" style={styles.noData}>
+                <td colSpan="6" style={styles.noData}>
                   {searchTerm ? 'No items match your search' : 'No items found'}
                 </td>
               </tr>
@@ -724,28 +715,28 @@ const BillItemsPage = () => {
               currentItems.map((item, index) => (
                 <tr key={`${item.billId}-${item.id}-${index}`}>
                   <td style={styles.td}>
-                    <strong>{item.id}</strong>
+                    <strong style={{ color: '#3b82f6' }}>{item.product_code || item.product_id}</strong>
                   </td>
                   <td style={styles.td}>
-                    {item.billDate ? new Date(item.billDate).toLocaleDateString() : '-'}
+                    <div>{item.billDate ? new Date(item.billDate).toLocaleString() : '-'}</div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>{item.billNumber}</div>
                   </td>
                   <td style={styles.td}>
-                    {item.product_name || '-'}
+                    <strong>{item.product_name || '-'}</strong>
                   </td>
                   <td style={styles.td}>
-                    {item.product_model || '-'}
-                  </td>
-                  <td style={styles.td}>
-                    {item.product_type || '-'}
+                    <span style={{ 
+                      backgroundColor: '#1f2937', 
+                      padding: '2px 8px', 
+                      borderRadius: '12px',
+                      color: '#6366f1',
+                      fontWeight: '600'
+                    }}>
+                      {item.quantity || 0}
+                    </span>
                   </td>
                   <td style={styles.td}>
                     ₹{item.sell_price || 0}
-                  </td>
-                  <td style={styles.td}>
-                    {item.quantity || 0}
-                  </td>
-                  <td style={styles.td}>
-                    <strong>₹{item.total || 0}</strong>
                   </td>
                   <td style={styles.td}>
                     <button

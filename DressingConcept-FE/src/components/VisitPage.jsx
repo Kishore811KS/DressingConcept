@@ -497,7 +497,7 @@ const VisitBillPage = () => {
       });
 
       processedBills.forEach(bill => {
-        bill.itemCount = bill.items ? bill.items.length : 0;
+        bill.itemCount = bill.itemCount || (bill.items ? bill.items.length : 0);
         bill.dueAmount = bill.total - bill.paidAmount;
       });
 
@@ -637,7 +637,7 @@ const VisitBillPage = () => {
         })) : []
       };
 
-      processedBill.itemCount = processedBill.items.length;
+      processedBill.itemCount = processedBill.itemCount || (processedBill.items ? processedBill.items.length : 0);
       processedBill.dueAmount = processedBill.total - processedBill.paidAmount;
 
       console.log('Processed Bill Details:', processedBill);

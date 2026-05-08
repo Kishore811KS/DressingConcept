@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { 
   FaMoneyBillWave, 
@@ -17,6 +17,7 @@ const Salary = () => {
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
   const [toast, setToast] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const API_BASE_URL = "http://localhost:5000/api/salary";
   const token = localStorage.getItem("token");
@@ -50,6 +51,12 @@ const Salary = () => {
   useEffect(() => {
     calculateSalaries();
   }, [month, year]);
+
+  const filteredSalaries = useMemo(() => {
+    return salaries.filter(s => 
+      (s.employee_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [salaries, searchTerm]);
 
   const updateStatus = async (salaryId, status) => {
     try {
@@ -116,6 +123,15 @@ const Salary = () => {
       fontWeight: "500",
       cursor: "pointer",
       outline: "none"
+    },
+    searchInput: {
+      padding: "8px 16px",
+      borderRadius: "8px",
+      border: "1px solid #ddd",
+      backgroundColor: "#fff",
+      fontSize: "14px",
+      outline: "none",
+      width: "250px"
     },
     generateBtn: {
       padding: "8px 16px",
@@ -283,6 +299,13 @@ const Salary = () => {
           <span style={styles.subtitle}>Auto-calculated from attendance · per day rate set in employee profile</span>
         </div>
         <div style={styles.controls}>
+          <input 
+            type="text" 
+            placeholder="Search employee..." 
+            style={styles.searchInput}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
            <select style={styles.select} value={`${year}-${month}`} onChange={(e) => {
              const [y, m] = e.target.value.split('-');
              setYear(y); setMonth(m);
@@ -325,7 +348,7 @@ const Salary = () => {
               </tr>
             </thead>
             <tbody>
-              {salaries.map(s => (
+              {filteredSalaries.map(s => (
                 <tr key={s.id} onClick={() => setSelectedEmp(s)} style={{ backgroundColor: selectedEmp?.id === s.id ? "#f0f7ff" : "transparent" }}>
                   <td style={styles.td}>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -349,7 +372,7 @@ const Salary = () => {
         <div style={styles.card}>
           <h2 style={styles.cardTitle}>Salary breakdown</h2>
           <div style={styles.breakdownHeader}>
-            {salaries.map(s => (
+            {filteredSalaries.map(s => (
               <button key={s.id} style={styles.empTab(selectedEmp?.id === s.id)} onClick={() => setSelectedEmp(s)}>
                 {(s.employee_name || 'Unknown').split(' ')[0]}
               </button>

@@ -167,6 +167,7 @@ class BillItem(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     
     # Snapshot of product details at time of billing
+    product_code = db.Column(db.String(100))
     product_name = db.Column(db.String(100), nullable=False)
     product_model = db.Column(db.String(100))
     product_type = db.Column(db.String(100))
@@ -184,6 +185,7 @@ class BillItem(db.Model):
         return {
             'id': self.id,
             'productId': self.product_id,
+            'productCode': self.product_code or (self.product.product_code if self.product else ''),
             'productName': self.product_name,
             'productModel': self.product_model,
             'productType': self.product_type,

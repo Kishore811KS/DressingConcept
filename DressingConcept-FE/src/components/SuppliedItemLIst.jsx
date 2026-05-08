@@ -175,7 +175,6 @@ const ItemsListPage = () => {
         const searchLower = searchTerm.toLowerCase();
         return (
           item.name?.toLowerCase().includes(searchLower) ||
-          item.model?.toLowerCase().includes(searchLower) ||
           item.type?.toLowerCase().includes(searchLower) ||
           item.id?.toString().includes(searchLower)
         );
@@ -335,7 +334,7 @@ const ItemsListPage = () => {
           </div>
           <div class="summary-item">
             <div class="summary-label">Total Value</div>
-            <div class="summary-value">₹${filteredItems.reduce((sum, item) => sum + (item.buy_price || 0), 0).toFixed(2)}</div>
+            <div class="summary-value">₹${filteredItems.reduce((sum, item) => sum + (item.buy_price * (item.quantity || 1)), 0).toFixed(2)}</div>
           </div>
         </div>
         
@@ -373,11 +372,11 @@ const ItemsListPage = () => {
             <tr>
               <th>ID</th>
               <th>Name</th>
-              <th>Model</th>
               <th>Type</th>
-              <th>Warrenty</th>
+              <th>Quantity</th>
               <th>Buy Price (₹)</th>
               <th>Added Date</th>
+              <th>Attachment</th>
             </tr>
           </thead>
           <tbody>
@@ -388,11 +387,11 @@ const ItemsListPage = () => {
         <tr>
           <td>${item.id || '—'}</td>
           <td><strong>${item.name || ''}</strong></td>
-          <td>${item.model || ''}</td>
           <td>${item.type || '—'}</td>
-          <td>${item.watts || 0}W</td>
+          <td>${item.quantity || 0}</td>
           <td>₹${item.buy_price?.toFixed(2) || '0.00'}</td>
           <td>${formatDate(item.created_at)}</td>
+          <td>${item.attachment ? 'Available' : 'N/A'}</td>
         </tr>
       `;
     });
@@ -805,7 +804,7 @@ const ItemsListPage = () => {
             <input
               type="text"
               style={styles.input}
-              placeholder="Search by ID, name, model, type..."
+              placeholder="Search by ID, name, or type..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
@@ -940,9 +939,8 @@ const ItemsListPage = () => {
                 <tr>
                   <th style={styles.th}>ID</th>
                   <th style={styles.th}>Name</th>
-                  <th style={styles.th}>Model</th>
                   <th style={styles.th}>Type</th>
-                  <th style={styles.th}>Warrenty</th>
+                  <th style={styles.th}>Quantity</th>
                   <th style={styles.th}>Buy Price (₹)</th>
                   <th style={styles.th}>Added Date</th>
                   <th style={styles.th}>Attachment</th>
@@ -963,13 +961,18 @@ const ItemsListPage = () => {
                       <strong style={{ color: '#ffffff' }}>{item.name}</strong>
                     </td>
                     <td style={styles.td}>
-                      {item.model || '—'}
-                    </td>
-                    <td style={styles.td}>
                       {item.type || '—'}
                     </td>
                     <td style={styles.td}>
-                      {item.watts ? `${item.watts}W` : '—'}
+                      <span style={{ 
+                        backgroundColor: '#334155', 
+                        padding: '4px 10px', 
+                        borderRadius: '6px',
+                        fontWeight: '600',
+                        color: '#3b82f6'
+                      }}>
+                        {item.quantity || 0}
+                      </span>
                     </td>
                     <td style={styles.td}>
                       <strong style={{ color: '#10b981', fontSize: '16px' }}>
@@ -982,16 +985,17 @@ const ItemsListPage = () => {
                     <td style={styles.td}>
                       {item.attachment ? (
                         <a 
-                          href={getAttachmentUrl(item.attachment)}
-                          target="_blank"
+                          href={getAttachmentUrl(item.attachment)} 
+                          target="_blank" 
                           rel="noopener noreferrer"
                           style={styles.attachmentLink}
-                          onClick={(e) => e.stopPropagation()}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = '#475569'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = '#334155'}
                         >
                           📎 View
                         </a>
                       ) : (
-                        <span style={{ color: '#94a3b8' }}>—</span>
+                        <span style={{ color: '#64748b', fontSize: '12px' }}>No file</span>
                       )}
                     </td>
                   </tr>

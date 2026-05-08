@@ -23,7 +23,6 @@ export default function LowStockPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   
   // Order modal state
   const [showOrderModal, setShowOrderModal] = useState(false);
@@ -39,8 +38,6 @@ export default function LowStockPage() {
   useEffect(() => {
     if (searchTerm.trim() === "") {
       setFilteredItems(items);
-      setTotalItems(items.length);
-      setTotalPages(Math.max(1, Math.ceil(items.length / itemsPerPage)));
     } else {
       const term = searchTerm.toLowerCase();
       const filtered = items.filter(item => 
@@ -50,8 +47,6 @@ export default function LowStockPage() {
         (item.type && item.type.toLowerCase().includes(term))
       );
       setFilteredItems(filtered);
-      setTotalItems(filtered.length);
-      setTotalPages(Math.max(1, Math.ceil(filtered.length / itemsPerPage)));
       setCurrentPage(1); // Reset to first page when searching
     }
   }, [searchTerm, items, itemsPerPage]);
@@ -98,15 +93,13 @@ export default function LowStockPage() {
         totalCount = 0;
       }
       
-      // Calculate values and filter low stock items (quantity < 5)
+      // Calculate values and filter low stock items (quantity <= 5)
       const processedItems = productsArray
         .map(item => calculateValues({ ...item, id: item.id }))
-        .filter(item => item.quantity < lowStockThreshold); // Changed to < 5 (strictly less than)
+        .filter(item => item.quantity <= lowStockThreshold); // Changed to <= to be more inclusive
       
       setItems(processedItems);
       setFilteredItems(processedItems);
-      setTotalItems(processedItems.length);
-      setTotalPages(Math.max(1, Math.ceil(processedItems.length / itemsPerPage)));
       
       if (processedItems.length === 0) {
         showMessage("info", "No items with quantity less than 5 found");
@@ -210,12 +203,10 @@ export default function LowStockPage() {
         );
       }
 
-      // Re-filter low stock items (quantity < 5)
-      const newLowStockItems = updatedItems.filter(i => i.quantity < lowStockThreshold);
+      // Re-filter low stock items (quantity <= 5)
+      const newLowStockItems = updatedItems.filter(i => i.quantity <= lowStockThreshold);
       setItems(newLowStockItems);
       setFilteredItems(newLowStockItems);
-      setTotalItems(newLowStockItems.length);
-      setTotalPages(Math.max(1, Math.ceil(newLowStockItems.length / itemsPerPage)));
       
       setShowOrderModal(false);
       showMessage("success", `Order placed successfully for ${selectedItems.length} items!`);
@@ -243,7 +234,7 @@ export default function LowStockPage() {
         'Watts': item.watts || '',
         'Current Stock': item.quantity || 0,
         'Status': item.quantity === 0 ? 'OUT OF STOCK' : 'LOW STOCK',
-        'Required to reach 5': item.quantity === 0 ? lowStockThreshold : (lowStockThreshold - item.quantity) || 0,
+        'Required to reach 5': item.quantity === 0 ? lowStockThreshold : Math.max(0, lowStockThreshold - item.quantity),
         'Buy Price (₹)': item.buyPrice || 0,
         'Sell Price (₹)': item.sellPrice || 0,
       }));
@@ -286,17 +277,20 @@ export default function LowStockPage() {
     }
   };
 
-  // ================= PAGINATION FUNCTIONS =================
-  const getCurrentPageItems = () => {
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    return filteredItems.slice(indexOfFirstItem, indexOfLastItem);
+  // Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPageCount = Math.ceil(filteredItems.length / itemsPerPage);
+
+  const paginate = (pageNumber) => {
+    if (pageNumber > 0 && pageNumber <= totalPageCount) {
+      setCurrentPage(pageNumber);
+    }
   };
 
-  const currentItems = getCurrentPageItems();
-
   const goToNextPage = () => {
-    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+    setCurrentPage(prev => Math.min(prev + 1, totalPageCount));
   };
 
   const goToPrevPage = () => {
@@ -304,7 +298,7 @@ export default function LowStockPage() {
   };
 
   const goToPage = (pageNumber) => {
-    if (pageNumber >= 1 && pageNumber <= totalPages) {
+    if (pageNumber >= 1 && pageNumber <= totalPageCount) {
       setCurrentPage(pageNumber);
     }
   };
@@ -313,13 +307,13 @@ export default function LowStockPage() {
     const pageNumbers = [];
     const maxVisiblePages = 5;
     
-    if (totalPages <= maxVisiblePages) {
-      for (let i = 1; i <= totalPages; i++) {
+    if (totalPageCount <= maxVisiblePages) {
+      for (let i = 1; i <= totalPageCount; i++) {
         pageNumbers.push(i);
       }
     } else {
       let startPage = Math.max(1, currentPage - 2);
-      let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+      let endPage = Math.min(totalPageCount, startPage + maxVisiblePages - 1);
       
       if (endPage - startPage < maxVisiblePages - 1) {
         startPage = Math.max(1, endPage - maxVisiblePages + 1);
@@ -714,8 +708,8 @@ export default function LowStockPage() {
                 <tbody>
                   {orderItems.map((item) => (
                     <tr key={item.id}>
-                      <td style={styles.modalTd}>{item.id}</td>
-                      <td style={styles.modalTd}>{item.name}</td>
+                    <td style={styles.modalTd}>{item.productCode || item.id}</td>
+                    <td style={styles.modalTd}>{item.name}</td>
                       <td style={styles.modalTd}>{item.model || '-'}</td>
                       <td style={styles.modalTd}>
                         <span style={{ 
@@ -733,11 +727,9 @@ export default function LowStockPage() {
                           {item.quantity === 0 ? 'OUT OF STOCK' : 'LOW STOCK'}
                         </span>
                       </td>
-                      <td style={styles.modalTd}>
                         <span style={{ color: '#4ade80', fontWeight: '500' }}>
-                          {item.quantity === 0 ? lowStockThreshold : (lowStockThreshold - item.quantity)}
+                          {item.quantity === 0 ? lowStockThreshold : Math.max(0, lowStockThreshold - item.quantity)}
                         </span>
-                      </td>
                       <td style={styles.modalTd}>₹{item.buyPrice.toFixed(2)}</td>
                       <td style={styles.modalTd}>
                         <input
@@ -792,7 +784,7 @@ export default function LowStockPage() {
           </button>
           <h1 style={styles.title}>
             <AlertTriangle color="#f87171" size={28} />
-            Low Stock Alert (Quantity &lt; 5)
+            Low Stock Alert (Qty ≤ {lowStockThreshold})
           </h1>
           <button 
             style={styles.refreshButton}
@@ -863,28 +855,45 @@ export default function LowStockPage() {
           <table style={styles.table}>
             <thead>
               <tr>
-                <th style={styles.th}>ID</th>
-                <th style={styles.th}>Name</th>
-                <th style={styles.th}>Model</th>
-                <th style={styles.th}>Type</th>
-                <th style={styles.th}>Warrenty</th>
-                <th style={styles.th}>Current Stock</th>
+                <th style={styles.th}>#</th>
+                <th style={styles.th}>Product ID</th>
+                <th style={styles.th}>Description</th>
+                <th style={styles.th}>Tax</th>
+                <th style={styles.th}>Unit</th>
+                <th style={styles.th}>MRP (₹)</th>
+                <th style={styles.th}>Pur Rate</th>
+                <th style={styles.th}>Classic (Mobile)</th>
+                <th style={styles.th}>Profit</th>
+                <th style={styles.th}>Qty</th>
                 <th style={styles.th}>Status</th>
-                <th style={styles.th}>Required to reach 5</th>
-                <th style={styles.th}>Buy Price (₹)</th>
-                <th style={styles.th}>Sell Price (₹)</th>
+                <th style={styles.th}>Required</th>
+                <th style={styles.th}>Amount (₹)</th>
               </tr>
             </thead>
             <tbody>
-              {currentItems.map((item) => {
-                const required = item.quantity === 0 ? lowStockThreshold : (lowStockThreshold - item.quantity);
+              {currentItems.map((item, idx) => {
+                const required = item.quantity === 0 ? lowStockThreshold : Math.max(0, lowStockThreshold - item.quantity);
+                const profit = (item.mrp || 0) - (item.buyPrice || 0);
+                const amount = (item.sellPrice || item.mrp || 0) * item.quantity;
+                
                 return (
                   <tr key={item.id}>
-                    <td style={styles.td}>{item.id}</td>
-                    <td style={styles.td}>{item.name}</td>
-                    <td style={styles.td}>{item.model || '-'}</td>
-                    <td style={styles.td}>{item.type || '-'}</td>
-                    <td style={styles.td}>{item.watts || 0}</td>
+                    <td style={styles.td}>{indexOfFirstItem + idx + 1}</td>
+                    <td style={{ ...styles.td, color: "#a5b4fc", fontFamily: "monospace" }}>{item.productCode || item.id}</td>
+                    <td style={{ ...styles.td, fontWeight: 500 }}>{item.name}</td>
+                    <td style={styles.td}>{item.tax || 0}</td>
+                    <td style={styles.td}>
+                      <span style={{ 
+                        backgroundColor: '#374151', 
+                        padding: '2px 8px', 
+                        borderRadius: '12px',
+                        fontSize: '11px'
+                      }}>{item.unit || 'PCS'}</span>
+                    </td>
+                    <td style={styles.td}>₹{(item.mrp || 0).toFixed(2)}</td>
+                    <td style={styles.td}>₹{(item.buyPrice || 0).toFixed(2)}</td>
+                    <td style={styles.td}>{item.classicCustomer || '-'}</td>
+                    <td style={{ ...styles.td, color: "#10b981", fontWeight: 600 }}>₹{profit.toFixed(2)}</td>
                     <td style={{
                       ...styles.td, 
                       ...(item.quantity === 0 ? styles.zeroQuantityCell : styles.quantityCell)
@@ -897,8 +906,7 @@ export default function LowStockPage() {
                       </span>
                     </td>
                     <td style={{...styles.td, ...styles.requiredCell}}>{required}</td>
-                    <td style={styles.td}>₹{item.buyPrice.toFixed(2)}</td>
-                    <td style={styles.td}>₹{item.sellPrice.toFixed(2)}</td>
+                    <td style={{ ...styles.td, fontWeight: 600, color: "#a5b4fc" }}>₹{amount.toFixed(2)}</td>
                   </tr>
                 );
               })}
@@ -937,16 +945,16 @@ export default function LowStockPage() {
           <button
             style={{
               ...styles.paginationButton,
-              ...(currentPage === totalPages ? styles.paginationButtonDisabled : {})
+              ...(currentPage === totalPageCount ? styles.paginationButtonDisabled : {})
             }}
             onClick={goToNextPage}
-            disabled={currentPage === totalPages}
+            disabled={currentPage === totalPageCount}
           >
             <ChevronRight size={16} />
           </button>
           
           <span style={styles.paginationInfo}>
-            Page {currentPage} of {totalPages} 
+            Page {currentPage} of {totalPageCount} 
             {filteredItems.length > 0 && (
               <> (Showing {currentItems.length} of {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'})</>
             )}

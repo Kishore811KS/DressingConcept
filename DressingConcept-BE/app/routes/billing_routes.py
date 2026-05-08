@@ -308,6 +308,7 @@ def create_bill():
             # Create bill item with status (defaults to 'pending' from model)
             bill_item = BillItem(
                 product_id=product.id,
+                product_code=product.product_code,
                 product_name=product.name,
                 product_model=product.model or '',
                 product_type=product.type or '',
@@ -498,17 +499,7 @@ def get_pending_bill_items(bill_id):
             item_status='pending'
         ).all()
         
-        items = [{
-            'id': item.id,
-            'product_id': item.product_id,
-            'product_name': item.product_name,
-            'product_model': item.product_model,
-            'product_type': item.product_type,
-            'sell_price': item.sell_price,
-            'quantity': item.quantity,
-            'total': item.total,
-            'item_status': item.item_status
-        } for item in pending_items]
+        items = [item.to_dict() for item in pending_items]
         
         return jsonify({
             'success': True,
@@ -701,17 +692,7 @@ def get_bill_by_id(bill_id):
         payments = Payment.query.filter_by(bill_id=bill.id).all()
         
         # Get all items with their status
-        items = [{
-            'id': item.id,
-            'product_id': item.product_id,
-            'product_name': item.product_name,
-            'product_model': item.product_model,
-            'product_type': item.product_type,
-            'sell_price': item.sell_price,
-            'quantity': item.quantity,
-            'total': item.total,
-            'item_status': item.item_status
-        } for item in bill.items]
+        items = [item.to_dict() for item in bill.items]
         
         bill_dict = bill.to_dict()
         bill_dict['items'] = items
@@ -764,17 +745,7 @@ def get_bill_by_number(bill_number):
         bill = Bill.query.filter_by(bill_number=bill_number).first_or_404()
         
         # Get all items with their status
-        items = [{
-            'id': item.id,
-            'product_id': item.product_id,
-            'product_name': item.product_name,
-            'product_model': item.product_model,
-            'product_type': item.product_type,
-            'sell_price': item.sell_price,
-            'quantity': item.quantity,
-            'total': item.total,
-            'item_status': item.item_status
-        } for item in bill.items]
+        items = [item.to_dict() for item in bill.items]
         
         bill_dict = bill.to_dict()
         bill_dict['items'] = items

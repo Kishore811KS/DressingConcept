@@ -74,6 +74,11 @@ export default function Bill() {
   const [showMobileSuggestions, setShowMobileSuggestions] = useState(false);
   const [activeRowIndex, setActiveRowIndex] = useState(0);
 
+  const [employees, setEmployees] = useState([]);
+  const [spSuggestions, setSPSuggestions] = useState([]);
+  const [showSPSuggestions, setShowSPSuggestions] = useState(false);
+  const [activeSPIndex, setActiveSPIndex] = useState(-1);
+
   const [customers, setCustomers] = useState([]);
   const [availablePoints, setAvailablePoints] = useState(0);
 
@@ -100,6 +105,7 @@ export default function Bill() {
     setBillNo(String(Math.floor(100 + Math.random() * 900)));
     loadProducts();
     loadCustomers();
+    loadEmployees();
   }, []);
 
   useEffect(() => {
@@ -117,6 +123,10 @@ export default function Bill() {
       if (mobileContainerRef.current && !mobileContainerRef.current.contains(event.target)) {
         setShowMobileSuggestions(false);
       }
+      // Close Sales Person suggestions if clicking outside
+      if (!event.target.closest('.sp-suggestion-container') && !event.target.closest('.field-group')) {
+        setShowSPSuggestions(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -126,6 +136,39 @@ export default function Bill() {
   const showTempMessage = (type, text) => {
     if (type === "success") setMessage(text);
     else setError(text);
+  };
+
+  const loadEmployees = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/employees`);
+      const list = Array.isArray(response.data) ? response.data : (response.data.employees || []);
+      setEmployees(list);
+    } catch (err) {
+      console.error("Employees not loaded", err);
+    }
+  };
+
+  const filterSPSuggestions = (input, index = -1) => {
+    setActiveSPIndex(index);
+    if (!input || input.length === 0) {
+      setSPSuggestions([]);
+      setShowSPSuggestions(false);
+      return;
+    }
+    const filtered = employees.filter(emp => 
+      emp.full_name && emp.full_name.toLowerCase().startsWith(input.toLowerCase())
+    ).slice(0, 10);
+    setSPSuggestions(filtered);
+    setShowSPSuggestions(filtered.length > 0);
+  };
+
+  const selectSPSuggestion = (name, index = -1) => {
+    if (index === -1) {
+      setSalesPerson(name);
+    } else {
+      updateRow(index, "salesPerson", name);
+    }
+    setShowSPSuggestions(false);
   };
 
   // Filter mobile suggestions based on input
@@ -1042,15 +1085,30 @@ export default function Bill() {
                 </div>
               )}
             </div>
-            <div className="field-group">
+            <div className="field-group" style={{ position: 'relative' }}>
               <label>Sales Person <span className="shortcut-hint">F5</span></label>
-              <input ref={salesPersonRef} list="sales-persons" value={salesPerson} onChange={(event) => setSalesPerson(event.target.value)} />
+              <input 
+                ref={salesPersonRef} 
+                value={salesPerson} 
+                onChange={(event) => {
+                  setSalesPerson(event.target.value);
+                  filterSPSuggestions(event.target.value, -1);
+                }} 
+                onFocus={() => {
+                  if (salesPerson) filterSPSuggestions(salesPerson, -1);
+                }}
+                autoComplete="off"
+              />
+              {showSPSuggestions && activeSPIndex === -1 && (
+                <div className="sp-suggestions">
+                  {spSuggestions.map((sp, idx) => (
+                    <div key={idx} className="sp-suggestion-item" onClick={() => selectSPSuggestion(sp.full_name, -1)}>
+                      {sp.full_name}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <datalist id="sales-persons">
-              {[...new Set(products.map(p => p.salesPerson).filter(Boolean))].map((sp, idx) => (
-                <option key={idx} value={sp} />
-              ))}
-            </datalist>
           </div>
 
           <div className="header-right">
@@ -1164,8 +1222,30 @@ export default function Bill() {
                     <td><input type="number" value={netPrice} onChange={(event) => updateRow(index, "netPrice", event.target.value)} /></td>
                     <td><input type="number" min="1" max={row.stock || undefined} value={row.quantity} onChange={(event) => updateRow(index, "quantity", event.target.value)} /></td>
                     <td className="amount-cell">{amount}</td>
-                    <td className="action-cell">
-                      <input value={row.salesPerson || ""} onChange={(event) => updateRow(index, "salesPerson", event.target.value)} />
+                    <td className="action-cell" style={{ position: 'relative' }}>
+                      <div className="sp-suggestion-container" style={{ flex: 1 }}>
+                        <input 
+                          value={row.salesPerson || ""} 
+                          onChange={(event) => {
+                            updateRow(index, "salesPerson", event.target.value);
+                            filterSPSuggestions(event.target.value, index);
+                          }} 
+                          onFocus={() => {
+                            setActiveRowIndex(index);
+                            if (row.salesPerson) filterSPSuggestions(row.salesPerson, index);
+                          }}
+                          autoComplete="off"
+                        />
+                        {showSPSuggestions && activeSPIndex === index && (
+                          <div className="sp-suggestions">
+                            {spSuggestions.map((sp, idx) => (
+                              <div key={idx} className="sp-suggestion-item" onClick={() => selectSPSuggestion(sp.full_name, index)}>
+                                {sp.full_name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <button type="button" className="row-delete" onClick={() => removeRow(index)}>✕</button>
                     </td>
                   </tr>
@@ -2061,5 +2141,37 @@ const saleStyles = `
     .receipt-thankyou { text-align: center; margin-top: 10px; }
     .receipt-qr { display: flex; justify-content: space-around; margin-top: 10px; }
     .receipt-qr img { width: 52px; height: 52px; }
+  }
+
+  /* Sales Person Suggestions */
+  .sp-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1001;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .sp-suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    font-size: 12px;
+    color: #333;
+    transition: background 0.2s;
+    text-align: left;
+  }
+  .sp-suggestion-item:hover {
+    background: #e3f2fd;
+    color: #0066cc;
+  }
+  .sp-suggestion-container {
+    position: relative;
+    width: 100%;
   }
 `;

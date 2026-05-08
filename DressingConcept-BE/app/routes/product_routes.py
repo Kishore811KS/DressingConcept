@@ -214,7 +214,6 @@ def delete_product(id):
             try:
                 if not product.name.startswith("___DELETED___"):
                     product.name = f"___DELETED___{product.name}"
-                    product.product_code = f"DEL-{product.id}"
                     product.quantity = 0
                     db.session.commit()
                 return jsonify({"message": "Product successfully deleted (archived to preserve bill history)."}), 200
