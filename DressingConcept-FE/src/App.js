@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -28,14 +28,21 @@ import Employee from "./components/Employee";
 import Attendance from "./components/Attendance";
 import Salary from "./components/Salary";
 import UserSettings from "./components/UserSetting";
-import DiscountPage from "./components/DiscountPage"; // Import the discount page
+import DiscountPage from "./components/DiscountPage";
 import CurrentCompany from "./components/CurrentCompany";
 import EnquiryPage from "./components/Enquiry";
-
 import CustomerPage from "./components/Customer";
 import EmployeeBill from "./components/EmployeeBill";
 import Warranty from "./components/Warranty";
 import PaymentTracking from "./components/PaymentTracking";
+import GlobalShortcutsModal from "./components/GlobalShortcutsModal";
+import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
+
+// Component to handle keyboard shortcuts globally
+const KeyboardShortcutsInitializer = () => {
+  useKeyboardShortcuts();
+  return null;
+};
 
 function Layout() {
   const location = useLocation();
@@ -53,12 +60,15 @@ function Layout() {
     marginLeft: hideLayout ? "0" : isOpen ? "220px" : "70px",
     padding: hideLayout ? "0" : "80px 20px 20px 20px",
     minHeight: "100vh",
-    background: "#0f172a", // Solid dark background (no white)
+    background: "#0f172a",
     transition: "all 0.3s ease",
   };
 
   return (
     <>
+      {/* Initialize keyboard shortcuts globally */}
+      {!hideLayout && <KeyboardShortcutsInitializer />}
+
       {!hideLayout && <Sidebar isOpen={isOpen} />}
 
       <div style={contentStyle}>
@@ -83,11 +93,10 @@ function Layout() {
           <Route path="/stockout" element={<StockOut />} />
           <Route path="/quotation" element={<Quotation />} />
           <Route path="/invoice" element={<Invoice />} />
-          <Route path="/service" element={<Service/>}/>
+          <Route path="/service" element={<Service />} />
           <Route path="/attendance" element={<Attendance />} />
           <Route path="/salary" element={<Salary />} />
-           <Route path="/userSettings" element={<UserSettings />} />
-
+          <Route path="/userSettings" element={<UserSettings />} />
           <Route path="/discount" element={<DiscountPage />} />
           <Route path="/Company" element={<CurrentCompany />} />
           <Route path="/enquiry" element={<EnquiryPage />} />
@@ -100,6 +109,9 @@ function Layout() {
           <Route path="/paymenttracking" element={<PaymentTracking />} />
         </Routes>
       </div>
+
+      {/* Global Shortcuts Modal */}
+      {!hideLayout && <GlobalShortcutsModal />}
     </>
   );
 }

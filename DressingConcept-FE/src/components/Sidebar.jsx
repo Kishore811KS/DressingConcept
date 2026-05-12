@@ -34,6 +34,7 @@ import {
   FaFileContract,
   FaReceipt,
   FaChartLine,
+  FaKeyboard,
 } from "react-icons/fa";
 
 const Sidebar = ({ isOpen }) => {
@@ -46,14 +47,9 @@ const Sidebar = ({ isOpen }) => {
 
   // Helper to check if a submodule is permitted
   const hasPermission = (submodule_id) => {
-    // Case-insensitive check for Admin role or fallback to admin email
     const isAdmin = userType?.toLowerCase() === 'admin' || user?.email === 'admin@m3cars.com';
-
     if (isAdmin) return true;
-
-    // For other roles, check the permissions array
     if (!Array.isArray(userPermissions)) return false;
-
     const perm = userPermissions.find(p => p.submodule_id === submodule_id);
     return perm ? perm.view === true : false;
   };
@@ -63,6 +59,38 @@ const Sidebar = ({ isOpen }) => {
     const isAdmin = userType?.toLowerCase() === 'admin' || user?.email === 'admin@m3cars.com';
     if (isAdmin) return true;
     return submodule_ids.some(id => hasPermission(id));
+  };
+
+  // Define shortcuts for each menu item
+  const getShortcut = (path) => {
+    const shortcuts = {
+      '/dashboard': 'D',
+      '/product': 'P',
+      '/type': 'C',
+      '/itemlist': 'V',
+      '/stockout': 'O',
+      '/lowstock': 'L',
+      '/warranty': 'W',
+      '/bill': 'B',
+      '/billreport': 'R',
+      '/service': 'G',
+      '/serviceBillView': 'X',
+      '/employeebill': 'Y',
+      '/quotation': 'Q',
+      '/discount': 'I',
+      '/supplier': 'S',
+      '/supplierList': 'K',
+      '/paymenttracking': 'T',
+      '/employee': 'E',
+      '/usertype': 'UT',
+      '/attendance': 'A',
+      '/salary': 'M',
+      '/company': 'Z',
+      '/enquiry': 'N',
+      '/customer': 'F',
+      '/usersettings': 'US',
+    };
+    return shortcuts[path] || '';
   };
 
   const styles = {
@@ -84,7 +112,6 @@ const Sidebar = ({ isOpen }) => {
       scrollbarWidth: "thin",
       scrollbarColor: "#4da6ff #1f2937",
     },
-
     logoSection: {
       marginBottom: "25px",
       fontSize: isOpen ? "18px" : "14px",
@@ -97,18 +124,16 @@ const Sidebar = ({ isOpen }) => {
       whiteSpace: "nowrap",
       transition: "all 0.3s ease",
     },
-
     navContainer: {
       display: "flex",
       flexDirection: "column",
       gap: "4px",
       flex: 1,
     },
-
     link: {
       display: "flex",
       alignItems: "center",
-      justifyContent: isOpen ? "flex-start" : "center",
+      justifyContent: "space-between",
       gap: "12px",
       padding: "10px 12px",
       color: "#9ca3af",
@@ -120,29 +145,36 @@ const Sidebar = ({ isOpen }) => {
       whiteSpace: "nowrap",
       minHeight: "40px",
     },
-
     activeLink: {
       background: "rgba(77, 166, 255, 0.15)",
       color: "#4da6ff",
     },
-
     icon: {
       fontSize: "18px",
       minWidth: "20px",
     },
-
     text: {
       display: isOpen ? "inline" : "none",
       opacity: isOpen ? 1 : 0,
       transition: "opacity 0.2s ease",
+      flex: 1,
     },
-
+    shortcut: {
+      display: isOpen ? "inline-block" : "none",
+      fontSize: "10px",
+      padding: "2px 6px",
+      backgroundColor: "rgba(77, 166, 255, 0.2)",
+      borderRadius: "4px",
+      color: "#4da6ff",
+      fontFamily: "monospace",
+      fontWeight: "600",
+      letterSpacing: "0.5px",
+    },
     divider: {
       height: "1px",
       background: "rgba(255,255,255,0.1)",
       margin: "12px 0",
     },
-
     sectionTitle: {
       fontSize: "11px",
       fontWeight: "600",
@@ -154,7 +186,6 @@ const Sidebar = ({ isOpen }) => {
     },
   };
 
-  // Custom scrollbar styles for webkit browsers
   const scrollbarStyles = `
     .sidebar::-webkit-scrollbar {
       width: 4px;
@@ -176,6 +207,19 @@ const Sidebar = ({ isOpen }) => {
       ? { ...styles.link, ...styles.activeLink }
       : styles.link;
 
+  const renderLink = (to, icon, label) => {
+    const shortcut = getShortcut(to);
+    return (
+      <NavLink to={to} style={getLinkStyle}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
+          {icon}
+          <span style={styles.text}>{label}</span>
+        </div>
+        {shortcut && <span style={styles.shortcut}>{shortcut}</span>}
+      </NavLink>
+    );
+  };
+
   return (
     <>
       <style>{scrollbarStyles}</style>
@@ -189,12 +233,7 @@ const Sidebar = ({ isOpen }) => {
           {isSectionVisible(["dashboard"]) && (
             <>
               <div style={styles.sectionTitle}>Main</div>
-              {hasPermission("dashboard") && (
-                <NavLink to="/dashboard" style={getLinkStyle}>
-                  <FaTachometerAlt style={styles.icon} />
-                  <span style={styles.text}>Dashboard</span>
-                </NavLink>
-              )}
+              {hasPermission("dashboard") && renderLink("/dashboard", <FaTachometerAlt style={styles.icon} />, "Dashboard")}
             </>
           )}
 
@@ -202,40 +241,11 @@ const Sidebar = ({ isOpen }) => {
           {isSectionVisible(["products", "category", "stock_in", "stock_out", "low_stock"]) && (
             <>
               <div style={styles.sectionTitle}>Inventory</div>
-              {hasPermission("products") && (
-                <NavLink to="/product" style={getLinkStyle}>
-                  <FaBoxes style={styles.icon} />
-                  <span style={styles.text}>Products</span>
-                </NavLink>
-              )}
-
-              {hasPermission("category") && (
-                <NavLink to="/type" style={getLinkStyle}>
-                  <FaTags style={styles.icon} />
-                  <span style={styles.text}>Category</span>
-                </NavLink>
-              )}
-
-              {hasPermission("stock_in") && (
-                <NavLink to="/itemlist" style={getLinkStyle}>
-                  <FaArrowDown style={styles.icon} />
-                  <span style={styles.text}>Stock In</span>
-                </NavLink>
-              )}
-
-              {hasPermission("stock_out") && (
-                <NavLink to="/stockout" style={getLinkStyle}>
-                  <FaArrowUp style={styles.icon} />
-                  <span style={styles.text}>Stock Out</span>
-                </NavLink>
-              )}
-
-              {hasPermission("low_stock") && (
-                <NavLink to="/lowstock" style={getLinkStyle}>
-                  <FaExclamationTriangle style={styles.icon} />
-                  <span style={styles.text}>Low Stock</span>
-                </NavLink>
-              )}
+              {hasPermission("products") && renderLink("/product", <FaBoxes style={styles.icon} />, "Products")}
+              {hasPermission("category") && renderLink("/type", <FaTags style={styles.icon} />, "Category")}
+              {hasPermission("stock_in") && renderLink("/itemlist", <FaArrowDown style={styles.icon} />, "Stock In")}
+              {hasPermission("stock_out") && renderLink("/stockout", <FaArrowUp style={styles.icon} />, "Stock Out")}
+              {hasPermission("low_stock") && renderLink("/lowstock", <FaExclamationTriangle style={styles.icon} />, "Low Stock")}
             </>
           )}
 
@@ -243,12 +253,7 @@ const Sidebar = ({ isOpen }) => {
           {isSectionVisible(["warranty"]) && (
             <>
               <div style={styles.sectionTitle}>Warranty</div>
-              {hasPermission("warranty") && (
-                <NavLink to="/warranty" style={getLinkStyle}>
-                  <FaShieldAlt style={styles.icon} />
-                  <span style={styles.text}>Warranty</span>
-                </NavLink>
-              )}
+              {hasPermission("warranty") && renderLink("/warranty", <FaShieldAlt style={styles.icon} />, "Warranty")}
             </>
           )}
 
@@ -256,61 +261,13 @@ const Sidebar = ({ isOpen }) => {
           {isSectionVisible(["create_bill", "bill_reports", "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount"]) && (
             <>
               <div style={styles.sectionTitle}>Billing</div>
-              {hasPermission("create_bill") && (
-                <NavLink to="/bill" style={getLinkStyle}>
-                  <FaReceipt style={styles.icon} />
-                  <span style={styles.text}>Create Bill</span>
-                </NavLink>
-              )}
-
-              {hasPermission("bill_reports") && (
-                <NavLink to="/billreport" style={getLinkStyle}>
-                  <FaChartLine style={styles.icon} />
-                  <span style={styles.text}>Bill Reports</span>
-                </NavLink>
-              )}
-
-              {hasPermission("service_bill") && (
-                <NavLink to="/service" style={getLinkStyle}>
-                  <FaShoppingCart style={styles.icon} />
-                  <span style={styles.text}>Service Bill</span>
-                </NavLink>
-              )}
-
-              {hasPermission("service_bills") && (
-                <NavLink to="/serviceBillView" style={getLinkStyle}>
-                  <FaFileContract style={styles.icon} />
-                  <span style={styles.text}>Service Bills</span>
-                </NavLink>
-              )}
-
-              {hasPermission("sales_bills") && (
-                <NavLink to="/employeebill" style={getLinkStyle}>
-                  <FaUserCircle style={styles.icon} />
-                  <span style={styles.text}>SalesBill(emp)</span>
-                </NavLink>
-              )}
-
-              {hasPermission("quotations") && (
-                <NavLink to="/quotation" style={getLinkStyle}>
-                  <FaClipboardList style={styles.icon} />
-                  <span style={styles.text}>Quotations</span>
-                </NavLink>
-              )}
-
-              {/* {hasPermission("invoices") && (
-                <NavLink to="/invoice" style={getLinkStyle}>
-                  <FaFileInvoiceDollar style={styles.icon} />
-                  <span style={styles.text}>Invoices</span>
-                </NavLink>
-              )} */}
-
-              {hasPermission("discount") && (
-                <NavLink to="/discount" style={getLinkStyle}>
-                  <FaPercent style={styles.icon} />
-                  <span style={styles.text}>Discount</span>
-                </NavLink>
-              )}
+              {hasPermission("create_bill") && renderLink("/bill", <FaReceipt style={styles.icon} />, "Create Bill")}
+              {hasPermission("bill_reports") && renderLink("/billreport", <FaChartLine style={styles.icon} />, "Bill Reports")}
+              {hasPermission("service_bill") && renderLink("/service", <FaShoppingCart style={styles.icon} />, "Service Bill")}
+              {hasPermission("service_bills") && renderLink("/serviceBillView", <FaFileContract style={styles.icon} />, "Service Bills")}
+              {hasPermission("sales_bills") && renderLink("/employeebill", <FaUserCircle style={styles.icon} />, "SalesBill(emp)")}
+              {hasPermission("quotations") && renderLink("/quotation", <FaClipboardList style={styles.icon} />, "Quotations")}
+              {hasPermission("discount") && renderLink("/discount", <FaPercent style={styles.icon} />, "Discount")}
             </>
           )}
 
@@ -318,61 +275,14 @@ const Sidebar = ({ isOpen }) => {
           {isSectionVisible(["add_supplier", "supplier_list", "payment_tracking", "employee", "user_type", "attendance", "salary", "company"]) && (
             <>
               <div style={styles.sectionTitle}>Suppliers & HR</div>
-              {hasPermission("add_supplier") && (
-                <NavLink to="/supplier" style={getLinkStyle}>
-                  <FaPlusCircle style={styles.icon} />
-                  <span style={styles.text}>Add Supplier</span>
-                </NavLink>
-              )}
-
-              {hasPermission("supplier_list") && (
-                <NavLink to="/supplierList" style={getLinkStyle}>
-                  <FaListAlt style={styles.icon} />
-                  <span style={styles.text}>Supplier List</span>
-                </NavLink>
-              )}
-
-              {hasPermission("payment_tracking") && (
-                <NavLink to="/paymenttracking" style={getLinkStyle}>
-                  <FaMoneyBillWave style={styles.icon} />
-                  <span style={styles.text}>Payment Tracking</span>
-                </NavLink>
-              )}
-
-              {hasPermission("employee") && (
-                <NavLink to="/employee" style={getLinkStyle}>
-                  <FaUserPlus style={styles.icon} />
-                  <span style={styles.text}>Employee</span>
-                </NavLink>
-              )}
-
-              {hasPermission("user_type") && (
-                <NavLink to="/usertype" style={getLinkStyle}>
-                  <FaUserTag style={styles.icon} />
-                  <span style={styles.text}>User Type</span>
-                </NavLink>
-              )}
-
-              {hasPermission("attendance") && (
-                <NavLink to="/attendance" style={getLinkStyle}>
-                  <FaCalendarCheck style={styles.icon} />
-                  <span style={styles.text}>Attendance</span>
-                </NavLink>
-              )}
-
-              {hasPermission("salary") && (
-                <NavLink to="/salary" style={getLinkStyle}>
-                  <FaMoneyBillWave style={styles.icon} />
-                  <span style={styles.text}>Salary</span>
-                </NavLink>
-              )}
-
-              {hasPermission("company") && (
-                <NavLink to="/company" style={getLinkStyle}>
-                  <FaBuilding style={styles.icon} />
-                  <span style={styles.text}>Company</span>
-                </NavLink>
-              )}
+              {hasPermission("add_supplier") && renderLink("/supplier", <FaPlusCircle style={styles.icon} />, "Add Supplier")}
+              {hasPermission("supplier_list") && renderLink("/supplierList", <FaListAlt style={styles.icon} />, "Supplier List")}
+              {hasPermission("payment_tracking") && renderLink("/paymenttracking", <FaMoneyBillWave style={styles.icon} />, "Payment Tracking")}
+              {hasPermission("employee") && renderLink("/employee", <FaUserPlus style={styles.icon} />, "Employee")}
+              {hasPermission("user_type") && renderLink("/usertype", <FaUserTag style={styles.icon} />, "User Type")}
+              {hasPermission("attendance") && renderLink("/attendance", <FaCalendarCheck style={styles.icon} />, "Attendance")}
+              {hasPermission("salary") && renderLink("/salary", <FaMoneyBillWave style={styles.icon} />, "Salary")}
+              {hasPermission("company") && renderLink("/company", <FaBuilding style={styles.icon} />, "Company")}
             </>
           )}
 
@@ -380,26 +290,9 @@ const Sidebar = ({ isOpen }) => {
           {isSectionVisible(["enquiries", "customer_details", "usersettings"]) && (
             <>
               <div style={styles.sectionTitle}>CRM</div>
-              {hasPermission("enquiries") && (
-                <NavLink to="/enquiry" style={getLinkStyle}>
-                  <FaPhoneAlt style={styles.icon} />
-                  <span style={styles.text}>Enquiries</span>
-                </NavLink>
-              )}
-
-              {hasPermission("customer_details") && (
-                <NavLink to="/customer" style={getLinkStyle}>
-                  <FaUsers style={styles.icon} />
-                  <span style={styles.text}>Customer Details</span>
-                </NavLink>
-              )}
-
-              {hasPermission("usersettings") && (
-                <NavLink to="/usersettings" style={getLinkStyle}>
-                  <FaUserCog style={styles.icon} />
-                  <span style={styles.text}>User Settings</span>
-                </NavLink>
-              )}
+              {hasPermission("enquiries") && renderLink("/enquiry", <FaPhoneAlt style={styles.icon} />, "Enquiries")}
+              {hasPermission("customer_details") && renderLink("/customer", <FaUsers style={styles.icon} />, "Customer Details")}
+              {hasPermission("usersettings") && renderLink("/usersettings", <FaUserCog style={styles.icon} />, "User Settings")}
             </>
           )}
         </div>
@@ -413,7 +306,8 @@ const Sidebar = ({ isOpen }) => {
             borderTop: "1px solid rgba(255,255,255,0.1)",
             marginTop: "auto"
           }}>
-            v1.0.0
+            <FaKeyboard style={{ marginRight: "4px" }} /> Press ? for shortcuts
+            <div>v1.0.0</div>
           </div>
         )}
       </div>

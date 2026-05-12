@@ -9,9 +9,11 @@ import {
   FaSpinner,
   FaArrowRight,
   FaEye,
+  FaKeyboard,
 } from "react-icons/fa";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
@@ -19,6 +21,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [stats, setStats] = useState({
     products: {
       total: 0,
@@ -45,42 +48,56 @@ const Dashboard = () => {
     paymentMethods: [],
   });
 
+  // Initialize keyboard shortcuts
+  useKeyboardShortcuts();
+
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    const handleKeyPress = (event) => {
+      // Show shortcuts modal when '?' is pressed
+      if (event.key === '?' || (event.shiftKey && event.key === '/')) {
+        event.preventDefault();
+        setShowShortcuts(prev => !prev);
+      }
+      // Close modal on Escape
+      if (event.key === 'Escape' && showShortcuts) {
+        setShowShortcuts(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [showShortcuts]);
 
   const fetchDashboardData = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Fetch product statistics
       const productStatsResponse = await axios.get(
         `${API_BASE_URL}/api/products/statistics`
       );
 
-      // Fetch billing statistics
       const billingStatsResponse = await axios.get(
         `${API_BASE_URL}/api/billing/statistics`
       );
 
-      // Fetch low stock products (quantity < 10)
       const lowStockResponse = await axios.get(
         `${API_BASE_URL}/api/products?per_page=100`
       );
 
-      // Process data
       const productStats = productStatsResponse.data;
       const billingStats = billingStatsResponse.data;
 
-      // Filter low stock products
       const allProducts = lowStockResponse.data.items || [];
       const lowStockProducts = allProducts
         .filter(product => product.quantity < 10)
         .sort((a, b) => a.quantity - b.quantity)
-        .slice(0, 10); // Show top 10 lowest stock
+        .slice(0, 10);
 
-      // Calculate total payments from payment methods
       const totalPayments = (billingStats.paymentMethods || []).reduce(
         (sum, method) => sum + (method.total || 0),
         0
@@ -121,7 +138,218 @@ const Dashboard = () => {
   };
 
   const handleViewAllLowStock = () => {
-    navigate('/lowstock'); // Updated to match your NavLink path
+    navigate('/lowstock');
+  };
+
+  const ShortcutsModal = ({ isOpen, onClose }) => {
+    if (!isOpen) return null;
+
+    const shortcutCategories = [
+      {
+        title: "Main Navigation",
+        shortcuts: [
+          { keys: "D", description: "Dashboard" }
+        ]
+      },
+      {
+        title: "Inventory Management",
+        shortcuts: [
+          { keys: "P", description: "Products" },
+          { keys: "C", description: "Category" },
+          { keys: "SI", description: "Stock In" },
+          { keys: "SO", description: "Stock Out" },
+          { keys: "L", description: "Low Stock" }
+        ]
+      },
+      {
+        title: "Warranty",
+        shortcuts: [
+          { keys: "W", description: "Warranty" }
+        ]
+      },
+      {
+        title: "Billing",
+        shortcuts: [
+          { keys: "B", description: "Create Bill" },
+          { keys: "BR", description: "Bill Reports" },
+          { keys: "SV", description: "Service Bill" },
+          { keys: "SB", description: "Service Bills" },
+          { keys: "SE", description: "Sales Bill (Employee)" },
+          { keys: "Q", description: "Quotations" },
+          { keys: "DI", description: "Discount" }
+        ]
+      },
+      {
+        title: "Suppliers & HR",
+        shortcuts: [
+          { keys: "AS", description: "Add Supplier" },
+          { keys: "SL", description: "Supplier List" },
+          { keys: "PT", description: "Payment Tracking" },
+          { keys: "E", description: "Employee" },
+          { keys: "UT", description: "User Type" },
+          { keys: "A", description: "Attendance" },
+          { keys: "SA", description: "Salary" },
+          { keys: "CO", description: "Company" }
+        ]
+      },
+      {
+        title: "CRM",
+        shortcuts: [
+          { keys: "EN", description: "Enquiries" },
+          { keys: "CU", description: "Customer Details" },
+          { keys: "US", description: "User Settings" }
+        ]
+      },
+      {
+        title: "General",
+        shortcuts: [
+          { keys: "?", description: "Show/Hide this menu" },
+          { keys: "ESC", description: "Close this menu" }
+        ]
+      }
+    ];
+
+    const modalStyles = {
+      overlay: {
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.8)",
+        backdropFilter: "blur(8px)",
+        zIndex: 9999,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        animation: "fadeIn 0.2s ease",
+      },
+      modal: {
+        backgroundColor: "rgba(18, 18, 18, 0.95)",
+        backdropFilter: "blur(10px)",
+        borderRadius: "16px",
+        padding: "24px",
+        maxWidth: "800px",
+        width: "90%",
+        maxHeight: "80vh",
+        overflowY: "auto",
+        border: "1px solid rgba(77, 166, 255, 0.3)",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+        animation: "slideUp 0.3s ease",
+      },
+      header: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: "24px",
+        paddingBottom: "16px",
+        borderBottom: "1px solid rgba(255,255,255,0.1)",
+      },
+      title: {
+        fontSize: "24px",
+        fontWeight: "600",
+        color: "#fff",
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+      },
+      closeButton: {
+        background: "none",
+        border: "none",
+        color: "#9ca3af",
+        fontSize: "24px",
+        cursor: "pointer",
+        padding: "4px 8px",
+        borderRadius: "4px",
+        transition: "all 0.2s",
+      },
+      category: {
+        marginBottom: "24px",
+      },
+      categoryTitle: {
+        fontSize: "16px",
+        fontWeight: "600",
+        color: "#4da6ff",
+        marginBottom: "12px",
+        paddingBottom: "4px",
+        borderBottom: "1px solid rgba(77, 166, 255, 0.2)",
+      },
+      shortcutGrid: {
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+        gap: "12px",
+      },
+      shortcutItem: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "8px 12px",
+        backgroundColor: "rgba(0, 0, 0, 0.3)",
+        borderRadius: "8px",
+        border: "1px solid rgba(255,255,255,0.05)",
+      },
+      shortcutKeys: {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        fontWeight: "600",
+        padding: "4px 8px",
+        backgroundColor: "rgba(77, 166, 255, 0.2)",
+        borderRadius: "4px",
+        color: "#4da6ff",
+        letterSpacing: "0.5px",
+      },
+      shortcutDesc: {
+        color: "#cbd5e1",
+        fontSize: "13px",
+      },
+      footer: {
+        marginTop: "24px",
+        paddingTop: "16px",
+        borderTop: "1px solid rgba(255,255,255,0.1)",
+        textAlign: "center",
+        fontSize: "12px",
+        color: "#6b7280",
+      },
+    };
+
+    return (
+      <div style={modalStyles.overlay} onClick={onClose}>
+        <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+          <div style={modalStyles.header}>
+            <div style={modalStyles.title}>
+              <FaKeyboard size={24} color="#4da6ff" />
+              Keyboard Shortcuts
+            </div>
+            <button style={modalStyles.closeButton} onClick={onClose}>
+              ×
+            </button>
+          </div>
+
+          {shortcutCategories.map((category, idx) => (
+            <div key={idx} style={modalStyles.category}>
+              <h3 style={modalStyles.categoryTitle}>{category.title}</h3>
+              <div style={modalStyles.shortcutGrid}>
+                {category.shortcuts.map((shortcut, sidx) => (
+                  <div key={sidx} style={modalStyles.shortcutItem}>
+                    <span style={modalStyles.shortcutKeys}>
+                      {shortcut.keys}
+                    </span>
+                    <span style={modalStyles.shortcutDesc}>
+                      {shortcut.description}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <div style={modalStyles.footer}>
+            <p>💡 Tip: Press <strong style={{ color: "#4da6ff" }}>?</strong> anytime to view this menu</p>
+            <p style={{ marginTop: "8px" }}>Shortcuts work when not typing in input fields</p>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const styles = {
@@ -142,7 +370,7 @@ const Dashboard = () => {
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: "rgba(0, 0, 0, 0.85)", // Dark black overlay
+      backgroundColor: "rgba(0, 0, 0, 0.85)",
       backdropFilter: "blur(3px)",
     },
     content: {
@@ -182,9 +410,6 @@ const Dashboard = () => {
       alignItems: "center",
       gap: "8px",
       transition: "all 0.2s",
-      ':hover': {
-        backgroundColor: "#1d4ed8",
-      }
     },
     cards: {
       display: "grid",
@@ -271,9 +496,6 @@ const Dashboard = () => {
       backgroundColor: "rgba(59, 130, 246, 0.15)",
       borderRadius: "20px",
       transition: "all 0.2s",
-      ':hover': {
-        backgroundColor: "rgba(59, 130, 246, 0.25)",
-      }
     },
     table: {
       width: "100%",
@@ -373,9 +595,25 @@ const Dashboard = () => {
       gap: "4px",
       fontSize: "13px",
       transition: "all 0.2s",
-      ':hover': {
-        color: "#60a5fa",
-      }
+    },
+    shortcutButton: {
+      position: "fixed",
+      bottom: "20px",
+      right: "20px",
+      backgroundColor: "rgba(77, 166, 255, 0.2)",
+      backdropFilter: "blur(8px)",
+      border: "1px solid rgba(77, 166, 255, 0.4)",
+      borderRadius: "40px",
+      padding: "10px 16px",
+      color: "#4da6ff",
+      cursor: "pointer",
+      fontSize: "14px",
+      fontWeight: "500",
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      zIndex: 100,
+      transition: "all 0.2s",
     },
   };
 
@@ -401,6 +639,20 @@ const Dashboard = () => {
               from { transform: rotate(0deg); }
               to { transform: rotate(360deg); }
             }
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes slideUp {
+              from { 
+                opacity: 0;
+                transform: translateY(20px);
+              }
+              to { 
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
             .card:hover {
               transform: translateY(-4px);
               box-shadow: 0 8px 30px rgba(0,0,0,0.6);
@@ -412,10 +664,14 @@ const Dashboard = () => {
             .view-all-text:hover {
               color: #60a5fa !important;
             }
+            .shortcut-button:hover {
+              background-color: rgba(77, 166, 255, 0.3) !important;
+              transform: translateY(-2px);
+              box-shadow: 0 4px 12px rgba(77, 166, 255, 0.2);
+            }
           `}
         </style>
 
-        {/* Header */}
         <div style={styles.header}>
           <div>
             <h2 style={styles.title}>Dashboard</h2>
@@ -431,12 +687,13 @@ const Dashboard = () => {
           <button
             style={styles.refreshButton}
             onClick={fetchDashboardData}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#1d4ed8"}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#2563eb"}
           >
             <FaChartLine /> Refresh Data
           </button>
         </div>
 
-        {/* Error Message */}
         {error && (
           <div style={styles.errorContainer}>
             <FaExclamationTriangle style={{ marginRight: "8px" }} />
@@ -444,7 +701,6 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Cards */}
         <div style={styles.cards}>
           <div className="card" style={styles.card}>
             <FaBoxes style={{ ...styles.icon, color: "#3b82f6" }} />
@@ -497,9 +753,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Main Content Grid */}
         <div style={styles.grid2}>
-          {/* Low Stock Products */}
           <div style={styles.tableContainer}>
             <div style={styles.tableHeader}>
               <h3 style={styles.tableTitle}>
@@ -584,7 +838,6 @@ const Dashboard = () => {
             </table>
           </div>
 
-          {/* Payment Methods Summary */}
           <div style={styles.tableContainer}>
             <div style={styles.tableHeader}>
               <h3 style={styles.tableTitle}>
@@ -625,7 +878,6 @@ const Dashboard = () => {
               </div>
             )}
 
-            {/* Total Payments Summary */}
             {stats.paymentMethods.length > 0 && (
               <div style={{
                 marginTop: "20px",
@@ -649,6 +901,16 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      <button
+        style={styles.shortcutButton}
+        onClick={() => setShowShortcuts(true)}
+        className="shortcut-button"
+      >
+        <FaKeyboard /> <span style={{ fontWeight: "bold" }}>?</span> Shortcuts
+      </button>
+
+      <ShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
     </div>
   );
 };
