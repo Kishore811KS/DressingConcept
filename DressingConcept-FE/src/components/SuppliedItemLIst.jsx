@@ -329,12 +329,16 @@ const ItemsListPage = () => {
         
         <div class="summary">
           <div class="summary-item">
-            <div class="summary-label">Total Items</div>
+            <div class="summary-label">Total Entries</div>
             <div class="summary-value">${filteredItems.length}</div>
           </div>
           <div class="summary-item">
+            <div class="summary-label">Total Units</div>
+            <div class="summary-value">${filteredItems.reduce((sum, item) => sum + (toNumber(item.quantity) || 0), 0)}</div>
+          </div>
+          <div class="summary-item">
             <div class="summary-label">Total Value</div>
-            <div class="summary-value">₹${filteredItems.reduce((sum, item) => sum + (item.buy_price * (item.quantity || 1)), 0).toFixed(2)}</div>
+            <div class="summary-value">₹${filteredItems.reduce((sum, item) => sum + ((toNumber(item.buy_price) || 0) * (toNumber(item.quantity) || 0)), 0).toFixed(2)}</div>
           </div>
         </div>
         
@@ -699,6 +703,12 @@ const ItemsListPage = () => {
     },
   };
 
+
+  const toNumber = (val) => {
+    const n = parseFloat(val);
+    return isNaN(n) ? 0 : n;
+  };
+
   const filteredItems = getSortedItems();
   const currentItems = getCurrentItems();
 
@@ -730,6 +740,26 @@ const ItemsListPage = () => {
           <span>📄</span>
           Export PDF Report
         </button>
+      </div>
+
+      {/* Summary Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+        <div style={styles.filtersCard}>
+          <div style={styles.label}>Total Entries</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff', marginTop: '8px' }}>{filteredItems.length}</div>
+        </div>
+        <div style={styles.filtersCard}>
+          <div style={styles.label}>Total Units</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6', marginTop: '8px' }}>
+            {filteredItems.reduce((sum, item) => sum + (toNumber(item.quantity) || 0), 0)}
+          </div>
+        </div>
+        <div style={styles.filtersCard}>
+          <div style={styles.label}>Total Value (Purchase)</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981', marginTop: '8px' }}>
+            ₹{filteredItems.reduce((sum, item) => sum + ((toNumber(item.buy_price) || 0) * (toNumber(item.quantity) || 0)), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </div>
+        </div>
       </div>
 
       {/* Filters Card */}

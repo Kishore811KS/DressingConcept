@@ -14,6 +14,7 @@ class Bill(db.Model):
     customer_email = db.Column(db.String(100))
     customer_gst = db.Column(db.String(50))
     customer_address = db.Column(db.String(200))
+    contact = db.Column(db.String(20))
     customer_type = db.Column(db.String(50), default='regular')  # regular, wholesale, vip, corporate, internal
     
     # Vehicle Information
@@ -43,6 +44,7 @@ class Bill(db.Model):
     tax = db.Column(db.Float, default=0)
     tax_type = db.Column(db.String(20), default='percentage')  # 'amount' or 'percentage'
     total = db.Column(db.Float, default=0)
+    profit = db.Column(db.Float, default=0)
     
     # Payment Information
     paid_amount = db.Column(db.Float, default=0)
@@ -72,7 +74,8 @@ class Bill(db.Model):
     
     def calculate_totals(self):
         """Calculate all bill totals"""
-        self.subtotal = sum(item.total for item in self.items)
+        if not self.subtotal:
+            self.subtotal = sum(item.total for item in self.items)
         
         # Apply discount
         if self.discount_type == 'percentage':
@@ -87,6 +90,7 @@ class Bill(db.Model):
             tax_amount = self.tax
         
         self.total = self.subtotal - discount_amount + tax_amount
+        self.profit = sum(item.profit for item in self.items)
         self.change_amount = max(0, self.paid_amount - self.total)
         
         # Update payment status
@@ -134,7 +138,8 @@ class Bill(db.Model):
                 'discountType': self.discount_type,
                 'tax': round(self.tax or 0, 2),
                 'taxType': self.tax_type,
-                'total': round(self.total or 0, 2)
+                'total': round(self.total or 0, 2),
+                'profit': round(self.profit or 0, 2)
             },
             'payment': {
                 'paidAmount': round(self.paid_amount or 0, 2),
@@ -172,8 +177,10 @@ class BillItem(db.Model):
     product_model = db.Column(db.String(100))
     product_type = db.Column(db.String(100))
     sell_price = db.Column(db.Float, nullable=False)
+    buy_price = db.Column(db.Float, default=0)
     quantity = db.Column(db.Integer, nullable=False)
     total = db.Column(db.Float, nullable=False)
+    profit = db.Column(db.Float, default=0)
     
     # Item Status
     item_status = db.Column(db.String(20), nullable=False, default='pending')  # pending, completed, cancelled
@@ -190,8 +197,10 @@ class BillItem(db.Model):
             'productModel': self.product_model,
             'productType': self.product_type,
             'sellPrice': round(self.sell_price or 0, 2),
+            'buyPrice': round(self.buy_price or 0, 2),
             'quantity': self.quantity,
             'total': round(self.total or 0, 2),
+            'profit': round(self.profit or 0, 2),
             'itemStatus': self.item_status
         }
 

@@ -226,17 +226,15 @@ export default function LowStockPage() {
   const handleExport = () => {
     try {
       // Prepare data for export (use filtered items for export)
-      const exportData = filteredItems.map(item => ({
-        'ID': item.id || '',
-        'Name': item.name || '',
-        'Model': item.model || '',
-        'Type': item.type || '',
-        'Watts': item.watts || '',
-        'Current Stock': item.quantity || 0,
+      const exportData = filteredItems.map((item, index) => ({
+        '#': index + 1,
+        'Product ID': item.productCode || item.id || '',
+        'Description': item.name || '',
+        'Tax': item.tax || 0,
+        'Unit': item.unit || 'PCS',
+        'Qty': item.quantity || 0,
         'Status': item.quantity === 0 ? 'OUT OF STOCK' : 'LOW STOCK',
-        'Required to reach 5': item.quantity === 0 ? lowStockThreshold : Math.max(0, lowStockThreshold - item.quantity),
-        'Buy Price (₹)': item.buyPrice || 0,
-        'Sell Price (₹)': item.sellPrice || 0,
+        'Required': item.quantity === 0 ? lowStockThreshold : Math.max(0, lowStockThreshold - item.quantity),
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -245,16 +243,14 @@ export default function LowStockPage() {
 
       // Auto-size columns
       const wscols = [
-        { wch: 8 },  // ID
-        { wch: 20 }, // Name
-        { wch: 15 }, // Model
-        { wch: 15 }, // Type
-        { wch: 10 }, // Watts
-        { wch: 12 }, // Current Stock
-        { wch: 12 }, // Status
-        { wch: 18 }, // Required to reach 5
-        { wch: 12 }, // Buy Price
-        { wch: 12 }, // Sell Price
+        { wch: 5 },  // #
+        { wch: 15 }, // Product ID
+        { wch: 30 }, // Description
+        { wch: 8 },  // Tax
+        { wch: 8 },  // Unit
+        { wch: 8 },  // Qty
+        { wch: 15 }, // Status
+        { wch: 10 }, // Required
       ];
       worksheet['!cols'] = wscols;
 
@@ -695,13 +691,11 @@ export default function LowStockPage() {
               <table style={styles.modalTable}>
                 <thead>
                   <tr>
-                    <th style={styles.modalTh}>ID</th>
-                    <th style={styles.modalTh}>Product</th>
-                    <th style={styles.modalTh}>Model</th>
-                    <th style={styles.modalTh}>Current Stock</th>
+                    <th style={styles.modalTh}>Product ID</th>
+                    <th style={styles.modalTh}>Description</th>
+                    <th style={styles.modalTh}>Qty</th>
                     <th style={styles.modalTh}>Status</th>
                     <th style={styles.modalTh}>Required</th>
-                    <th style={styles.modalTh}>Buy Price</th>
                     <th style={styles.modalTh}>Order Quantity</th>
                   </tr>
                 </thead>
@@ -710,27 +704,27 @@ export default function LowStockPage() {
                     <tr key={item.id}>
                     <td style={styles.modalTd}>{item.productCode || item.id}</td>
                     <td style={styles.modalTd}>{item.name}</td>
-                      <td style={styles.modalTd}>{item.model || '-'}</td>
-                      <td style={styles.modalTd}>
-                        <span style={{ 
-                          color: item.quantity === 0 ? '#ffffff' : '#f87171', 
-                          fontWeight: '600',
-                          backgroundColor: item.quantity === 0 ? 'rgba(0,0,0,0.5)' : 'transparent',
-                          padding: item.quantity === 0 ? '2px 6px' : '0',
-                          borderRadius: item.quantity === 0 ? '4px' : '0'
-                        }}>
-                          {item.quantity}
-                        </span>
-                      </td>
-                      <td style={styles.modalTd}>
-                        <span style={item.quantity === 0 ? styles.outOfStockIndicator : styles.lowStockIndicator}>
-                          {item.quantity === 0 ? 'OUT OF STOCK' : 'LOW STOCK'}
-                        </span>
-                      </td>
-                        <span style={{ color: '#4ade80', fontWeight: '500' }}>
-                          {item.quantity === 0 ? lowStockThreshold : Math.max(0, lowStockThreshold - item.quantity)}
-                        </span>
-                      <td style={styles.modalTd}>₹{item.buyPrice.toFixed(2)}</td>
+                    <td style={styles.modalTd}>
+                      <span style={{ 
+                        color: item.quantity === 0 ? '#ffffff' : '#f87171', 
+                        fontWeight: '600',
+                        backgroundColor: item.quantity === 0 ? 'rgba(0,0,0,0.5)' : 'transparent',
+                        padding: item.quantity === 0 ? '2px 6px' : '0',
+                        borderRadius: item.quantity === 0 ? '4px' : '0'
+                      }}>
+                        {item.quantity}
+                      </span>
+                    </td>
+                    <td style={styles.modalTd}>
+                      <span style={item.quantity === 0 ? styles.outOfStockIndicator : styles.lowStockIndicator}>
+                        {item.quantity === 0 ? 'OUT OF STOCK' : 'LOW STOCK'}
+                      </span>
+                    </td>
+                    <td style={styles.modalTd}>
+                      <span style={{ color: '#4ade80', fontWeight: '500' }}>
+                        {item.quantity === 0 ? lowStockThreshold : Math.max(0, lowStockThreshold - item.quantity)}
+                      </span>
+                    </td>
                       <td style={styles.modalTd}>
                         <input
                           type="number"
@@ -860,14 +854,9 @@ export default function LowStockPage() {
                 <th style={styles.th}>Description</th>
                 <th style={styles.th}>Tax</th>
                 <th style={styles.th}>Unit</th>
-                <th style={styles.th}>MRP (₹)</th>
-                <th style={styles.th}>Pur Rate</th>
-                <th style={styles.th}>Classic (Mobile)</th>
-                <th style={styles.th}>Profit</th>
                 <th style={styles.th}>Qty</th>
                 <th style={styles.th}>Status</th>
                 <th style={styles.th}>Required</th>
-                <th style={styles.th}>Amount (₹)</th>
               </tr>
             </thead>
             <tbody>
@@ -890,10 +879,6 @@ export default function LowStockPage() {
                         fontSize: '11px'
                       }}>{item.unit || 'PCS'}</span>
                     </td>
-                    <td style={styles.td}>₹{(item.mrp || 0).toFixed(2)}</td>
-                    <td style={styles.td}>₹{(item.buyPrice || 0).toFixed(2)}</td>
-                    <td style={styles.td}>{item.classicCustomer || '-'}</td>
-                    <td style={{ ...styles.td, color: "#10b981", fontWeight: 600 }}>₹{profit.toFixed(2)}</td>
                     <td style={{
                       ...styles.td, 
                       ...(item.quantity === 0 ? styles.zeroQuantityCell : styles.quantityCell)
@@ -906,7 +891,6 @@ export default function LowStockPage() {
                       </span>
                     </td>
                     <td style={{...styles.td, ...styles.requiredCell}}>{required}</td>
-                    <td style={{ ...styles.td, fontWeight: 600, color: "#a5b4fc" }}>₹{amount.toFixed(2)}</td>
                   </tr>
                 );
               })}

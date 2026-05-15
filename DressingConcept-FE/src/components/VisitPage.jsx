@@ -64,6 +64,8 @@ const Crown = (props) => (
   </svg>
 );
 
+const API_BASE_URL = 'http://localhost:5000/api';
+
 const VisitBillPage = () => {
   const [bills, setBills] = useState([]);
   const [filteredBills, setFilteredBills] = useState([]);
@@ -73,6 +75,32 @@ const VisitBillPage = () => {
   const [showBillModal, setShowBillModal] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [copiedBillNo, setCopiedBillNo] = useState(null);
+  const [permissions, setPermissions] = useState([]);
+
+  // Get user info
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const userType = localStorage.getItem("userType") || user.user_type || "";
+  const isAdmin = userType.toLowerCase() === "admin";
+
+  const hasPermission = (submoduleId) => {
+    if (isAdmin) return true;
+    // Default to false for visibility controls if not explicitly granted
+    if (submoduleId === 'profit_visibility' || submoduleId === 'date_filter_visibility') {
+      const perm = permissions.find(p => p.submodule_id === submoduleId);
+      return perm?.view === true;
+    }
+    // For other submodules, keep existing logic (if any)
+    return permissions.some(p => p.submodule_id === submoduleId && p.view);
+  };
+
+  const fetchPermissions = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/permissions?userType=${userType}`);
+      setPermissions(response.data);
+    } catch (error) {
+      console.error("Error fetching permissions:", error);
+    }
+  };
   const [whatsappStatus, setWhatsappStatus] = useState({});
 
   // Company/Shop Details from Backend
@@ -101,13 +129,13 @@ const VisitBillPage = () => {
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('all');
   const [filterCustomerType, setFilterCustomerType] = useState('all');
   const [dateRange, setDateRange] = useState({
-    start: new Date().toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0]
+    start: '',
+    end: ''
   });
-  const [quickDate, setQuickDate] = useState('today');
+  const [quickDate, setQuickDate] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
 
-  const API_BASE_URL = 'http://localhost:5000/api';
+
 
   // Create axios instance with credentials
   const api = axios.create({
@@ -156,8 +184,10 @@ const VisitBillPage = () => {
       netbanking: { count: 0, amount: 0 },
       cheque: { count: 0, amount: 0 },
       mixed: { count: 0, amount: 0 },
-      total: { count: 0, amount: 0 }
+      total: { count: 0, amount: 0 },
+      profit: 0
     };
+
 
     filteredBills.forEach(bill => {
       const method = (bill.paymentMethod || 'cash').toLowerCase();
@@ -174,7 +204,9 @@ const VisitBillPage = () => {
 
       summary.total.count += 1;
       summary.total.amount += amount;
+      summary.profit += parseFloat(bill.profit || 0);
     });
+
 
     return summary;
   }, [filteredBills]);
@@ -258,10 +290,14 @@ const VisitBillPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentBills]);
 
-  // Fetch companies on mount
+  // Fetch companies and permissions on mount
   useEffect(() => {
     fetchCompanies();
-  }, []);
+    if (userType) {
+      fetchPermissions();
+    }
+  }, [userType]);
+
 
   // Load bills on component mount
   useEffect(() => {
@@ -369,10 +405,10 @@ const VisitBillPage = () => {
 
     try {
       const endpoints = [
-        `${API_BASE_URL}/billing/bills`,
-        `${API_BASE_URL}/bills`,
-        `${API_BASE_URL}/visit-bills`,
-        `${API_BASE_URL}/billing/visit-bills`
+        '/billing/bills',
+        '/bills',
+        '/visit-bills',
+        '/billing/visit-bills'
       ];
 
       let response = null;
@@ -380,11 +416,13 @@ const VisitBillPage = () => {
 
       for (const endpoint of endpoints) {
         try {
-          console.log('Trying endpoint:', endpoint);
-          response = await api.get(endpoint);
-          if (response.data) {
+          const fullUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+          console.log('Trying endpoint:', fullUrl);
+          const res = await axios.get(fullUrl, { withCredentials: true });
+          if (res.data) {
+            response = res;
             success = true;
-            console.log('Success with endpoint:', endpoint);
+            console.log('Success with endpoint:', fullUrl);
             break;
           }
         } catch (err) {
@@ -393,7 +431,7 @@ const VisitBillPage = () => {
       }
 
       if (!success || !response) {
-        throw new Error('Could not fetch bills from any endpoint');
+        throw new Error('Could not fetch bills from any endpoint. Please check if backend is running.');
       }
 
       console.log('API Response:', response.data);
@@ -440,13 +478,14 @@ const VisitBillPage = () => {
           id: bill.id || bill._id || Math.random().toString(),
           billNumber: bill.billNumber || bill.bill_number || bill.billNo || bill.invoiceNo || `BILL-${Date.now()}`,
           customerName: bill.customerName || bill.customer_name || bill.customer?.name || 'Walk-in Customer',
-          customerPhone: bill.customerPhone || bill.customer_phone || bill.customer?.phone || '',
-          customerEmail: bill.customerEmail || bill.customer_email || bill.customer?.email || '',
-          customerGst: bill.customerGst || bill.customer_gst || bill.customer?.gst || '',
-          customerAddress: bill.customerAddress || bill.customer_address || bill.customer?.address || '',
+          customerPhone: bill.customerPhone || bill.customer_phone || '',
+          customerEmail: bill.customerEmail || bill.customer_email || '',
+          customerGst: bill.customerGst || bill.customer_gst || '',
+          customerAddress: bill.customerAddress || bill.customer_address || '',
           customerType: bill.customerType || bill.customer_type || bill.customer?.type || 'external',
           memberId: bill.memberId || bill.member_id || '',
-          salesPerson: bill.salesPerson || bill.sales_person || '',
+          salesPerson: bill.createdByName || bill.salesPerson || bill.sales_person || '',
+          contact: bill.customerPhone || bill.customer_phone || bill.contact || '',
           counter: bill.counter || '',
           isClassicCustomer: Boolean(bill.isClassicCustomer || bill.is_classic_customer),
           isSaleReturn: Boolean(bill.isSaleReturn || bill.is_sale_return),
@@ -460,11 +499,14 @@ const VisitBillPage = () => {
           balanceReturned: parseFloat(bill.balanceReturned || bill.balance_returned || bill.changeAmount || bill.change_amount || 0),
           subtotal: subtotal,
           discountValue: discountValue,
-          discountAmount: discountAmount,
-          discountType: discountType,
+          discountAmount: parseFloat(bill.discount || bill.discount_amount || 0),
+          discountType: 'amount',
           tax: parseFloat(bill.tax || bill.taxAmount || 0),
-          taxType: bill.taxType || bill.tax_type || 'percentage',
+          taxType: 'amount',
+          profit: parseFloat(bill.profit || 0),
           total: parseFloat(bill.total || bill.grandTotal || bill.amount || 0),
+          profit: parseFloat(bill.profit || bill.summary?.profit || 0),
+          itemCount: parseInt(bill.itemCount || (bill.items ? bill.items.length : 0)),
           paidAmount: parseFloat(bill.paidAmount || bill.paid_amount || bill.paid || 0),
           changeAmount: parseFloat(bill.changeAmount || bill.change_amount || bill.change || 0),
           paymentMethod: bill.paymentMethod || bill.payment_method || bill.payment?.method || 'cash',
@@ -582,13 +624,14 @@ const VisitBillPage = () => {
         id: billData.id || billData._id || billId,
         billNumber: billData.billNumber || billData.bill_number || billData.billNo || 'N/A',
         customerName: billData.customerName || billData.customer_name || billData.customer?.name || 'Walk-in Customer',
-        customerPhone: billData.customerPhone || billData.customer_phone || billData.customer?.phone || '',
-        customerEmail: billData.customerEmail || billData.customer_email || billData.customer?.email || '',
-        customerGst: billData.customerGst || billData.customer_gst || billData.customer?.gst || '',
-        customerAddress: billData.customerAddress || billData.customer_address || billData.customer?.address || '',
+        customerPhone: billData.customerPhone || billData.customer_phone || '',
+        customerEmail: billData.customerEmail || billData.customer_email || '',
+        customerGst: billData.customerGst || billData.customer_gst || '',
+        customerAddress: billData.customerAddress || billData.customer_address || '',
         customerType: billData.customerType || billData.customer_type || billData.customer?.type || 'external',
         memberId: billData.memberId || billData.member_id || '',
-        salesPerson: billData.salesPerson || billData.sales_person || '',
+        salesPerson: billData.createdByName || billData.salesPerson || billData.sales_person || '',
+        contact: billData.customerPhone || billData.customer_phone || billData.contact || '',
         counter: billData.counter || '',
         isClassicCustomer: Boolean(billData.isClassicCustomer || billData.is_classic_customer),
         isSaleReturn: Boolean(billData.isSaleReturn || billData.is_sale_return),
@@ -601,12 +644,13 @@ const VisitBillPage = () => {
         amountGiven: parseFloat(billData.amountGiven || billData.amount_given || billData.paidAmount || billData.paid_amount || 0),
         balanceReturned: parseFloat(billData.balanceReturned || billData.balance_returned || billData.changeAmount || billData.change_amount || 0),
         subtotal: subtotal,
-        discountValue: discountValue,
-        discountAmount: discountAmount,
-        discountType: discountType,
+        discountValue: parseFloat(billData.discount || billData.discount_amount || 0),
+        discountAmount: parseFloat(billData.discount || billData.discount_amount || 0),
+        discountType: 'amount',
         tax: parseFloat(billData.tax || billData.taxAmount || 0),
-        taxType: billData.taxType || billData.tax_type || 'percentage',
+        taxType: 'amount',
         total: parseFloat(billData.total || billData.grandTotal || billData.amount || 0),
+        profit: parseFloat(billData.profit || billData.summary?.profit || 0),
         paidAmount: parseFloat(billData.paidAmount || billData.paid_amount || billData.paid || 0),
         changeAmount: parseFloat(billData.changeAmount || billData.change_amount || billData.change || 0),
         paymentMethod: billData.paymentMethod || billData.payment_method || billData.payment?.method || 'cash',
@@ -1122,7 +1166,17 @@ const VisitBillPage = () => {
       );
     }
 
-    if (dateRange.start && dateRange.end) {
+    if (!hasPermission('date_filter_visibility')) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+
+      filtered = filtered.filter(bill => {
+        const billDate = new Date(bill.createdAt);
+        return billDate >= today && billDate <= endOfToday;
+      });
+    } else if (dateRange.start && dateRange.end) {
       const start = new Date(dateRange.start);
       start.setHours(0, 0, 0, 0);
       const end = new Date(dateRange.end);
@@ -1157,11 +1211,13 @@ const VisitBillPage = () => {
     setSearchTerm('');
     setFilterPaymentMethod('all');
     setFilterCustomerType('all');
+    
     setDateRange({ start: '', end: '' });
+    setQuickDate('all');
+
     setSortBy('newest');
     setFilteredBills(bills);
     setCurrentPage(1);
-    setQuickDate('all');
     showMessage("info", "🔍 Filters cleared");
   };
 
@@ -1212,14 +1268,20 @@ const VisitBillPage = () => {
     try {
       const exportData = filteredBills.map(bill => ({
         'Bill Number': bill.billNumber || '',
-        'Date': new Date(bill.createdAt).toLocaleDateString(),
-        'Time': new Date(bill.createdAt).toLocaleTimeString(),
+        'Date': (() => {
+          const d = new Date(bill.createdAt.includes('Z') || bill.createdAt.includes('+') ? bill.createdAt : bill.createdAt + 'Z');
+          return d.toLocaleDateString('en-GB');
+        })(),
+        'Time': (() => {
+          const d = new Date(bill.createdAt.includes('Z') || bill.createdAt.includes('+') ? bill.createdAt : bill.createdAt + 'Z');
+          return d.toLocaleTimeString('en-GB', { hour12: false });
+        })(),
         'Customer Name': bill.customerName || 'Walk-in Customer',
         'Customer Phone': bill.customerPhone || '',
         'Customer Email': bill.customerEmail || '',
         'Customer Type': (bill.customerType || 'external').toUpperCase(),
         'Items Count': bill.itemCount || 0,
-        'Subtotal (₹)': (bill.subtotal || 0).toFixed(2),
+        'Items Count': bill.itemCount || 0,
         'Discount Value': bill.discountType === 'percentage' ? `${bill.discountValue}%` : `₹${bill.discountValue.toFixed(2)}`,
         'Discount Amount (₹)': (bill.discountAmount || 0).toFixed(2),
         'Discount Type': bill.discountType || 'amount',
@@ -1278,7 +1340,7 @@ const VisitBillPage = () => {
       if (companyDetails.gst) doc.text(`GST: ${companyDetails.gst}`, 14, 45);
 
       doc.setFontSize(10);
-      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 52);
+      doc.text(`Generated: ${new Date().toLocaleString('en-GB')}`, 14, 52);
 
       let filterY = 59;
       if (searchTerm) {
@@ -1312,7 +1374,7 @@ const VisitBillPage = () => {
       doc.text(`Total Due: ₹${totalDue.toFixed(2)}`, 14, filterY + 33);
 
       const tableColumn = [
-        'Bill No', 'Date', 'Customer', 'Type', 'Items', 'Subtotal', 'Discount',
+        'Bill No', 'Date', 'Customer', 'Type', 'Items', 'Discount', 'Tax',
         'Total (₹)', 'Paid (₹)', 'Due (₹)', 'Method'
       ];
 
@@ -1326,12 +1388,15 @@ const VisitBillPage = () => {
 
         return [
           bill.billNumber || '',
-          new Date(bill.createdAt).toLocaleDateString(),
+          (() => {
+            const d = new Date(bill.createdAt.includes('Z') || bill.createdAt.includes('+') ? bill.createdAt : bill.createdAt + 'Z');
+            return d.toLocaleDateString('en-GB');
+          })(),
           (bill.customerName || 'Walk-in').substring(0, 20),
           (bill.customerType || 'ext').substring(0, 3).toUpperCase(),
           bill.itemCount || 0,
-          (bill.subtotal || 0).toFixed(2),
           discountDisplay,
+          (bill.tax || 0).toFixed(2),
           (bill.total || 0).toFixed(2),
           (bill.paidAmount || 0).toFixed(2),
           ((bill.total || 0) - (bill.paidAmount || 0)).toFixed(2),
@@ -2162,6 +2227,16 @@ const VisitBillPage = () => {
           <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.online.amount)}</div>
           <div style={{ fontSize: '11px', color: '#10b981' }}>{salesSummary.online.count} Bills</div>
         </div>
+
+        {hasPermission('profit_visibility') && (
+          <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #f59e0b' }}>
+            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+               <TrendingUp size={14} color="#f59e0b" /> PROFIT
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.profit)}</div>
+            <div style={{ fontSize: '11px', color: '#f59e0b' }}>Cumulative Profit</div>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -2219,21 +2294,25 @@ const VisitBillPage = () => {
           <option value="corporate">Corporate</option>
         </select>
 
-        <input
-          type="date"
-          style={styles.dateInput}
-          value={dateRange.start}
-          onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-          placeholder="From Date"
-        />
+        {hasPermission('date_filter_visibility') && (
+          <>
+            <input
+              type="date"
+              style={styles.dateInput}
+              value={dateRange.start}
+              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+              placeholder="From Date"
+            />
 
-        <input
-          type="date"
-          style={styles.dateInput}
-          value={dateRange.end}
-          onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-          placeholder="To Date"
-        />
+            <input
+              type="date"
+              style={styles.dateInput}
+              value={dateRange.end}
+              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+              placeholder="To Date"
+            />
+          </>
+        )}
 
         <select
           style={styles.filterSelect}
@@ -2276,21 +2355,19 @@ const VisitBillPage = () => {
               <th style={styles.th}>Member / Sales</th>
               <th style={styles.th}>Contact</th>
               <th style={styles.th}>Items</th>
-              <th style={styles.th}>Subtotal</th>
-              <th style={styles.th}>Discount</th>
-              <th style={styles.th}>Tax</th>
-              <th style={styles.th}>Total</th>
-              <th style={styles.th}>Paid</th>
-              <th style={styles.th}>Due</th>
-              <th style={styles.th}>Payment</th>
-              <th style={styles.th}>Flags</th>
-              <th style={styles.th}>Actions</th>
+              <th style={{ ...styles.th, textAlign: 'right' }}>Discount</th>
+              <th style={{ ...styles.th, textAlign: 'right' }}>Tax</th>
+              <th style={{ ...styles.th, textAlign: 'right' }}>Total</th>
+              <th style={{ ...styles.th, textAlign: 'right' }}>Paid</th>
+              <th style={{ ...styles.th, textAlign: 'right' }}>Due</th>
+              <th style={{ ...styles.th, textAlign: 'center' }}>Payment</th>
+              <th style={{ ...styles.th, textAlign: 'center' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {currentBills.length === 0 ? (
               <tr>
-                <td colSpan="16" style={styles.noData}>
+                <td colSpan="14" style={styles.noData}>
                   {searchTerm || filterPaymentMethod !== 'all' || filterCustomerType !== 'all' || dateRange.start
                     ? <div>
                       <Filter size={30} style={{ marginBottom: '10px', opacity: 0.5 }} />
@@ -2318,7 +2395,7 @@ const VisitBillPage = () => {
               </tr>
             ) : (
               currentBills.map((bill) => {
-                const dueAmount = (bill.total || 0) - (bill.paidAmount || 0);
+                const dueAmount = Math.max(0, (bill.total || 0) - (bill.paidAmount || 0));
 
                 let discountDisplay = '';
                 if (bill.discountType === 'percentage') {
@@ -2344,9 +2421,15 @@ const VisitBillPage = () => {
                       </div>
                     </td>
                     <td style={styles.td}>
-                      <div>{new Date(bill.createdAt).toLocaleDateString()}</div>
+                      <div>{(() => {
+                        const d = new Date(bill.createdAt.includes('Z') || bill.createdAt.includes('+') ? bill.createdAt : bill.createdAt + 'Z');
+                        return d.toLocaleDateString('en-GB');
+                      })()}</div>
                       <small style={{ color: '#9ca3af', fontSize: '11px' }}>
-                        {new Date(bill.createdAt).toLocaleTimeString()}
+                        {(() => {
+                          const d = new Date(bill.createdAt.includes('Z') || bill.createdAt.includes('+') ? bill.createdAt : bill.createdAt + 'Z');
+                          return d.toLocaleTimeString('en-GB', { hour12: false });
+                        })()}
                       </small>
                     </td>
                     <td style={styles.td}>
@@ -2372,43 +2455,31 @@ const VisitBillPage = () => {
                       </span>
                     </td>
                     <td style={styles.td}>
-                      <div>{bill.memberId || '-'}</div>
-                      <small style={{ color: '#9ca3af', fontSize: '10px' }}>{bill.salesPerson || '-'}</small>
+                      <div style={{ fontWeight: '500' }}>{bill.salesPerson || '-'}</div>
+                      {bill.memberId && <small style={{ color: '#9ca3af', fontSize: '10px' }}>ID: {bill.memberId}</small>}
                     </td>
                     <td style={styles.td}>
-                      {bill.customerPhone && (
+                      {bill.contact && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <Phone size={10} color="#9ca3af" />
-                          <span>{bill.customerPhone}</span>
+                          <span>{bill.contact}</span>
                         </div>
-                      )}
-                      {bill.customerGst && (
-                        <small style={{ color: '#9ca3af', fontSize: '10px' }}>
-                          GST: {bill.customerGst}
-                        </small>
                       )}
                     </td>
                     <td style={styles.td}>{bill.itemCount || 0}</td>
-                    <td style={styles.td}>{formatCurrency(bill.subtotal)}</td>
-                    <td style={styles.td}>
-                      <span title={`${bill.discountType === 'percentage' ? 'Percentage' : 'Fixed'} discount`}>
-                        {discountDisplay}
-                        {bill.discountType === 'percentage' && (
-                          <small style={{ color: '#9ca3af', marginLeft: '4px', fontSize: '10px' }}>
-                            (₹{bill.discountAmount.toFixed(2)})
-                          </small>
-                        )}
+                    <td style={{ ...styles.td, textAlign: 'right' }}>
+                      <span style={{ color: '#f87171', fontWeight: '500' }}>
+                        {bill.discountAmount > 0 ? `-${bill.discountAmount.toFixed(2)}` : '0.00'}
                       </span>
                     </td>
-                    <td style={styles.td}>{formatCurrency(bill.tax)}</td>
-                    <td style={styles.td}><strong>{formatCurrency(bill.total)}</strong></td>
-                    <td style={styles.td}>
-                      <div>{formatCurrency(bill.amountGiven || bill.paidAmount)}</div>
-                      <small style={{ color: '#9ca3af', fontSize: '10px' }}>
-                        Return: {formatCurrency(bill.balanceReturned || bill.changeAmount)}
-                      </small>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>
+                      <span style={{ color: '#3b82f6', fontWeight: '500' }}>
+                        {bill.tax > 0 ? `+${bill.tax.toFixed(2)}` : '0.00'}
+                      </span>
                     </td>
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, textAlign: 'right' }}><strong>{formatCurrency(bill.total)}</strong></td>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>{formatCurrency(bill.paidAmount)}</td>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>
                       <span style={{
                         color: dueAmount > 0 ? '#f87171' : '#34d399',
                         fontWeight: '600'
@@ -2416,86 +2487,82 @@ const VisitBillPage = () => {
                         {formatCurrency(dueAmount)}
                       </span>
                     </td>
-                    <td style={styles.td}>
-                      <div style={{
+                    <td style={{ ...styles.td, textAlign: 'center' }}>
+                      <span style={{
                         ...styles.paymentBadge,
+                        backgroundColor: `${getPaymentColor(bill.paymentMethod)}20`,
                         color: getPaymentColor(bill.paymentMethod),
-                        border: `1px solid ${getPaymentColor(bill.paymentMethod)}30`
+                        border: `1px solid ${getPaymentColor(bill.paymentMethod)}40`
                       }}>
                         {getPaymentIcon(bill.paymentMethod)}
                         <span style={{ textTransform: 'capitalize' }}>{bill.paymentMethod}</span>
-                      </div>
+                      </span>
                     </td>
-                    <td style={styles.td}>
-                      <div style={{ fontSize: '11px' }}>
-                        {bill.isClassicCustomer ? 'Classic' : 'Regular'} / {bill.counter || '-'}
-                      </div>
-                      <small style={{ color: '#9ca3af', fontSize: '10px' }}>
-                        {bill.isSaleReturn ? 'SaleReturn ' : ''}{bill.isCardBill ? 'CardBill ' : ''}{bill.noRewards ? 'NoRewards' : ''}
-                      </small>
-                    </td>
-                    <td style={styles.td}>
-                      <button
-                        style={{ ...styles.actionButton, backgroundColor: '#3b82f6', color: 'white', marginRight: '4px' }}
-                        onClick={() => fetchBillDetails(bill.id)}
-                        title="View Details (F8)"
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#2563eb';
-                          e.currentTarget.style.transform = 'scale(1.05)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = '#3b82f6';
-                          e.currentTarget.style.transform = 'scale(1)';
-                        }}
-                      >
-                        <Eye size={14} />
-                      </button>
-                      <button
-                        style={{ ...styles.actionButton, backgroundColor: '#059669', color: 'white', marginRight: '4px' }}
-                        onClick={() => handlePrintBill(bill)}
-                        title="Print Bill (F9)"
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#047857';
-                          e.currentTarget.style.transform = 'scale(1.05)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = '#059669';
-                          e.currentTarget.style.transform = 'scale(1)';
-                        }}
-                      >
-                        <Printer size={14} />
-                      </button>
-                      <button
-                        style={{
-                          ...styles.whatsappButton,
-                          opacity: whatsappStatus[bill.id] === 'sending' ? 0.7 : 1,
-                          cursor: whatsappStatus[bill.id] === 'sending' ? 'wait' : 'pointer',
-                          backgroundColor: whatsappStatus[bill.id] === 'sent' ? '#059669' : '#25D366'
-                        }}
-                        onClick={() => handleWhatsAppShare(bill)}
-                        title="Share on WhatsApp (F10)"
-                        disabled={whatsappStatus[bill.id] === 'sending'}
-                        onMouseEnter={(e) => {
-                          if (!whatsappStatus[bill.id]) {
-                            e.currentTarget.style.backgroundColor = '#128C7E';
+                    <td style={{ ...styles.td, textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                        <button
+                          style={{ ...styles.actionButton, backgroundColor: '#3b82f6', color: 'white' }}
+                          onClick={() => fetchBillDetails(bill.id)}
+                          title="View Details (F8)"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#2563eb';
                             e.currentTarget.style.transform = 'scale(1.05)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!whatsappStatus[bill.id]) {
-                            e.currentTarget.style.backgroundColor = '#25D366';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#3b82f6';
                             e.currentTarget.style.transform = 'scale(1)';
-                          }
-                        }}
-                      >
-                        {whatsappStatus[bill.id] === 'sending' ? (
-                          <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                        ) : whatsappStatus[bill.id] === 'sent' ? (
-                          <CheckCircle size={14} />
-                        ) : (
-                          <MessageCircle size={14} />
-                        )}
-                      </button>
+                          }}
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          style={{ ...styles.actionButton, backgroundColor: '#059669', color: 'white' }}
+                          onClick={() => handlePrintBill(bill)}
+                          title="Print Bill (F9)"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#047857';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#059669';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }}
+                        >
+                          <Printer size={14} />
+                        </button>
+                        <button
+                          style={{
+                            ...styles.whatsappButton,
+                            opacity: whatsappStatus[bill.id] === 'sending' ? 0.7 : 1,
+                            cursor: whatsappStatus[bill.id] === 'sending' ? 'wait' : 'pointer',
+                            backgroundColor: whatsappStatus[bill.id] === 'sent' ? '#059669' : '#25D366',
+                            margin: 0
+                          }}
+                          onClick={() => handleWhatsAppShare(bill)}
+                          title="Share on WhatsApp (F10)"
+                          disabled={whatsappStatus[bill.id] === 'sending'}
+                          onMouseEnter={(e) => {
+                            if (!whatsappStatus[bill.id]) {
+                              e.currentTarget.style.backgroundColor = '#128C7E';
+                              e.currentTarget.style.transform = 'scale(1.05)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!whatsappStatus[bill.id]) {
+                              e.currentTarget.style.backgroundColor = '#25D366';
+                              e.currentTarget.style.transform = 'scale(1)';
+                            }
+                          }}
+                        >
+                          {whatsappStatus[bill.id] === 'sending' ? (
+                            <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                          ) : whatsappStatus[bill.id] === 'sent' ? (
+                            <CheckCircle size={14} />
+                          ) : (
+                            <MessageCircle size={14} />
+                          )}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -2635,10 +2702,16 @@ const VisitBillPage = () => {
                     <strong>Bill Number:</strong> {selectedBill.billNumber}
                   </p>
                   <p style={styles.modalText}>
-                    <strong>Date:</strong> {new Date(selectedBill.createdAt).toLocaleDateString()}
+                    <strong>Date:</strong> {(() => {
+                      const d = new Date(selectedBill.createdAt.includes('Z') || selectedBill.createdAt.includes('+') ? selectedBill.createdAt : selectedBill.createdAt + 'Z');
+                      return d.toLocaleDateString('en-GB');
+                    })()}
                   </p>
                   <p style={styles.modalText}>
-                    <strong>Time:</strong> {new Date(selectedBill.createdAt).toLocaleTimeString()}
+                    <strong>Time:</strong> {(() => {
+                      const d = new Date(selectedBill.createdAt.includes('Z') || selectedBill.createdAt.includes('+') ? selectedBill.createdAt : selectedBill.createdAt + 'Z');
+                      return d.toLocaleTimeString('en-GB', { hour12: false });
+                    })()}
                   </p>
                   <p style={styles.modalText}>
                     <strong>Customer Type:</strong>{' '}
@@ -2698,10 +2771,25 @@ const VisitBillPage = () => {
                 {selectedBill.isCardBill ? ' | Card Bill' : ''}
                 {selectedBill.noRewards ? ' | No Rewards' : ''}
               </p>
-              <p style={styles.modalText}><strong>Available Points:</strong> {(selectedBill.rewardPointsAvailable || 0).toFixed(2)}</p>
-              <p style={styles.modalText}><strong>Redeemed Points:</strong> {(selectedBill.rewardPointsRedeemed || 0).toFixed(2)}</p>
-              <p style={styles.modalText}><strong>Earned Points:</strong> {(selectedBill.rewardPointsEarned || 0).toFixed(2)}</p>
-              <p style={styles.modalText}><strong>Remaining Points:</strong> {(selectedBill.rewardPointsBalance || 0).toFixed(2)}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginTop: '15px', borderTop: '1px solid #374151', paddingTop: '15px' }}>
+                <div>
+                  <p style={styles.modalText}><strong>Subtotal:</strong> {formatCurrency(selectedBill.subtotal || 0)}</p>
+                  <p style={{ ...styles.modalText, color: '#f87171' }}><strong>Discount:</strong> -{formatCurrency(selectedBill.discount || 0)}</p>
+                  <p style={{ ...styles.modalText, color: '#60a5fa' }}><strong>Tax:</strong> +{formatCurrency(selectedBill.tax || 0)}</p>
+                  {hasPermission('profit_visibility') && (
+                    <p style={{ ...styles.modalText, color: '#fbbf24' }}><strong>Profit:</strong> {formatCurrency(selectedBill.profit || 0)}</p>
+                  )}
+                  <p style={{ ...styles.modalText, fontSize: '18px', fontWeight: 'bold', color: '#fff', marginTop: '10px' }}>
+                    <strong>Total:</strong> {formatCurrency(selectedBill.total || 0)}
+                  </p>
+                </div>
+                <div style={{ borderLeft: '1px solid #374151', paddingLeft: '15px' }}>
+                  <p style={styles.modalText}><strong>Available Points:</strong> {(selectedBill.rewardPointsAvailable || 0).toFixed(2)}</p>
+                  <p style={styles.modalText}><strong>Earned Points:</strong> {(selectedBill.rewardPointsEarned || 0).toFixed(2)}</p>
+                  <p style={styles.modalText}><strong>Redeemed Points:</strong> {(selectedBill.rewardPointsRedeemed || 0).toFixed(2)}</p>
+                  <p style={styles.modalText}><strong>Remaining Points:</strong> {(selectedBill.rewardPointsBalance || 0).toFixed(2)}</p>
+                </div>
+              </div>
             </div>
 
             <h3 style={{ color: '#f9fafb', marginBottom: '10px', fontSize: '16px' }}>

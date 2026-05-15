@@ -1,22 +1,22 @@
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
-import { FaSave, FaSyncAlt, FaShieldAlt, FaUserCog, FaPlus, FaTrashAlt, FaEdit, FaTimes } from "react-icons/fa";
+import { FaSave, FaSyncAlt, FaShieldAlt, FaUserCog, FaPlus, FaTrashAlt, FaEdit, FaTimes, FaSearch, FaUser, FaUsers } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const ROLE_TEMPLATES = {
   admin: [
     "dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
-    "warranty", "create_bill", "bill_reports", "service_bill", "service_bills", 
-    "sales_bills", "quotations", "invoices", "discount", "add_supplier", 
-    "supplier_list", "payment_tracking", "employee", "user_type", "attendance", 
+    "warranty", "create_bill", "bill_reports", "profit_visibility", "date_filter_visibility", 
+    "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount", 
+    "add_supplier", "supplier_list", "payment_tracking", "employee", "user_type", "attendance", 
     "company", "enquiries", "customer_details", "usersettings"
   ],
   manager: [
     "dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
-    "warranty", "create_bill", "bill_reports", "service_bill", "service_bills", 
-    "sales_bills", "quotations", "invoices", "discount", "add_supplier", 
-    "supplier_list", "payment_tracking", "employee", "attendance", "company", 
+    "warranty", "create_bill", "bill_reports", "profit_visibility", "date_filter_visibility",
+    "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount", 
+    "add_supplier", "supplier_list", "payment_tracking", "employee", "attendance", "company", 
     "enquiries", "customer_details"
   ],
   staff: [
@@ -41,6 +41,8 @@ const UserSetting = () => {
   const [addingUser, setAddingUser] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
+  const [employees, setEmployees] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const API_BASE = "http://localhost:5000/api";
 
@@ -52,13 +54,17 @@ const UserSetting = () => {
       const moduleData = moduleRes.data.modules || [];
       setModules(moduleData);
 
-      // 2. Fetch User Types
       const utRes = await axios.get(`${API_BASE}/user-types`);
       const utData = Array.isArray(utRes.data) ? utRes.data : [];
       setUserTypes(utData);
 
-      // 3. Fetch Permissions for all User Types
-      const initialMatrix = {};
+      // 3. Fetch Employees
+      const empRes = await axios.get(`${API_BASE}/employees`);
+      const empData = Array.isArray(empRes.data) ? empRes.data : [];
+      setEmployees(empData);
+
+      // 4. Fetch Permissions for all User Types
+      const updatedMatrix = {};
       await Promise.all(
         utData.map(async (ut) => {
           try {
@@ -68,7 +74,6 @@ const UserSetting = () => {
             const rolePerms = {};
             const roleNameLower = ut.name.toLowerCase();
 
-            // Intelligent Defaulting:
             if (fetchedPerms.length === 0 && ROLE_TEMPLATES[roleNameLower]) {
                const template = ROLE_TEMPLATES[roleNameLower];
                moduleData.forEach(mod => {
@@ -84,15 +89,25 @@ const UserSetting = () => {
                });
             }
             
-            initialMatrix[ut.name] = rolePerms;
+            updatedMatrix[`role-${ut.name}`] = rolePerms;
           } catch (err) {
             console.error(`Error fetching perms for ${ut.name}:`, err);
-            initialMatrix[ut.name] = {};
           }
         })
       );
 
-      setMatrix(initialMatrix);
+      // 5. Fetch Permissions for Employees (Overrides)
+      empData.forEach(emp => {
+        if (emp.permissions && Array.isArray(emp.permissions)) {
+          const empPerms = {};
+          emp.permissions.forEach(p => {
+            empPerms[`${p.module_id}_${p.submodule_id}`] = p.view;
+          });
+          updatedMatrix[`emp-${emp.id}`] = empPerms;
+        }
+      });
+
+      setMatrix(updatedMatrix);
     } catch (error) {
       console.error("Initialization error:", error);
       toast.error("Failed to load user settings");
@@ -105,15 +120,19 @@ const UserSetting = () => {
     fetchInitialData();
   }, []);
 
-  const handleCheckboxChange = (userTypeName, moduleId, submoduleId) => {
+  const handleCheckboxChange = (entityId, moduleId, submoduleId, roleName) => {
     const key = `${moduleId}_${submoduleId}`;
-    setMatrix(prev => ({
-      ...prev,
-      [userTypeName]: {
-        ...prev[userTypeName],
-        [key]: !prev[userTypeName]?.[key]
-      }
-    }));
+    setMatrix(prev => {
+      // If it's an employee and no specific entry exists, clone from role
+      const currentEntry = prev[entityId] || prev[`role-${roleName}`] || {};
+      return {
+        ...prev,
+        [entityId]: {
+          ...currentEntry,
+          [key]: !currentEntry[key]
+        }
+      };
+    });
   };
 
   const handleSaveMatrix = async () => {
@@ -121,8 +140,10 @@ const UserSetting = () => {
     try {
       const bulkData = {};
       
+      // Save Roles
       userTypes.forEach(ut => {
-        const roleMatrix = matrix[ut.name] || {};
+        const identifier = `role-${ut.name}`;
+        const roleMatrix = matrix[identifier] || {};
         const permissionsArray = [];
         
         modules.forEach(mod => {
@@ -139,8 +160,27 @@ const UserSetting = () => {
             });
           });
         });
-        
-        bulkData[ut.name] = permissionsArray;
+        bulkData[identifier] = permissionsArray;
+      });
+
+      // Save Employee Overrides
+      employees.forEach(emp => {
+        const identifier = `emp-${emp.id}`;
+        if (matrix[identifier]) {
+           const empMatrix = matrix[identifier];
+           const permissionsArray = [];
+           modules.forEach(mod => {
+             mod.submodules.forEach(sub => {
+               const isView = empMatrix[`${mod.id}_${sub.id}`] || false;
+               permissionsArray.push({
+                 module_id: mod.id,
+                 submodule_id: sub.id,
+                 view: isView
+               });
+             });
+           });
+           bulkData[identifier] = permissionsArray;
+        }
       });
 
       await axios.post(`${API_BASE}/bulk-save-permissions`, bulkData);
@@ -202,6 +242,41 @@ const UserSetting = () => {
       toast.error("Failed to update user type");
     }
   };
+
+  const filteredEntities = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    
+    // Convert roles to a standard format
+    const roles = userTypes.map(ut => ({
+      id: `role-${ut.id}`,
+      originalId: ut.id,
+      name: ut.name,
+      userTypeName: ut.name,
+      isRole: true
+    }));
+
+    // Convert employees to a standard format
+    const emps = employees.map(emp => ({
+      id: `emp-${emp.id}`,
+      originalId: emp.id,
+      name: emp.full_name,
+      userTypeName: emp.user_type,
+      isEmployee: true,
+      email: emp.email,
+      department: emp.department
+    }));
+
+    const combined = [...roles, ...emps];
+
+    if (!term) return combined;
+
+    return combined.filter(item => 
+      item.name.toLowerCase().includes(term) ||
+      (item.userTypeName || "").toLowerCase().includes(term) ||
+      (item.email || "").toLowerCase().includes(term) ||
+      (item.department || "").toLowerCase().includes(term)
+    );
+  }, [userTypes, employees, searchTerm]);
 
   const allSubmodules = useMemo(() => {
     const list = [];
@@ -391,6 +466,25 @@ const UserSetting = () => {
       justifyContent: "center",
       fontSize: "12px",
       background: "transparent"
+    },
+    searchContainer: {
+      marginBottom: "16px",
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      background: "#fff",
+      padding: "10px 16px",
+      borderRadius: "12px",
+      border: "1px solid #e2e8f0",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+    },
+    searchInput: {
+      flex: 1,
+      border: "none",
+      outline: "none",
+      fontSize: "14px",
+      color: "#1e293b",
+      background: "transparent"
     }
   };
 
@@ -459,6 +553,23 @@ const UserSetting = () => {
         </div>
       </div>
 
+      <div style={styles.searchContainer}>
+        <FaSearch color="#94a3b8" />
+        <input 
+          style={styles.searchInput}
+          placeholder="Search by Employee name, Role, Department or Email..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        {searchTerm && (
+          <FaTimes 
+            color="#94a3b8" 
+            cursor="pointer" 
+            onClick={() => setSearchTerm("")} 
+          />
+        )}
+      </div>
+
       <div style={styles.tableContainer} className="tbl-scroll">
         <table style={styles.table}>
           <thead>
@@ -483,37 +594,49 @@ const UserSetting = () => {
             </tr>
           </thead>
           <tbody>
-            {userTypes.map(ut => (
-              <tr key={ut.id}>
+            {filteredEntities.map(entity => (
+              <tr key={entity.id}>
                 <td style={styles.stickyCol}>
-                  <div style={{ ...styles.avatar, background: getAvatarColor(ut.name) }}>
-                    {ut.name.slice(0, 2).toUpperCase()}
+                  <div style={{ ...styles.avatar, background: getAvatarColor(entity.name) }}>
+                    {entity.isEmployee ? <FaUser size={14} /> : <FaUsers size={14} />}
                   </div>
                   <div style={{ flex: 1 }}>
-                    {editingId === ut.id ? (
+                    {editingId === entity.originalId && entity.isRole ? (
                       <div style={{ display: "flex", gap: "4px" }}>
                         <input 
                           value={editName}
                           onChange={e => setEditName(e.target.value)}
                           style={{ width: "80px", fontSize: "12px", padding: "2px" }}
                         />
-                        <FaSave color="#10b981" cursor="pointer" onClick={() => updateUserType(ut.id)} />
+                        <FaSave color="#10b981" cursor="pointer" onClick={() => updateUserType(entity.originalId)} />
                         <FaTimes color="#ef4444" cursor="pointer" onClick={cancelEdit} />
                       </div>
                     ) : (
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div>
-                          <div style={{ fontWeight: "600" }}>{ut.name}</div>
-                          {ut.name.toLowerCase() === "admin" && (
+                          <div style={{ fontWeight: "600", fontSize: entity.isEmployee ? "13px" : "14px" }}>
+                            {entity.name}
+                          </div>
+                          <div style={{ fontSize: "10px", color: "#64748b", display: "flex", alignItems: "center", gap: "4px" }}>
+                            {entity.isRole ? (
+                              <span style={{ color: "#3b82f6", fontWeight: "700" }}>ORGANIZATIONAL ROLE</span>
+                            ) : (
+                              <>
+                                <span style={{ fontWeight: "600", color: "#6366f1" }}>{entity.userTypeName?.toUpperCase()}</span>
+                                {entity.department && <span>• {entity.department}</span>}
+                              </>
+                            )}
+                          </div>
+                          {entity.name.toLowerCase() === "admin" && entity.isRole && (
                             <span style={{ fontSize: "10px", color: "#10b981", fontWeight: "700" }}>SUPER ADMIN</span>
                           )}
                         </div>
-                        {ut.name.toLowerCase() !== "admin" && (
+                        {entity.isRole && entity.name.toLowerCase() !== "admin" && (
                           <div style={{ display: "flex", gap: "5px" }}>
-                            <button style={styles.actionBtn} title="Edit Name" onClick={() => startEdit(ut)}>
+                            <button style={styles.actionBtn} title="Edit Name" onClick={() => startEdit({ id: entity.originalId, name: entity.name })}>
                               <FaEdit color="#64748b" />
                             </button>
-                            <button style={styles.actionBtn} title="Delete Role" onClick={() => deleteUserType(ut.id, ut.name)}>
+                            <button style={styles.actionBtn} title="Delete Role" onClick={() => deleteUserType(entity.originalId, entity.name)}>
                               <FaTrashAlt color="#ef4444" />
                             </button>
                           </div>
@@ -523,16 +646,18 @@ const UserSetting = () => {
                   </div>
                 </td>
                 {allSubmodules.map(sub => {
-                  const isChecked = matrix[ut.name]?.[`${sub.moduleId}_${sub.id}`] || false;
-                  const isAdmin = ut.name.toLowerCase() === "admin";
+                  const rolePerms = matrix[`role-${entity.userTypeName}`] || {};
+                  const entityPerms = matrix[entity.id] || rolePerms;
+                  const isChecked = entityPerms[`${sub.moduleId}_${sub.id}`] || false;
+                  const isAdmin = entity.userTypeName?.toLowerCase() === "admin";
                   
                   return (
-                    <td key={`${ut.id}_${sub.moduleId}_${sub.id}`} style={styles.td}>
+                    <td key={`${entity.id}_${sub.moduleId}_${sub.id}`} style={styles.td}>
                       <input
                         type="checkbox"
                         checked={isAdmin ? true : isChecked}
                         disabled={isAdmin}
-                        onChange={() => handleCheckboxChange(ut.name, sub.moduleId, sub.id)}
+                        onChange={() => handleCheckboxChange(entity.id, sub.moduleId, sub.id, entity.userTypeName)}
                         style={{
                           ...styles.checkbox,
                           opacity: isAdmin ? 0.4 : 1

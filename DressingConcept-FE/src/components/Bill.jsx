@@ -32,8 +32,23 @@ export default function Bill() {
     }
   }, []);
 
-  const [products, setProducts] = useState([]);
-  const [rows, setRows] = useState([{
+  const [loading, setLoading] = useState(false);
+  
+  // Persistence logic: Load initial state from localStorage if available
+  const getSavedState = (key, defaultValue) => {
+    try {
+      const saved = localStorage.getItem("bill_draft");
+      if (saved) {
+        const state = JSON.parse(saved);
+        return state[key] !== undefined ? state[key] : defaultValue;
+      }
+    } catch (e) {
+      console.error("Error loading saved bill state", e);
+    }
+    return defaultValue;
+  };
+
+  const [rows, setRows] = useState(() => getSavedState("rows", [{
     productId: "",
     description: "",
     tax: "",
@@ -43,29 +58,29 @@ export default function Bill() {
     netPrice: "",
     quantity: "",
     salesPerson: "",
-  }]);
-  const [billNo, setBillNo] = useState("");
-  const [counter, setCounter] = useState("counter_1");
-  const [customerName, setCustomerName] = useState("");
-  const [memberId, setMemberId] = useState("");
-  const [mobileNumber, setMobileNumber] = useState("");
-  const [salesPerson, setSalesPerson] = useState("");
-  const [address, setAddress] = useState("");
-  const [saleReturn, setSaleReturn] = useState(false);
-  const [cardBill, setCardBill] = useState(false);
-  const [noRewards, setNoRewards] = useState(false);
-  const [classicCustomer, setClassicCustomer] = useState(false);
-  const [cashReceived, setCashReceived] = useState("");
-  const [upiAmount, setUpiAmount] = useState("");
-  const [cardAmount, setCardAmount] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [discountPercent, setDiscountPercent] = useState("");
-  const [discountAmount, setDiscountAmount] = useState("");
-  const [onlineAmount, setOnlineAmount] = useState("");
-  const [onlinePhone, setOnlinePhone] = useState("");
-  const [onlineRef, setOnlineRef] = useState("");
-  const [paidBefore, setPaidBefore] = useState("");
-  const [loading, setLoading] = useState(false);
+  }]));
+  const [billNo, setBillNo] = useState(() => getSavedState("billNo", ""));
+  const [counter, setCounter] = useState(() => getSavedState("counter", "counter_1"));
+  const [customerName, setCustomerName] = useState(() => getSavedState("customerName", ""));
+  const [memberId, setMemberId] = useState(() => getSavedState("memberId", ""));
+  const [mobileNumber, setMobileNumber] = useState(() => getSavedState("mobileNumber", ""));
+  const [salesPerson, setSalesPerson] = useState(() => getSavedState("salesPerson", ""));
+  const [address, setAddress] = useState(() => getSavedState("address", ""));
+  const [saleReturn, setSaleReturn] = useState(() => getSavedState("saleReturn", false));
+  const [cardBill, setCardBill] = useState(() => getSavedState("cardBill", false));
+  const [noRewards, setNoRewards] = useState(() => getSavedState("noRewards", false));
+  const [classicCustomer, setClassicCustomer] = useState(() => getSavedState("classicCustomer", false));
+  const [cashReceived, setCashReceived] = useState(() => getSavedState("cashReceived", ""));
+  const [upiAmount, setUpiAmount] = useState(() => getSavedState("upiAmount", ""));
+  const [cardAmount, setCardAmount] = useState(() => getSavedState("cardAmount", ""));
+  const [cardNumber, setCardNumber] = useState(() => getSavedState("cardNumber", ""));
+  const [discountPercent, setDiscountPercent] = useState(() => getSavedState("discountPercent", ""));
+  const [discountAmount, setDiscountAmount] = useState(() => getSavedState("discountAmount", ""));
+  const [onlineAmount, setOnlineAmount] = useState(() => getSavedState("onlineAmount", ""));
+  const [onlinePhone, setOnlinePhone] = useState(() => getSavedState("onlinePhone", ""));
+  const [onlineRef, setOnlineRef] = useState(() => getSavedState("onlineRef", ""));
+  const [paidBefore, setPaidBefore] = useState(() => getSavedState("paidBefore", ""));
+  const [contactNumber, setContactNumber] = useState(() => getSavedState("contactNumber", ""));
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [now, setNow] = useState(new Date());
@@ -87,6 +102,7 @@ export default function Bill() {
 
   // Refs for focusing inputs
   const rowInputRefs = useRef([]);
+  const qtyInputRefs = useRef([]);
   const customerNameRef = useRef(null);
   const mobileRef = useRef(null);
   const memberIdRef = useRef(null);
@@ -105,12 +121,29 @@ export default function Bill() {
     return () => clearInterval(timer);
   }, []);
 
+  const [products, setProducts] = useState([]);
   useEffect(() => {
-    setBillNo(String(Math.floor(100 + Math.random() * 900)));
+    if (!billNo) setBillNo(String(Math.floor(100 + Math.random() * 900)));
     loadProducts();
     loadCustomers();
     loadEmployees();
   }, []);
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    const state = {
+      rows, billNo, counter, customerName, memberId, mobileNumber, salesPerson,
+      address, saleReturn, cardBill, noRewards, classicCustomer, cashReceived,
+      upiAmount, cardAmount, cardNumber, discountPercent, discountAmount,
+      onlineAmount, onlinePhone, onlineRef, paidBefore, contactNumber
+    };
+    localStorage.setItem("bill_draft", JSON.stringify(state));
+  }, [
+    rows, billNo, counter, customerName, memberId, mobileNumber, salesPerson,
+    address, saleReturn, cardBill, noRewards, classicCustomer, cashReceived,
+    upiAmount, cardAmount, cardNumber, discountPercent, discountAmount,
+    onlineAmount, onlinePhone, onlineRef, paidBefore, contactNumber
+  ]);
 
   useEffect(() => {
     if (!message && !error) return undefined;
@@ -134,6 +167,26 @@ export default function Bill() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Update rows when Classic Mode is toggled
+  useEffect(() => {
+    setRows((prevRows) => 
+      prevRows.map((row) => {
+        if (!row.productId || !row._dbId) return row;
+        
+        const originalProduct = products.find(p => p.id === row._dbId);
+        if (!originalProduct) return row;
+
+        const normalized = normalizeProduct(originalProduct);
+        return {
+          ...row,
+          mrp: normalized.mrp,
+          netPrice: normalized.netPrice,
+          discountPercent: normalized.discountPercent
+        };
+      })
+    );
+  }, [classicCustomer, products]);
 
   // Build sales person list from products
   useEffect(() => {
@@ -311,9 +364,18 @@ export default function Bill() {
   };
 
   const normalizeProduct = (product) => {
-    const mrp = money(product.mrp || product.sellPrice || product.sell_price || 0);
+    let mrp = money(product.mrp || product.sellPrice || product.sell_price || 0);
     const discountPercent = Number(product.discountPercent || 0);
-    const netPrice = money(product.netPrice || (mrp - (mrp * discountPercent / 100)));
+    let netPrice = money(product.netPrice || (mrp - (mrp * discountPercent / 100)));
+    let finalDiscountPercent = discountPercent;
+
+    // Use Classic Mode pricing if enabled and available
+    if (classicCustomer && product.classicCustomer) {
+      const cp = money(product.classicCustomer);
+      mrp = cp;
+      netPrice = cp;
+      finalDiscountPercent = 0;
+    }
 
     return {
       _dbId: product.id,
@@ -322,7 +384,7 @@ export default function Bill() {
       tax: Number(product.tax || product.watts || TAX_PERCENT),
       unit: product.unit || product.type || DEFAULT_UNIT,
       mrp,
-      discountPercent,
+      discountPercent: finalDiscountPercent,
       netPrice,
       quantity: 1,
       salesPerson: product.salesPerson || salesPerson || loggedInUserName,
@@ -579,9 +641,26 @@ export default function Bill() {
   };
 
   const removeRow = (index) => {
-    setRows((current) => current.filter((_, rowIndex) => rowIndex !== index));
+    setRows((current) => {
+      const next = current.filter((_, rowIndex) => rowIndex !== index);
+      if (next.length === 0) {
+        return [{
+          productId: "",
+          description: "",
+          tax: "",
+          unit: "",
+          mrp: "",
+          discountPercent: "",
+          netPrice: "",
+          quantity: "",
+          salesPerson: "",
+        }];
+      }
+      return next;
+    });
+
     setTimeout(() => {
-      const newIndex = Math.min(index, rows.length - 2);
+      const newIndex = Math.max(0, Math.min(index, rows.length - 2));
       if (rowInputRefs.current[newIndex]) {
         rowInputRefs.current[newIndex].focus();
       }
@@ -618,13 +697,22 @@ export default function Bill() {
       const netPrice = Number(row.netPrice) || 0;
       return sum + netPrice * quantity;
     }, 0);
+    const taxTotal = activeRows.reduce((sum, row) => {
+      const quantity = Number(row.quantity) || 0;
+      const netPrice = Number(row.netPrice) || 0;
+      const taxPercent = Number(row.tax) || 0;
+      return sum + (netPrice * quantity * taxPercent / 100);
+    }, 0);
     const manualPercentDiscount = netBeforeDiscount * ((Number(discountPercent) || 0) / 100);
     const manualDiscount = money(manualPercentDiscount + (Number(discountAmount) || 0));
-    const billValue = money(Math.max(0, netBeforeDiscount - manualDiscount));
+    const billValue = Math.round(Math.max(0, netBeforeDiscount - manualDiscount + taxTotal));
 
     // Calculate balance/return
     const balanceDue = money(Math.max(0, billValue - paymentTotals.totalPaid));
     const returnAmount = money(Math.max(0, paymentTotals.totalPaid - billValue));
+
+    // For display purposes, "Total Paid" usually means "Amount applied to the bill"
+    const displayPaid = Math.min(paymentTotals.totalPaid, billValue);
 
     // Check if payment is complete (exact amount or overpayment)
     const isPaymentComplete = paymentTotals.totalPaid >= billValue;
@@ -637,13 +725,16 @@ export default function Bill() {
       mrpTotal: money(mrpTotal),
       netBeforeDiscount,
       manualDiscount,
+      taxTotal,
       billValue,
       totalPaid: paymentTotals.totalPaid,
+      displayPaid: money(displayPaid),
       balanceDue,
       returnAmount,
       isPaymentComplete,
       isExactPayment,
       isOverPayment,
+      totalDiscount: manualDiscount + money(mrpTotal - netBeforeDiscount),
       canSave: paymentTotals.totalPaid >= billValue && billValue > 0,
     };
   }, [rows, discountPercent, discountAmount, paymentTotals]);
@@ -702,11 +793,13 @@ export default function Bill() {
         customerPhone: mobileNumber,
         customerAddress: address,
         customerType: "external",
-        discount: Number(discountAmount) || Number(discountPercent) || 0,
-        discountType: Number(discountPercent) > 0 ? "percentage" : "amount",
-        tax: 0,
-        taxType: "percentage",
-        paidAmount: Number(totals.totalPaid),
+        subtotal: totals.mrpTotal,
+        discount: totals.totalDiscount,
+        discountType: "amount",
+        tax: totals.taxTotal,
+        taxType: "amount",
+        total: totals.billValue,
+        paidAmount: Number(totals.displayPaid),
         paymentMethod,
         cashReceived: paymentTotals.cash,
         upiAmount: paymentTotals.upi,
@@ -716,12 +809,14 @@ export default function Bill() {
         onlinePhone,
         onlineRef,
         paidBefore: paymentTotals.previous,
-        createdByName: salesPerson || counter,
+        contact: mobileNumber || contactNumber,
+        createdByName: [salesPerson, ...new Set(rows.filter(r => r.salesPerson && r.productId).map(r => r.salesPerson))].filter(Boolean).join(", ") || counter,
         rewardPointsEarned: noRewards ? 0 : totals.billValue * 0.01,
         rewardPointsRedeemed: 0,
         items: rows.filter(r => r.productId && r._dbId).map((row) => ({
           productId: row._dbId,
           quantity: Number(row.quantity) || 1,
+          price: Number(row.netPrice) || 0
         })),
       };
 
@@ -733,6 +828,10 @@ export default function Bill() {
       const savedNumber = response.data?.billNumber || billNo;
       setBillNo(savedNumber);
       setMessage(`Bill saved successfully! Bill No: ${savedNumber}`);
+      
+      // Clear persistence after successful save
+      localStorage.removeItem("bill_draft");
+      
       await loadProducts();
       return savedNumber;
     } catch (err) {
@@ -796,6 +895,10 @@ export default function Bill() {
       setMobileSuggestions([]);
       setShowMobileSuggestions(false);
       setBillNo(String(Math.floor(100 + Math.random() * 900)));
+      
+      // Clear persistence
+      localStorage.removeItem("bill_draft");
+      
       setMessage("New bill created");
       setTimeout(() => setMessage(""), 2000);
     }
@@ -1179,6 +1282,10 @@ export default function Bill() {
               <label>Address</label>
               <textarea value={address} onChange={(event) => setAddress(event.target.value)} rows="2" />
             </div>
+            <div className="field-group">
+              <label>Contact</label>
+              <input value={contactNumber} onChange={(event) => setContactNumber(event.target.value)} placeholder="Additional contact number" />
+            </div>
             <div className="stock-row">
               <div className="field-group">
                 <label>Stock In Store</label>
@@ -1250,6 +1357,17 @@ export default function Bill() {
                           // No action on blur - only on Enter
                         }}
                         onKeyDown={(event) => {
+                          if (event.key === '+') {
+                            event.preventDefault();
+                            if (index > 0) {
+                              const prevQtyInput = qtyInputRefs.current[index - 1];
+                              if (prevQtyInput) {
+                                prevQtyInput.focus();
+                                prevQtyInput.select();
+                              }
+                            }
+                            return;
+                          }
                           if (event.key === 'Enter') {
                             event.preventDefault();
                             const typedValue = event.target.value;
@@ -1293,7 +1411,14 @@ export default function Bill() {
                     <td><input type="number" value={row.mrp} onChange={(event) => updateRow(index, "mrp", event.target.value)} /></td>
                     <td><input type="number" value={row.discountPercent} onChange={(event) => updateRow(index, "discountPercent", event.target.value)} /></td>
                     <td><input type="number" value={netPrice} onChange={(event) => updateRow(index, "netPrice", event.target.value)} /></td>
-                    <td><input type="number" min="1" max={row.stock || undefined} value={row.quantity} onChange={(event) => updateRow(index, "quantity", event.target.value)} /></td>
+                    <td><input
+                      ref={(el) => { qtyInputRefs.current[index] = el; }}
+                      type="number" 
+                      min="1" 
+                      max={row.stock || undefined} 
+                      value={row.quantity} 
+                      onChange={(event) => updateRow(index, "quantity", event.target.value)} 
+                    /></td>
                     <td className="amount-cell">{amount}</td>
                     <td className="action-cell" style={{ position: 'relative' }}>
                       <div className="sp-suggestion-container" style={{ flex: 1 }}>
@@ -1350,6 +1475,14 @@ export default function Bill() {
               <input value={totals.billValue} readOnly className={totals.billValue > 0 ? "amount-highlight" : ""} />
             </div>
             <div className="info-row">
+              <span style={{ color: '#60a5fa' }}>Total Tax</span>
+              <input value={totals.taxTotal.toFixed(2)} readOnly style={{ color: '#60a5fa', fontWeight: 'bold' }} />
+            </div>
+            <div className="info-row">
+              <span style={{ color: '#f87171' }}>Total Discount</span>
+              <input value={totals.totalDiscount.toFixed(2)} readOnly style={{ color: '#f87171', fontWeight: 'bold' }} />
+            </div>
+            <div className="info-row">
               <span>Discount % <span className="shortcut-hint">Alt+D</span></span>
               <input ref={discountPercentRef} value={discountPercent} onChange={(event) => setDiscountPercent(event.target.value)} />
             </div>
@@ -1390,7 +1523,7 @@ export default function Bill() {
             </div>
             <div className="info-row">
               <span>Total Paid</span>
-              <input value={totals.totalPaid} readOnly className={totals.totalPaid >= totals.billValue ? "payment-success" : "payment-pending"} />
+              <input value={totals.displayPaid} readOnly className={totals.totalPaid >= totals.billValue ? "payment-success" : "payment-pending"} />
             </div>
             <button type="button" className="print-btn" onClick={printBill} disabled={!totals.canSave}>
               🖨️ Print
@@ -1439,7 +1572,7 @@ export default function Bill() {
             </div>
             <div className="pay-card">
               <div className="pay-label">TOTAL PAID</div>
-              <div className="pay-value">₹{Math.round(totals.totalPaid)}</div>
+              <div className="pay-value">₹{Math.round(totals.displayPaid)}</div>
             </div>
             <div className="pay-card">
               <div className="pay-label">BALANCE DUE</div>
@@ -1524,7 +1657,7 @@ export default function Bill() {
           {paymentTotals.card > 0 && <div className="receipt-row"><span>Card:</span><span>₹ {Math.round(paymentTotals.card)}</span></div>}
           {paymentTotals.online > 0 && <div className="receipt-row"><span>Online:</span><span>₹ {Math.round(paymentTotals.online)}</span></div>}
           {paymentTotals.previous > 0 && <div className="receipt-row"><span>Paid Before:</span><span>₹ {Math.round(paymentTotals.previous)}</span></div>}
-          <div className="receipt-row receipt-total-paid"><span>Total Paid:</span><span>₹ {Math.round(totals.totalPaid)}</span></div>
+          <div className="receipt-row receipt-total-paid"><span>Total Paid:</span><span>₹ {Math.round(totals.displayPaid)}</span></div>
           {totals.returnAmount > 0 && (
             <div className="receipt-row receipt-return"><span>Return Amount:</span><span>₹ {Math.round(totals.returnAmount)}</span></div>
           )}

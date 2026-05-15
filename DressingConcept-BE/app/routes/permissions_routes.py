@@ -33,6 +33,8 @@ MODULES_JSON = {
       "submodules": [
         { "id": "create_bill", "name": "Create Bill" },
         { "id": "bill_reports", "name": "Bill Reports" },
+        { "id": "profit_visibility", "name": "Show/Hide Profit Container" },
+        { "id": "date_filter_visibility", "name": "Show/Hide Date Filter" },
         { "id": "service_bill", "name": "Service Bill" },
         { "id": "service_bills", "name": "Service Bills" },
         { "id": "quotations", "name": "Quotations" },
@@ -141,20 +143,36 @@ def save_permissions():
         return jsonify({'error': 'Failed to save permissions'}), 500
 @permissions_bp.route('/bulk-save-permissions', methods=['POST'])
 def bulk_save_permissions():
-    """Bulk update permissions for multiple user types in one transaction."""
+    """Bulk update permissions for multiple user types and employees in one transaction."""
+    from app.models.employee import Employee
     try:
         data = request.get_json()
         if not data or not isinstance(data, dict):
-            return jsonify({'error': 'Payload must be a dictionary of user_type to permissions_array'}), 400
+            return jsonify({'error': 'Payload must be a dictionary of identifier to permissions_array'}), 400
             
-        # Payload: { "admin": [..], "staff": [..] }
-        for user_type_name, perms_array in data.items():
-            user_type = UserType.query.filter(func.lower(UserType.name) == func.lower(user_type_name)).first()
-            if user_type:
-                user_type.permissions = json.dumps(perms_array)
+        # Payload: { "role-admin": [..], "emp-1": [..] }
+        for identifier, perms_array in data.items():
+            if identifier.startswith('role-'):
+                role_name = identifier.replace('role-', '')
+                user_type = UserType.query.filter(func.lower(UserType.name) == func.lower(role_name)).first()
+                if user_type:
+                    user_type.permissions = json.dumps(perms_array)
+            elif identifier.startswith('emp-'):
+                try:
+                    emp_id = int(identifier.replace('emp-', ''))
+                    employee = Employee.query.get(emp_id)
+                    if employee:
+                        employee.permissions = json.dumps(perms_array)
+                except ValueError:
+                    continue
+            else:
+                # Fallback for direct role names
+                user_type = UserType.query.filter(func.lower(UserType.name) == func.lower(identifier)).first()
+                if user_type:
+                    user_type.permissions = json.dumps(perms_array)
         
         db.session.commit()
-        return jsonify({'message': 'All permissions updated successfully'}), 200
+        return jsonify({'message': 'All security policies updated successfully'}), 200
         
     except Exception as e:
         db.session.rollback()

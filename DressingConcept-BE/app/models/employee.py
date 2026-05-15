@@ -1,6 +1,7 @@
 # app/models/employee.py
 from app import db
 from datetime import datetime
+import json
 
 class Employee(db.Model):
     """Employee Model"""
@@ -36,6 +37,9 @@ class Employee(db.Model):
     aadhar_attachment = db.Column(db.String(255))
     pan_attachment = db.Column(db.String(255))
     
+    # User-specific permissions (JSON string)
+    permissions = db.Column(db.Text, nullable=True)
+    
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -70,6 +74,7 @@ class Employee(db.Model):
             'basic_salary': self.basic_salary,
             'aadhar_attachment': self.aadhar_attachment,
             'pan_attachment': self.pan_attachment,
+            'permissions': json.loads(self.permissions) if self.permissions else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models.product import Product
+from app.models.supplier import Item
 from app import db
 from sqlalchemy.exc import IntegrityError
 
@@ -301,12 +302,13 @@ def get_product_statistics():
     try:
         from sqlalchemy import func
         
+        # Get statistics from Item (Stock In) table to keep them synchronized
         stats = db.session.query(
-            func.count(Product.id).label('total_products'),
-            func.sum(Product.quantity).label('total_quantity'),
-            func.avg(Product.sell_price).label('avg_sell_price'),
-            func.avg(Product.buy_price).label('avg_buy_price'),
-            func.sum(Product.amount).label('total_value')
+            func.count(Item.id).label('total_products'),
+            func.sum(Item.quantity).label('total_quantity'),
+            func.avg(Item.sell_price).label('avg_sell_price'),
+            func.avg(Item.buy_price).label('avg_buy_price'),
+            func.sum(Item.buy_price * Item.quantity).label('total_value')
         ).first()
         
         # Get counts by type

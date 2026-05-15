@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { Download, Edit, Hash, Plus, RefreshCw, Search, Trash2, Upload, X } from "lucide-react";
+import { Download, Edit, Hash, Plus, RefreshCw, Search, Trash2, Upload, X, Package, AlertTriangle, Keyboard } from "lucide-react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import axios from "axios";
@@ -26,8 +26,12 @@ const toNumber = (value) => Number(value) || 0;
 const calculateProduct = (product) => {
   const mrp = toNumber(product.mrp);
   const purchaseRate = toNumber(product.purchaseRate);
+  const classicPrice = toNumber(product.classicCustomer);
   const quantity = parseInt(product.quantity, 10) || 0;
-  const profit = mrp - purchaseRate;
+  
+  // Profit = (Classic Customer Price if entered, else MRP) - Purchase Rate
+  const profitBase = classicPrice > 0 ? classicPrice : mrp;
+  const profit = profitBase - purchaseRate;
 
   return {
     ...product,
@@ -45,6 +49,7 @@ export default function Products() {
   const [message, setMessage] = useState({ type: "", text: "" });
   const [editingItem, setEditingItem] = useState(null);
   const [selectedProductId, setSelectedProductId] = useState(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   const searchInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -66,6 +71,13 @@ export default function Products() {
 
   // Define showMessage first
   const showMessage = (type, text) => setMessage({ type, text });
+
+  const stats = useMemo(() => {
+    const totalProducts = items.length;
+    const totalUnits = items.reduce((sum, item) => sum + (toNumber(item.quantity) || 0), 0);
+    const lowStockCount = items.filter(item => toNumber(item.quantity) < 10).length;
+    return { totalProducts, totalUnits, lowStockCount };
+  }, [items]);
 
   // Define handleAddNew, handleEdit, handleDelete, handleExport before they're used in useEffect
   const handleAddNew = () => {
@@ -103,7 +115,7 @@ export default function Products() {
     Classic_Customer: item.classicCustomer,
     Profit: item.profit,
     Quantity: item.quantity,
-    Amount: item.amount,
+    Total_Value: item.amount,
   }));
 
   const handleExport = () => {
@@ -244,6 +256,13 @@ export default function Products() {
       if (event.key === 'Enter' && editingItem && !isTyping) {
         event.preventDefault();
         handleSave();
+        return;
+      }
+
+      // Question mark - Toggle shortcuts
+      if (event.key === '?' || (event.shiftKey && event.key === '/')) {
+        event.preventDefault();
+        setShowShortcuts(prev => !prev);
         return;
       }
     };
@@ -393,20 +412,8 @@ export default function Products() {
   return (
     <div style={styles.container}>
       <div style={styles.overlay}></div>
-      <div style={styles.content}>
-        {/* Shortcut Keys Info Bar */}
-        <div style={styles.shortcutBar}>
-          <div style={styles.shortcutItem}><kbd style={styles.kbd}>F4</kbd> or <kbd style={styles.kbd}>Alt+N</kbd> Add New</div>
-          <div style={styles.shortcutItem}><kbd style={styles.kbd}>Ctrl+F</kbd> Search</div>
-          <div style={styles.shortcutItem}><kbd style={styles.kbd}>Ctrl+E</kbd> Export</div>
-          <div style={styles.shortcutItem}><kbd style={styles.kbd}>Ctrl+I</kbd> Import</div>
-          <div style={styles.shortcutItem}><kbd style={styles.kbd}>Ctrl+D</kbd> Edit</div>
-          <div style={styles.shortcutItem}><kbd style={styles.kbd}>Delete</kbd> Delete</div>
-          <div style={styles.shortcutItem}><kbd style={styles.kbd}>↑/↓</kbd> Navigate</div>
-          <div style={styles.shortcutItem}><kbd style={styles.kbd}>Enter</kbd> Save</div>
-          <div style={styles.shortcutItem}><kbd style={styles.kbd}>Esc</kbd> Close</div>
-        </div>
 
+      <div style={styles.content}>
         <div style={styles.header}>
           <div style={styles.headerTitle}>
             <h1 style={styles.title}>Products Inventory</h1>
@@ -452,10 +459,10 @@ export default function Products() {
                 <th style={{ ...styles.th, width: 60, textAlign: "center" }}>Unit</th>
                 <th style={{ ...styles.th, width: 100, textAlign: "right" }}>MRP (₹)</th>
                 <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Pur Rate</th>
-                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Classic (Mobile)</th>
+                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Classic Price</th>
                 <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Profit</th>
                 <th style={{ ...styles.th, width: 70, textAlign: "center" }}>Qty</th>
-                <th style={{ ...styles.th, width: 110, textAlign: "right" }}>Amount (₹)</th>
+                <th style={{ ...styles.th, width: 110, textAlign: "right" }}>Total Value (₹)</th>
                 <th style={{ ...styles.th, width: 80, textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
@@ -518,7 +525,7 @@ export default function Products() {
                   ["Tax", "tax", "number"],
                   ["MRP", "mrp", "number"],
                   ["Purchase Rate", "purchaseRate", "number"],
-                  ["Classic Customer (Mobile No)", "classicCustomer", "text"],
+                  ["Classic Customer Price", "classicCustomer", "text"],
                   ["Quantity", "quantity", "number"],
                 ].map(([label, field, type]) => (
                   <label key={field} style={styles.formGroup}>
@@ -549,7 +556,7 @@ export default function Products() {
                   <div style={styles.readOnly}>₹{toNumber(calculateProduct(editingItem).profit).toFixed(2)}</div>
                 </div>
                 <div style={styles.formGroup}>
-                  <span style={styles.label}>Amount</span>
+                  <span style={styles.label}>Total Value</span>
                   <div style={styles.readOnly}>₹{toNumber(calculateProduct(editingItem).amount).toFixed(2)}</div>
                 </div>
               </div>
@@ -559,6 +566,111 @@ export default function Products() {
                 <button style={{ ...styles.button, ...styles.primaryButton }} onClick={handleSave} disabled={saving}>
                   {saving ? "Saving..." : "Save (Enter)"}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Floating Shortcut Button */}
+        <button
+          style={styles.floatingShortcutBtn}
+          onClick={() => setShowShortcuts(true)}
+          title="Shortcut Guide (?)"
+        >
+          <Keyboard size={20} />
+          <span style={{ fontWeight: "600" }}>Shortcut Keys</span>
+        </button>
+
+        {/* Shortcuts Modal */}
+        {showShortcuts && (
+          <div 
+            style={{ 
+              position: "fixed", top: 0, left: 0, right: 0, bottom: 0, 
+              backgroundColor: "rgba(0, 0, 0, 0.8)", backdropFilter: "blur(8px)", 
+              zIndex: 9999, display: "flex", justifyContent: "center", alignItems: "center" 
+            }} 
+            onClick={() => setShowShortcuts(false)}
+          >
+            <div 
+              style={{ 
+                backgroundColor: "rgba(18, 18, 18, 0.95)", backdropFilter: "blur(10px)", 
+                borderRadius: "16px", padding: "24px", maxWidth: "800px", width: "90%", 
+                maxHeight: "80vh", overflowY: "auto", border: "1px solid rgba(77, 166, 255, 0.3)", 
+                boxShadow: "0 20px 60px rgba(0,0,0,0.5)" 
+              }} 
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={styles.modalHeader}>
+                <div style={{ fontSize: "24px", fontWeight: "600", color: "#fff", display: "flex", alignItems: "center", gap: "12px" }}>
+                  <Keyboard size={24} color="#4da6ff" />
+                  Keyboard Shortcuts
+                </div>
+                <button style={styles.closeButton} onClick={() => setShowShortcuts(false)}><X size={24} /></button>
+              </div>
+
+              {[
+                {
+                  title: "Main Navigation",
+                  shortcuts: [{ keys: "D", description: "Dashboard" }]
+                },
+                {
+                  title: "Inventory Management",
+                  shortcuts: [
+                    { keys: "P", description: "Products" },
+                    { keys: "C", description: "Category" },
+                    { keys: "SI", description: "Stock In" },
+                    { keys: "SO", description: "Stock Out" },
+                    { keys: "L", description: "Low Stock" }
+                  ]
+                },
+                {
+                  title: "Billing",
+                  shortcuts: [
+                    { keys: "B", description: "Create Bill" },
+                    { keys: "BR", description: "Bill Reports" },
+                    { keys: "SV", description: "Service Bill" },
+                    { keys: "SB", description: "Service Bills" },
+                    { keys: "Q", description: "Quotations" },
+                    { keys: "DI", description: "Discount" }
+                  ]
+                },
+                {
+                  title: "Product Specific (F4 / Ctrl+D)",
+                  shortcuts: [
+                    { keys: "F4", description: "Add New Product" },
+                    { keys: "Ctrl+D", description: "Edit Selected" },
+                    { keys: "Ctrl+F", description: "Focus Search" },
+                    { keys: "Ctrl+E", description: "Export to Excel" },
+                    { keys: "Ctrl+I", description: "Import from Excel" },
+                    { keys: "Delete", description: "Delete Selected" }
+                  ]
+                },
+                {
+                  title: "General",
+                  shortcuts: [
+                    { keys: "?", description: "Show/Hide this menu" },
+                    { keys: "ESC", description: "Close this menu" }
+                  ]
+                }
+              ].map((category, idx) => (
+                <div key={idx} style={{ marginBottom: "24px" }}>
+                  <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#4da6ff", marginBottom: "12px", paddingBottom: "4px", borderBottom: "1px solid rgba(77, 166, 255, 0.2)" }}>
+                    {category.title}
+                  </h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px" }}>
+                    {category.shortcuts.map((shortcut, sidx) => (
+                      <div key={sidx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", backgroundColor: "rgba(0, 0, 0, 0.3)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                        <span style={styles.kbd}>{shortcut.keys}</span>
+                        <span style={{ color: "#cbd5e1", fontSize: "13px" }}>{shortcut.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <div style={{ marginTop: "24px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.1)", textAlign: "center", fontSize: "12px", color: "#6b7280" }}>
+                <p>💡 Tip: Press <strong style={{ color: "#4da6ff" }}>?</strong> anytime to view this menu</p>
+                <p style={{ marginTop: "8px" }}>Shortcuts work when not typing in input fields</p>
               </div>
             </div>
           </div>
@@ -604,6 +716,47 @@ const styles = {
     borderRadius: "10px",
     border: "1px solid rgba(51, 65, 85, 0.5)",
     fontSize: "12px",
+  },
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: "20px",
+    marginBottom: "28px",
+  },
+  statCard: {
+    backgroundColor: "rgba(30, 41, 59, 0.7)",
+    backdropFilter: "blur(10px)",
+    borderRadius: "16px",
+    padding: "20px 24px",
+    border: "1px solid rgba(51, 65, 85, 0.5)",
+    display: "flex",
+    alignItems: "center",
+    gap: "20px",
+    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3)",
+  },
+  statIconWrapper: {
+    padding: "12px",
+    borderRadius: "12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statLabel: {
+    color: "#94a3b8",
+    fontSize: "14px",
+    fontWeight: "500",
+    marginBottom: "4px",
+  },
+  statValue: {
+    color: "#f8fafc",
+    fontSize: "24px",
+    fontWeight: "700",
+    lineHeight: "1.2",
+  },
+  statSubText: {
+    color: "#64748b",
+    fontSize: "12px",
+    marginTop: "4px",
   },
   shortcutItem: {
     display: "flex",
@@ -670,4 +823,32 @@ const styles = {
   input: { padding: "9px 12px", backgroundColor: "#0f172a", border: "1px solid #334155", color: "#f1f5f9", borderRadius: 6, fontSize: 13, outline: "none", transition: "border-color 0.15s" },
   readOnly: { padding: "9px 12px", backgroundColor: "#0f172a", border: "1px solid #334155", color: "#a5b4fc", borderRadius: 6, fontSize: 13, fontWeight: 700 },
   modalFooter: { display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 28, paddingTop: 20, borderTop: "1px solid #334155" },
+  floatingShortcutBtn: {
+    position: "fixed",
+    bottom: "24px",
+    right: "24px",
+    backgroundColor: "rgba(99, 102, 241, 0.2)",
+    backdropFilter: "blur(8px)",
+    border: "1px solid rgba(99, 102, 241, 0.4)",
+    borderRadius: "40px",
+    padding: "10px 20px",
+    color: "#a5b4fc",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    zIndex: 2000,
+    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+    transition: "all 0.2s",
+  },
+  shortcutGuideItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "10px 14px",
+    backgroundColor: "rgba(15, 23, 42, 0.5)",
+    borderRadius: "8px",
+    fontSize: "13px",
+    color: "#e2e8f0",
+  }
 };

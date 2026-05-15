@@ -229,7 +229,8 @@ def create_bill():
         bill.customer_phone = data.get('customerPhone', '')
         bill.customer_email = data.get('customerEmail', '')
         bill.customer_gst = data.get('customerGST', '')
-        bill.customer_address = data.get('customerAddress', '')
+        bill.customer_address = data.get('customerAddress')
+        bill.contact = data.get('contact')
         bill.customer_type = data.get('customerType', 'regular')
         
         # Vehicle Information
@@ -269,6 +270,7 @@ def create_bill():
         bill.tax_type = data.get('taxType', 'percentage')
         
         # Payment information
+        bill.subtotal = float(data.get('subtotal', 0))
         bill.paid_amount = float(data.get('paidAmount', 0))
         bill.payment_method = data.get('paymentMethod', 'cash')
         
@@ -301,9 +303,22 @@ def create_bill():
                 db.session.rollback()
                 return jsonify({"error": f"Insufficient stock for {product.name}. Available: {product.quantity}"}), 400
             
-            # Calculate item total from saved product NetPrice.
-            line_price = product.net_price or product.sell_price
-            item_total = line_price * quantity
+            # Use price from frontend if provided (for overrides), otherwise use product price
+            line_price = item_data.get('price')
+            if line_price is None:
+                line_price = product.net_price or product.sell_price
+            
+            item_total = float(line_price) * quantity
+            
+            # Profit = (Classic Customer Price if entered, else MRP) - Purchase Rate
+            try:
+                classic_price = float(product.classic_customer) if product.classic_customer else 0
+            except (ValueError, TypeError):
+                classic_price = 0
+            
+            profit_base = classic_price if classic_price > 0 else (product.mrp or 0)
+            unit_profit = profit_base - (product.buy_price or 0)
+            item_profit = unit_profit * quantity
             
             # Create bill item with status (defaults to 'pending' from model)
             bill_item = BillItem(
@@ -313,8 +328,10 @@ def create_bill():
                 product_model=product.model or '',
                 product_type=product.type or '',
                 sell_price=line_price,
+                buy_price=product.buy_price or 0,
                 quantity=quantity,
-                total=item_total
+                total=item_total,
+                profit=item_profit
             )
             
             # Update product quantity
@@ -653,10 +670,12 @@ def get_all_bills():
                 'vehicleNumber': bill.vehicle_number,
                 'companyName': bill.company_name,
                 'companyGST': bill.company_gst,
+                'contact': bill.contact,
                 'subtotal': round(bill.subtotal or 0, 2),
                 'discount': round(bill.discount or 0, 2),
                 'tax': round(bill.tax or 0, 2),
                 'total': round(bill.total or 0, 2),
+                'profit': round(bill.profit or 0, 2),
                 'paidAmount': round(bill.paid_amount or 0, 2),
                 'paymentMethod': bill.payment_method,
                 'paymentStatus': bill.payment_status,

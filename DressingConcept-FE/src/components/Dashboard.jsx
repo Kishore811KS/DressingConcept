@@ -457,7 +457,7 @@ const Dashboard = () => {
     },
     grid2: {
       display: "grid",
-      gridTemplateColumns: "2fr 1fr",
+      gridTemplateColumns: "1fr",
       gap: "24px",
       marginBottom: "24px",
     },
@@ -612,7 +612,7 @@ const Dashboard = () => {
       display: "flex",
       alignItems: "center",
       gap: "8px",
-      zIndex: 100,
+      zIndex: 2000,
       transition: "all 0.2s",
     },
   };
@@ -714,41 +714,26 @@ const Dashboard = () => {
           </div>
 
           <div className="card" style={styles.card}>
-            <FaShoppingCart style={{ ...styles.icon, color: "#f59e0b" }} />
+            <FaShoppingCart style={{ ...styles.icon, color: "#10b981" }} />
             <div style={styles.cardContent}>
               <div style={styles.cardLabel}>Today's Sales</div>
               <div style={styles.cardValue}>
                 {formatCurrency(stats.billing.today.sales)}
               </div>
               <div style={styles.cardSmallValue}>
-                {stats.billing.today.bills} bills · Avg {formatCurrency(stats.billing.today.average)}
+                {stats.billing.today.bills} bills today
               </div>
             </div>
           </div>
 
           <div className="card" style={styles.card}>
-            <FaMoneyBillWave style={{ ...styles.icon, color: "#10b981" }} />
+            <FaChartLine style={{ ...styles.icon, color: "#f59e0b" }} />
             <div style={styles.cardContent}>
-              <div style={styles.cardLabel}>Total Payments</div>
+              <div style={styles.cardLabel}>Average Sale</div>
               <div style={styles.cardValue}>
-                {formatCurrency(stats.billing.totalPayments || 0)}
+                {formatCurrency(stats.billing.today.average)}
               </div>
-              <div style={styles.cardSmallValue}>
-                All time payments received
-              </div>
-            </div>
-          </div>
-
-          <div className="card" style={styles.card}>
-            <FaChartLine style={{ ...styles.icon, color: "#8b5cf6" }} />
-            <div style={styles.cardContent}>
-              <div style={styles.cardLabel}>This Month</div>
-              <div style={styles.cardValue}>
-                {formatCurrency(stats.billing.thisMonth.sales)}
-              </div>
-              <div style={styles.cardSmallValue}>
-                {stats.billing.thisMonth.bills} bills · {stats.billing.pendingItems} pending items
-              </div>
+              <div style={styles.cardSmallValue}>Per customer today</div>
             </div>
           </div>
         </div>
@@ -772,8 +757,6 @@ const Dashboard = () => {
               <thead>
                 <tr>
                   <th style={styles.th}>Product</th>
-                  <th style={styles.th}>Model</th>
-                  <th style={styles.th}>Stock</th>
                   <th style={styles.th}>Status</th>
                 </tr>
               </thead>
@@ -783,17 +766,6 @@ const Dashboard = () => {
                     <tr key={product.id}>
                       <td style={styles.td}>
                         <div style={{ fontWeight: "500" }}>{product.name}</div>
-                      </td>
-                      <td style={styles.td}>
-                        <span style={{ color: "#94a3b8" }}>{product.model || '-'}</span>
-                      </td>
-                      <td style={styles.td}>
-                        <span style={{
-                          fontWeight: "600",
-                          color: product.quantity === 0 ? "#ef4444" : "#f59e0b"
-                        }}>
-                          {product.quantity}
-                        </span>
                       </td>
                       <td style={styles.td}>
                         <span
@@ -811,7 +783,7 @@ const Dashboard = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" style={{ ...styles.td, textAlign: "center", padding: "40px" }}>
+                    <td colSpan="2" style={{ ...styles.td, textAlign: "center", padding: "40px" }}>
                       <FaBoxes size={32} style={{ opacity: 0.5, marginBottom: "12px" }} />
                       <div>All products are well stocked ✓</div>
                       <div style={{ fontSize: "13px", color: "#6b7280", marginTop: "8px" }}>
@@ -823,7 +795,7 @@ const Dashboard = () => {
 
                 {stats.lowStockProducts.length > 5 && (
                   <tr>
-                    <td colSpan="4" style={{ ...styles.td, textAlign: "center", backgroundColor: "rgba(0, 0, 0, 0.3)" }}>
+                    <td colSpan="2" style={{ ...styles.td, textAlign: "center", backgroundColor: "rgba(0, 0, 0, 0.3)" }}>
                       <span
                         onClick={handleViewAllLowStock}
                         style={styles.viewAllText}
@@ -837,81 +809,19 @@ const Dashboard = () => {
               </tbody>
             </table>
           </div>
-
-          <div style={styles.tableContainer}>
-            <div style={styles.tableHeader}>
-              <h3 style={styles.tableTitle}>
-                <FaMoneyBillWave color="#10b981" />
-                Payment Methods
-              </h3>
-            </div>
-
-            {stats.paymentMethods.length > 0 ? (
-              <div style={styles.paymentGrid}>
-                {stats.paymentMethods.map((method, index) => (
-                  <div key={index} style={styles.paymentCard}>
-                    <div style={styles.paymentMethod}>
-                      <span style={{
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "50%",
-                        backgroundColor:
-                          method.method === 'cash' ? '#10b981' :
-                            method.method === 'card' ? '#3b82f6' :
-                              method.method === 'upi' ? '#8b5cf6' : '#f59e0b'
-                      }} />
-                      {method.method}
-                    </div>
-                    <div style={styles.paymentAmount}>
-                      {formatCurrency(method.total)}
-                    </div>
-                    <div style={styles.paymentCount}>
-                      {method.count} {method.count === 1 ? 'transaction' : 'transactions'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ textAlign: "center", padding: "40px 20px" }}>
-                <FaMoneyBillWave size={32} style={{ opacity: 0.5, marginBottom: "12px" }} />
-                <p style={{ color: "#94a3b8" }}>No payment data available</p>
-              </div>
-            )}
-
-            {stats.paymentMethods.length > 0 && (
-              <div style={{
-                marginTop: "20px",
-                padding: "16px",
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                borderRadius: "12px",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                backdropFilter: "blur(4px)",
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ color: "#cbd5e1" }}>Total Payments</span>
-                  <span style={{ fontSize: "20px", fontWeight: "600", color: "#10b981" }}>
-                    {formatCurrency(stats.billing.totalPayments || 0)}
-                  </span>
-                </div>
-                <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
-                  All time total
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
-      <button
-        style={styles.shortcutButton}
-        onClick={() => setShowShortcuts(true)}
-        className="shortcut-button"
-      >
-        <FaKeyboard /> <span style={{ fontWeight: "bold" }}>?</span> Shortcuts
-      </button>
+        <button
+          style={styles.shortcutButton}
+          onClick={() => setShowShortcuts(true)}
+          className="shortcut-button"
+        >
+          <FaKeyboard /> <span style={{ fontWeight: "bold" }}>?</span> Shortcuts
+        </button>
 
-      <ShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
-    </div>
+        <ShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      </div>
   );
 };
 

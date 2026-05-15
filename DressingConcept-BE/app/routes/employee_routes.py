@@ -123,14 +123,21 @@ def employee_login():
         session['company_name'] = employee.current_company
         session['logged_in'] = True
         
-        # Fetch permissions
-        user_type_data = UserType.query.filter(func.lower(UserType.name) == func.lower(employee.user_type)).first()
-        permissions = {}
-        if user_type_data and user_type_data.permissions:
+        # Fetch permissions (Individual override or Role fallback)
+        permissions = []
+        if employee.permissions:
             try:
-                permissions = json.loads(user_type_data.permissions)
+                permissions = json.loads(employee.permissions)
             except Exception:
-                permissions = {}
+                permissions = []
+        
+        if not permissions:
+            user_type_data = UserType.query.filter(func.lower(UserType.name) == func.lower(employee.user_type)).first()
+            if user_type_data and user_type_data.permissions:
+                try:
+                    permissions = json.loads(user_type_data.permissions)
+                except Exception:
+                    permissions = []
 
         # Return user info
         return jsonify({
@@ -166,14 +173,22 @@ def check_login():
     """Check if user is logged in"""
     if 'user_id' in session:
         # Fetch permissions
-        user_type_name = session.get('user_type')
-        user_type_data = UserType.query.filter(func.lower(UserType.name) == func.lower(user_type_name)).first() if user_type_name else None
-        permissions = {}
-        if user_type_data and user_type_data.permissions:
+        employee = Employee.query.get(session.get('user_id'))
+        permissions = []
+        if employee and employee.permissions:
             try:
-                permissions = json.loads(user_type_data.permissions)
+                permissions = json.loads(employee.permissions)
             except Exception:
-                permissions = {}
+                permissions = []
+        
+        if not permissions:
+            user_type_name = session.get('user_type')
+            user_type_data = UserType.query.filter(func.lower(UserType.name) == func.lower(user_type_name)).first() if user_type_name else None
+            if user_type_data and user_type_data.permissions:
+                try:
+                    permissions = json.loads(user_type_data.permissions)
+                except Exception:
+                    permissions = []
 
         return jsonify({
             'logged_in': True,
@@ -201,14 +216,21 @@ def get_current_user():
             session.clear()
             return jsonify({'error': 'User not found'}), 404
         
-        # Fetch permissions
-        user_type_data = UserType.query.filter(func.lower(UserType.name) == func.lower(employee.user_type)).first()
-        permissions = {}
-        if user_type_data and user_type_data.permissions:
+        # Fetch permissions (Individual override or Role fallback)
+        permissions = []
+        if employee.permissions:
             try:
-                permissions = json.loads(user_type_data.permissions)
+                permissions = json.loads(employee.permissions)
             except Exception:
-                permissions = {}
+                permissions = []
+        
+        if not permissions:
+            user_type_data = UserType.query.filter(func.lower(UserType.name) == func.lower(employee.user_type)).first()
+            if user_type_data and user_type_data.permissions:
+                try:
+                    permissions = json.loads(user_type_data.permissions)
+                except Exception:
+                    permissions = []
 
         return jsonify({
             'user': {
