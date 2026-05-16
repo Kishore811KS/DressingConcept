@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, make_response, send_from_directory
 from app import db
 from app.models.supplier import Supplier, Item
+from app.models.product import Product
 from datetime import datetime
 import traceback
 import os
@@ -504,6 +505,57 @@ def delete_supplier(supplier_id):
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 400
 
+# ==================== SYNC HELPER ====================
+
+def sync_item_to_product(item_name):
+    """Sync total quantity of an item name to the Product table"""
+    try:
+        # Calculate total quantity for this item name across all suppliers
+        total_qty = db.session.query(db.func.sum(Item.quantity)).filter(
+            Item.name.ilike(item_name)
+        ).scalar() or 0
+        
+        # Find the latest price/details for this item name
+        latest_item = Item.query.filter(Item.name.ilike(item_name)).order_by(Item.updated_at.desc()).first()
+        
+        if not latest_item:
+            # If no items left, set product quantity to 0
+            product = Product.query.filter(Product.name.ilike(item_name)).first()
+            if product:
+                product.quantity = 0
+                db.session.commit()
+            return
+
+        # Find or create corresponding product
+        product = Product.query.filter(Product.name.ilike(item_name)).first()
+        
+        if not product:
+            product = Product(
+                name=latest_item.name,
+                model=latest_item.model,
+                type=latest_item.type,
+                buy_price=latest_item.buy_price,
+                sell_price=latest_item.sell_price,
+                quantity=total_qty,
+                unit=latest_item.type or "PCS"
+            )
+            product.calculate_values()
+            db.session.add(product)
+        else:
+            product.quantity = total_qty
+            # Only update price if it's 0 or user hasn't set it manually? 
+            # Usually Stock In price should update the product price.
+            product.buy_price = latest_item.buy_price
+            if latest_item.sell_price > 0:
+                product.sell_price = latest_item.sell_price
+            product.calculate_values()
+            
+        db.session.commit()
+        print(f"Synced {item_name} to Product table. Total Qty: {total_qty}")
+    except Exception as e:
+        print(f"Sync error: {str(e)}")
+        db.session.rollback()
+
 # ==================== ITEM ROUTES ====================
 
 # Get all items for a supplier
@@ -617,6 +669,9 @@ def create_item(supplier_id):
         db.session.add(new_item)
         db.session.commit()
         
+        # Sync to Product table
+        sync_item_to_product(new_item.name)
+        
         print(f"✅ Item created with ID: {new_item.id}")
         print("=" * 50)
         
@@ -673,6 +728,9 @@ def update_item(item_id):
         item.updated_at = datetime.utcnow()
         db.session.commit()
         
+        # Sync to Product table
+        sync_item_to_product(item.name)
+        
         print(f"✅ Item {item_id} updated successfully. New quantity: {item.quantity}")
         
         return jsonify({
@@ -713,8 +771,12 @@ def delete_item(item_id):
             except Exception as e:
                 print(f"Error deleting attachment file: {str(e)}")
         
+        item_name = item.name
         db.session.delete(item)
         db.session.commit()
+        
+        # Sync to Product table
+        sync_item_to_product(item_name)
         
         print(f"✅ Item {item_id} deleted successfully")
         

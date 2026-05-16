@@ -713,29 +713,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="card" style={styles.card}>
-            <FaShoppingCart style={{ ...styles.icon, color: "#10b981" }} />
-            <div style={styles.cardContent}>
-              <div style={styles.cardLabel}>Today's Sales</div>
-              <div style={styles.cardValue}>
-                {formatCurrency(stats.billing.today.sales)}
-              </div>
-              <div style={styles.cardSmallValue}>
-                {stats.billing.today.bills} bills today
-              </div>
-            </div>
-          </div>
 
-          <div className="card" style={styles.card}>
-            <FaChartLine style={{ ...styles.icon, color: "#f59e0b" }} />
-            <div style={styles.cardContent}>
-              <div style={styles.cardLabel}>Average Sale</div>
-              <div style={styles.cardValue}>
-                {formatCurrency(stats.billing.today.average)}
-              </div>
-              <div style={styles.cardSmallValue}>Per customer today</div>
-            </div>
-          </div>
         </div>
 
         <div style={styles.grid2}>

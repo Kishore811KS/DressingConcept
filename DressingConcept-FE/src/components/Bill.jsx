@@ -96,7 +96,8 @@ export default function Bill() {
   const [spSuggestions, setSPSuggestions] = useState([]);
   const [showSPSuggestions, setShowSPSuggestions] = useState(false);
   const [activeSPIndex, setActiveSPIndex] = useState(-1);
-
+  const [products, setProducts] = useState([]);
+  const [totalStockInStore, setTotalStockInStore] = useState(0);
   const [customers, setCustomers] = useState([]);
   const [availablePoints, setAvailablePoints] = useState(0);
 
@@ -121,13 +122,26 @@ export default function Bill() {
     return () => clearInterval(timer);
   }, []);
 
-  const [products, setProducts] = useState([]);
   useEffect(() => {
     if (!billNo) setBillNo(String(Math.floor(100 + Math.random() * 900)));
     loadProducts();
     loadCustomers();
     loadEmployees();
+    loadStockStatistics();
+
+    // Auto-refresh statistics every 10 seconds to keep counts in sync
+    const statsInterval = setInterval(loadStockStatistics, 10000);
+    return () => clearInterval(statsInterval);
   }, []);
+
+  const loadStockStatistics = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/products/statistics`);
+      setTotalStockInStore(response.data.total_quantity || 0);
+    } catch (err) {
+      console.error("Error loading statistics:", err);
+    }
+  };
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
@@ -347,7 +361,7 @@ export default function Bill() {
       const all = Array.isArray(response.data?.items) ? response.data.items : [];
       const activeProducts = all.filter((p) => !isDeletedProduct(p));
       setProducts(activeProducts);
-      console.log("Loaded products:", activeProducts.length);
+      loadStockStatistics();
     } catch (err) {
       setProducts([]);
       setError("Products not loaded. Please start backend and refresh.");
@@ -843,6 +857,44 @@ export default function Bill() {
     }
   };
 
+  const performClear = () => {
+    setRows([{
+      productId: "",
+      description: "",
+      tax: "",
+      unit: "",
+      mrp: "",
+      discountPercent: "",
+      netPrice: "",
+      quantity: "",
+      salesPerson: "",
+    }]);
+    setCustomerName("");
+    setMemberId("");
+    setMobileNumber("");
+    setSalesPerson("");
+    setAddress("");
+    setCashReceived("");
+    setUpiAmount("");
+    setCardAmount("");
+    setCardNumber("");
+    setDiscountPercent("");
+    setDiscountAmount("");
+    setOnlineAmount("");
+    setOnlinePhone("");
+    setOnlineRef("");
+    setPaidBefore("");
+    setSaleReturn(false);
+    setCardBill(false);
+    setNoRewards(false);
+    setClassicCustomer(false);
+    setQuickProductQuery("");
+    setMobileSuggestions([]);
+    setShowMobileSuggestions(false);
+    setBillNo(String(Math.floor(100 + Math.random() * 900)));
+    localStorage.removeItem("bill_draft");
+  };
+
   const printBill = async () => {
     if (!totals.canSave) {
       if (totals.billValue === 0) {
@@ -856,49 +908,17 @@ export default function Bill() {
     }
 
     const saved = await saveBill();
-    if (saved) setTimeout(() => window.print(), 100);
+    if (saved) {
+      setTimeout(() => {
+        window.print();
+        performClear();
+      }, 100);
+    }
   };
 
   const clearBill = () => {
     if (window.confirm("Clear current bill? All data will be lost.")) {
-      setRows([{
-        productId: "",
-        description: "",
-        tax: "",
-        unit: "",
-        mrp: "",
-        discountPercent: "",
-        netPrice: "",
-        quantity: "",
-        salesPerson: "",
-      }]);
-      setCustomerName("");
-      setMemberId("");
-      setMobileNumber("");
-      setSalesPerson("");
-      setAddress("");
-      setCashReceived("");
-      setUpiAmount("");
-      setCardAmount("");
-      setCardNumber("");
-      setDiscountPercent("");
-      setDiscountAmount("");
-      setOnlineAmount("");
-      setOnlinePhone("");
-      setOnlineRef("");
-      setPaidBefore("");
-      setSaleReturn(false);
-      setCardBill(false);
-      setNoRewards(false);
-      setClassicCustomer(false);
-      setQuickProductQuery("");
-      setMobileSuggestions([]);
-      setShowMobileSuggestions(false);
-      setBillNo(String(Math.floor(100 + Math.random() * 900)));
-      
-      // Clear persistence
-      localStorage.removeItem("bill_draft");
-      
+      performClear();
       setMessage("New bill created");
       setTimeout(() => setMessage(""), 2000);
     }
@@ -1289,12 +1309,12 @@ export default function Bill() {
             <div className="stock-row">
               <div className="field-group">
                 <label>Stock In Store</label>
-                <input value={products.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)} readOnly />
+                <input value={totalStockInStore} readOnly />
               </div>
-              <div className="field-group">
+              {/* <div className="field-group">
                 <label>Godown Stock</label>
                 <input value="0" readOnly />
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
