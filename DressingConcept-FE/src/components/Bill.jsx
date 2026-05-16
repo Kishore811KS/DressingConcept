@@ -827,6 +827,7 @@ export default function Bill() {
         createdByName: [salesPerson, ...new Set(rows.filter(r => r.salesPerson && r.productId).map(r => r.salesPerson))].filter(Boolean).join(", ") || counter,
         rewardPointsEarned: noRewards ? 0 : totals.billValue * 0.01,
         rewardPointsRedeemed: 0,
+        isClassic: classicCustomer,
         items: rows.filter(r => r.productId && r._dbId).map((row) => ({
           productId: row._dbId,
           quantity: Number(row.quantity) || 1,

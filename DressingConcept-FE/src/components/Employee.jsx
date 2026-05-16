@@ -404,6 +404,7 @@ const EmployeeManager = () => {
                     <th style={styles.tableHeader}>Name</th>
                     <th style={styles.tableHeader}>Email</th>
                     <th style={styles.tableHeader}>Department</th>
+                    <th style={styles.tableHeader}>Designation</th>
                     <th style={styles.tableHeader}>Phone</th>
                     <th style={styles.tableHeader}>Salary</th>
                     <th style={styles.tableHeader}>DOJ</th>
@@ -420,10 +421,10 @@ const EmployeeManager = () => {
                       </td>
                       <td style={styles.tableCell}>{employee.email}</td>
                       <td style={styles.tableCell}>{employee.department || '-'}</td>
-                      <td style={styles.tableCell}>{employee.department || '-'}</td>
+                      <td style={styles.tableCell}>{employee.designation || '-'}</td>
                       <td style={styles.tableCell}>{employee.phone_number || '-'}</td>
                       <td style={styles.tableCell}>₹{employee.basic_salary || '0'}</td>
-                      <td style={styles.tableCell}>{employee.date_of_joining || '-'}</td>
+                      <td style={styles.tableCell}>{formatDate(employee.date_of_joining)}</td>
                       <td style={styles.tableCell}>
                         {employee.aadhar_attachment && (
                           <button
@@ -750,6 +751,10 @@ const EmployeeManager = () => {
                     <label style={styles.detailLabel}>Date of Joining:</label>
                     <span style={styles.detailValue}>{formatDate(selectedEmployee.date_of_joining)}</span>
                   </div>
+                  <div style={styles.detailItem}>
+                    <label style={styles.detailLabel}>Address:</label>
+                    <span style={styles.detailValue}>{selectedEmployee.address || '-'}</span>
+                  </div>
                 </div>
               </div>
 
@@ -765,11 +770,11 @@ const EmployeeManager = () => {
                     <span style={styles.detailValue}>{selectedEmployee.designation || '-'}</span>
                   </div>
                   <div style={styles.detailItem}>
-                    <label style={styles.detailLabel}>Address:</label>
-                    <span style={styles.detailValue}>{selectedEmployee.address || '-'}</span>
+                    <label style={styles.detailLabel}>Per Day Salary:</label>
+                    <span style={styles.detailValue}>₹{selectedEmployee.basic_salary || '0'}</span>
                   </div>
                   <div style={styles.detailItem}>
-                    <label style={styles.detailLabel}>Emergency Contact:</label>
+                    <label style={styles.detailLabel}>Emergency Mobile Number:</label>
                     <span style={styles.detailValue}>{selectedEmployee.emergency_contact || '-'}</span>
                   </div>
                 </div>

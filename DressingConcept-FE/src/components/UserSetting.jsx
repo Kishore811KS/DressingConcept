@@ -6,21 +6,21 @@ import "react-toastify/dist/ReactToastify.css";
 
 const ROLE_TEMPLATES = {
   admin: [
-    "dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
+    "dashboard", "employee_dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
     "warranty", "create_bill", "bill_reports", "profit_visibility", "date_filter_visibility", 
     "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount", 
     "add_supplier", "supplier_list", "payment_tracking", "employee", "user_type", "attendance", 
     "company", "enquiries", "customer_details", "usersettings"
   ],
   manager: [
-    "dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
+    "dashboard", "employee_dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
     "warranty", "create_bill", "bill_reports", "profit_visibility", "date_filter_visibility",
     "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount", 
     "add_supplier", "supplier_list", "payment_tracking", "employee", "attendance", "company", 
     "enquiries", "customer_details"
   ],
   staff: [
-    "dashboard", "products", "stock_in", "stock_out", "create_bill", 
+    "employee_dashboard", "products", "stock_in", "stock_out", "create_bill", 
     "service_bill", "service_bills", "sales_bills", "warranty"
   ],
   hr: [

@@ -230,10 +230,11 @@ const Sidebar = ({ isOpen }) => {
 
         <div style={styles.navContainer}>
           {/* Main Navigation */}
-          {isSectionVisible(["dashboard"]) && (
+          {isSectionVisible(["dashboard", "employee_dashboard"]) && (
             <>
               <div style={styles.sectionTitle}>Main</div>
               {hasPermission("dashboard") && renderLink("/dashboard", <FaTachometerAlt style={styles.icon} />, "Dashboard")}
+              {hasPermission("employee_dashboard") && renderLink("/dashboard", <FaTachometerAlt style={styles.icon} />, "Employee Dashboard")}
             </>
           )}
 

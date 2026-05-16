@@ -14,8 +14,9 @@ const AccessControl = () => {
   const roles = ["Admin", "Manager", "HR", "Staff"];
 
   const modules = [
+    { name: "Main", submodules: ["dashboard", "employee_dashboard"] },
     { name: "Inventory", submodules: ["Products", "Categories", "Stock In", "Stock Out"] },
-    { name: "Billing", submodules: ["Bills", "Bill Reports", "Services", "Quotations", "Invoices"] },
+    { name: "Billing", submodules: ["Bills", "Bill Reports", "profit_visibility", "date_filter_visibility", "Services", "Quotations", "Invoices"] },
     { name: "HR Management", submodules: ["Employees", "Attendance", "User Types", "Access Control"] },
     { name: "CRM", submodules: ["Enquiries"] }
   ];
@@ -349,7 +350,12 @@ const AccessControl = () => {
                             {mod.name}
                           </td>
                         )}
-                        <td style={{ ...styles.td, color: "#cbd5e1" }}>{sub}</td>
+                        <td style={{ ...styles.td, color: "#cbd5e1" }}>
+                          {sub === "profit_visibility" ? "Show/Hide Profit Container" : 
+                           sub === "date_filter_visibility" ? "Show/Hide Date Filter" : 
+                           sub === "employee_dashboard" ? "Employee Dashboard" : 
+                           sub === "dashboard" ? "Dashboard" : sub}
+                        </td>
                         {["create", "view", "update", "delete"].map(action => (
                           <td key={action} style={{ ...styles.td, textAlign: "center" }}>
                             <div title="Auto-assigned based on role policy">

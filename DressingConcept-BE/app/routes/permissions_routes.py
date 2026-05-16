@@ -13,7 +13,8 @@ MODULES_JSON = {
       "id": "main",
       "name": "Main",
       "submodules": [
-        { "id": "dashboard", "name": "Dashboard" }
+        { "id": "dashboard", "name": "Dashboard" },
+        { "id": "employee_dashboard", "name": "Employee Dashboard" }
       ]
     },
     {
@@ -74,19 +75,39 @@ def get_modules():
 
 @permissions_bp.route('/permissions', methods=['GET'])
 def get_permissions():
-    """Get active permissions for a given userType."""
+    """Get active permissions for a given userType and optionally employeeId."""
     user_type_name = request.args.get('userType')
+    employee_id = request.args.get('employeeId')
+    
     if not user_type_name:
         return jsonify({'error': 'userType is required'}), 400
 
     try:
-        user_type = UserType.query.filter(func.lower(UserType.name) == func.lower(user_type_name)).first()
-        if not user_type:
-            # If user type doesn't exist, just return empty permissions
-            return jsonify([]), 200
+        from app.models.employee import Employee
         
         perms = []
-        if user_type.permissions:
+        
+        # 1. Try to get Employee-specific permissions first
+        if employee_id:
+            employee = None
+            try:
+                # Try as primary key ID first
+                employee = Employee.query.get(int(employee_id))
+            except (ValueError, TypeError):
+                # Fallback to employee_id string
+                employee = Employee.query.filter_by(employee_id=employee_id).first()
+                
+            if employee and employee.permissions:
+                try:
+                    perms = json.loads(employee.permissions)
+                    if perms:
+                        return jsonify(perms), 200
+                except Exception:
+                    perms = []
+
+        # 2. Fallback to UserType permissions
+        user_type = UserType.query.filter(func.lower(UserType.name) == func.lower(user_type_name)).first()
+        if user_type and user_type.permissions:
             try:
                 perms = json.loads(user_type.permissions)
             except Exception:

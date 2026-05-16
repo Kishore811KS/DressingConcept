@@ -310,13 +310,16 @@ def create_bill():
             
             item_total = float(line_price) * quantity
             
-            # Profit = (Classic Customer Price if entered, else MRP) - Purchase Rate
-            try:
-                classic_price = float(product.classic_customer) if product.classic_customer else 0
-            except (ValueError, TypeError):
-                classic_price = 0
+            # Determine which profit to use based on isClassic flag
+            is_classic_bill = data.get('isClassic', False)
             
-            profit_base = classic_price if classic_price > 0 else (product.mrp or 0)
+            if is_classic_bill:
+                # Classic Customer Profit = Classic Customer Price - Purchase Rate (buy_price)
+                profit_base = float(product.classic_customer or 0)
+            else:
+                # Normal Profit = MRP - Purchase Rate (buy_price)
+                profit_base = float(product.mrp or 0)
+            
             unit_profit = profit_base - (product.buy_price or 0)
             item_profit = unit_profit * quantity
             

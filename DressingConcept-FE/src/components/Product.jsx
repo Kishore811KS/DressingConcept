@@ -15,7 +15,8 @@ const emptyProduct = {
   mrp: "",
   purchaseRate: "",
   classicCustomer: "",
-  profit: "0.00",
+  normalProfit: "0.00",
+  classicProfit: "0.00",
   quantity: "",
   amount: "0.00",
 };
@@ -29,13 +30,13 @@ const calculateProduct = (product) => {
   const classicPrice = toNumber(product.classicCustomer);
   const quantity = parseInt(product.quantity, 10) || 0;
   
-  // Profit = (Classic Customer Price if entered, else MRP) - Purchase Rate
-  const profitBase = classicPrice > 0 ? classicPrice : mrp;
-  const profit = profitBase - purchaseRate;
+  const normalProfit = mrp - purchaseRate;
+  const classicProfit = classicPrice > 0 ? (classicPrice - purchaseRate) : 0;
 
   return {
     ...product,
-    profit: profit.toFixed(2),
+    normalProfit: normalProfit.toFixed(2),
+    classicProfit: classicProfit.toFixed(2),
     quantity,
     amount: (mrp * quantity).toFixed(2),
   };
@@ -113,7 +114,8 @@ export default function Products() {
     Purchase_Rate: item.purchaseRate,
     Unit_Price: item.sellPrice,
     Classic_Customer: item.classicCustomer,
-    Profit: item.profit,
+    Normal_Profit: item.normalProfit,
+    Classic_Profit: item.classicProfit,
     Quantity: item.quantity,
     Total_Value: item.amount,
   }));
@@ -315,9 +317,10 @@ export default function Products() {
     setEditingItem((current) => {
       const next = { ...current, [field]: value };
 
-      if (field === "sellPrice" || field === "mrp" || field === "purchaseRate" || field === "quantity") {
+      if (field === "sellPrice" || field === "mrp" || field === "purchaseRate" || field === "quantity" || field === "classicCustomer") {
         const calculated = calculateProduct(next);
-        next.profit = calculated.profit;
+        next.normalProfit = calculated.normalProfit;
+        next.classicProfit = calculated.classicProfit;
         next.amount = calculated.amount;
         next.sellPrice = calculated.sellPrice;
       }
@@ -460,7 +463,8 @@ export default function Products() {
                 <th style={{ ...styles.th, width: 100, textAlign: "right" }}>MRP (₹)</th>
                 <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Pur Rate</th>
                 <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Classic Price</th>
-                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Profit</th>
+                <th style={{ ...styles.th, width: 90, textAlign: "right" }}>N. Profit</th>
+                <th style={{ ...styles.th, width: 90, textAlign: "right" }}>C. Profit</th>
                 <th style={{ ...styles.th, width: 70, textAlign: "center" }}>Qty</th>
                 <th style={{ ...styles.th, width: 110, textAlign: "right" }}>Total Value (₹)</th>
                 <th style={{ ...styles.th, width: 80, textAlign: "center" }}>Actions</th>
@@ -495,7 +499,8 @@ export default function Products() {
                   <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.mrp).toFixed(2)}</td>
                   <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.purchaseRate).toFixed(2)}</td>
                   <td style={{ ...styles.td, textAlign: "right", color: "#d1d5db" }}>{item.classicCustomer || "-"}</td>
-                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#10b981" }}>{toNumber(item.profit).toFixed(2)}</td>
+                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#10b981" }}>{toNumber(item.normalProfit).toFixed(2)}</td>
+                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#3b82f6" }}>{toNumber(item.classicProfit).toFixed(2)}</td>
                   <td style={{ ...styles.td, textAlign: "center", color: toNumber(item.quantity) === 0 ? "#ef4444" : "#f9fafb" }}>{item.quantity || 0}</td>
                   <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#a5b4fc" }}>{toNumber(item.amount).toFixed(2)}</td>
                   <td style={{ ...styles.td, textAlign: "center" }}>
@@ -552,8 +557,12 @@ export default function Products() {
                   </select>
                 </label>
                 <div style={styles.formGroup}>
-                  <span style={styles.label}>Profit</span>
-                  <div style={styles.readOnly}>₹{toNumber(calculateProduct(editingItem).profit).toFixed(2)}</div>
+                  <span style={styles.label}>Normal Profit</span>
+                  <div style={styles.readOnly}>₹{toNumber(calculateProduct(editingItem).normalProfit).toFixed(2)}</div>
+                </div>
+                <div style={styles.formGroup}>
+                  <span style={styles.label}>Classic Customer Profit</span>
+                  <div style={styles.readOnly}>₹{toNumber(calculateProduct(editingItem).classicProfit).toFixed(2)}</div>
                 </div>
                 <div style={styles.formGroup}>
                   <span style={styles.label}>Total Value</span>

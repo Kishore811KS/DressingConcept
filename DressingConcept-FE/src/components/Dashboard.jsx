@@ -48,12 +48,44 @@ const Dashboard = () => {
     paymentMethods: [],
   });
 
+  // Get user info and permissions
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const userType = user?.user_type || "";
+  const [permissions, setPermissions] = useState(user?.permissions || []);
+
+  const hasPermission = (submodule_id) => {
+    const isAdmin = userType?.toLowerCase() === 'admin';
+    if (isAdmin) return true;
+    if (!Array.isArray(permissions)) return false;
+    const perm = permissions.find(p => p.submodule_id === submodule_id);
+    return perm ? perm.view === true : false;
+  };
+
+  // Check if we should show the restricted Employee Dashboard
+  const isEmployeeDashboard = hasPermission('employee_dashboard') && !hasPermission('dashboard');
+
   // Initialize keyboard shortcuts
   useKeyboardShortcuts();
 
   useEffect(() => {
+    fetchPermissions();
     fetchDashboardData();
   }, []);
+
+  const fetchPermissions = async () => {
+    try {
+      const employeeId = user.id || user.employee_id || "";
+      const response = await axios.get(`${API_BASE_URL}/api/permissions?userType=${userType}&employeeId=${employeeId}`);
+      if (response.data) {
+        setPermissions(response.data);
+        // Update localStorage for sidebar and other components
+        const updatedUser = { ...user, permissions: response.data };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+      }
+    } catch (error) {
+      console.error("Error fetching permissions for dashboard:", error);
+    }
+  };
 
   useEffect(() => {
     const handleKeyPress = (event) => {
@@ -457,7 +489,7 @@ const Dashboard = () => {
     },
     grid2: {
       display: "grid",
-      gridTemplateColumns: "1fr",
+      gridTemplateColumns: "2fr 1fr",
       gap: "24px",
       marginBottom: "24px",
     },
@@ -612,7 +644,7 @@ const Dashboard = () => {
       display: "flex",
       alignItems: "center",
       gap: "8px",
-      zIndex: 2000,
+      zIndex: 100,
       transition: "all 0.2s",
     },
   };
@@ -674,7 +706,7 @@ const Dashboard = () => {
 
         <div style={styles.header}>
           <div>
-            <h2 style={styles.title}>Dashboard</h2>
+            <h2 style={styles.title}>{isEmployeeDashboard ? "Employee Dashboard" : "Dashboard"}</h2>
             <p style={styles.subtitle}>
               {new Date().toLocaleDateString("en-IN", {
                 weekday: "long",
@@ -684,14 +716,16 @@ const Dashboard = () => {
               })}
             </p>
           </div>
-          <button
-            style={styles.refreshButton}
-            onClick={fetchDashboardData}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#1d4ed8"}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#2563eb"}
-          >
-            <FaChartLine /> Refresh Data
-          </button>
+          {!isEmployeeDashboard && (
+            <button
+              style={styles.refreshButton}
+              onClick={fetchDashboardData}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#1d4ed8"}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#2563eb"}
+            >
+              <FaChartLine /> Refresh Data
+            </button>
+          )}
         </div>
 
         {error && (
@@ -713,10 +747,51 @@ const Dashboard = () => {
             </div>
           </div>
 
+          {!isEmployeeDashboard && (
+            <>
+              <div className="card" style={styles.card}>
+                <FaShoppingCart style={{ ...styles.icon, color: "#f59e0b" }} />
+                <div style={styles.cardContent}>
+                  <div style={styles.cardLabel}>Today's Sales</div>
+                  <div style={styles.cardValue}>
+                    {formatCurrency(stats.billing.today.sales)}
+                  </div>
+                  <div style={styles.cardSmallValue}>
+                    {stats.billing.today.bills} bills · Avg {formatCurrency(stats.billing.today.average)}
+                  </div>
+                </div>
+              </div>
 
+              <div className="card" style={styles.card}>
+                <FaMoneyBillWave style={{ ...styles.icon, color: "#10b981" }} />
+                <div style={styles.cardContent}>
+                  <div style={styles.cardLabel}>Total Payments</div>
+                  <div style={styles.cardValue}>
+                    {formatCurrency(stats.billing.totalPayments || 0)}
+                  </div>
+                  <div style={styles.cardSmallValue}>
+                    All time payments received
+                  </div>
+                </div>
+              </div>
+
+              <div className="card" style={styles.card}>
+                <FaChartLine style={{ ...styles.icon, color: "#8b5cf6" }} />
+                <div style={styles.cardContent}>
+                  <div style={styles.cardLabel}>This Month</div>
+                  <div style={styles.cardValue}>
+                    {formatCurrency(stats.billing.thisMonth.sales)}
+                  </div>
+                  <div style={styles.cardSmallValue}>
+                    {stats.billing.thisMonth.bills} bills · {stats.billing.pendingItems} pending items
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
-        <div style={styles.grid2}>
+        <div style={{ ...styles.grid2, gridTemplateColumns: isEmployeeDashboard ? "1fr" : "2fr 1fr" }}>
           <div style={styles.tableContainer}>
             <div style={styles.tableHeader}>
               <h3 style={styles.tableTitle}>
@@ -735,6 +810,8 @@ const Dashboard = () => {
               <thead>
                 <tr>
                   <th style={styles.th}>Product</th>
+                  <th style={styles.th}>Model</th>
+                  <th style={styles.th}>Stock</th>
                   <th style={styles.th}>Status</th>
                 </tr>
               </thead>
@@ -744,6 +821,17 @@ const Dashboard = () => {
                     <tr key={product.id}>
                       <td style={styles.td}>
                         <div style={{ fontWeight: "500" }}>{product.name}</div>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{ color: "#94a3b8" }}>{product.model || '-'}</span>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{
+                          fontWeight: "600",
+                          color: product.quantity === 0 ? "#ef4444" : "#f59e0b"
+                        }}>
+                          {product.quantity}
+                        </span>
                       </td>
                       <td style={styles.td}>
                         <span
@@ -761,7 +849,7 @@ const Dashboard = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="2" style={{ ...styles.td, textAlign: "center", padding: "40px" }}>
+                    <td colSpan="4" style={{ ...styles.td, textAlign: "center", padding: "40px" }}>
                       <FaBoxes size={32} style={{ opacity: 0.5, marginBottom: "12px" }} />
                       <div>All products are well stocked ✓</div>
                       <div style={{ fontSize: "13px", color: "#6b7280", marginTop: "8px" }}>
@@ -773,7 +861,7 @@ const Dashboard = () => {
 
                 {stats.lowStockProducts.length > 5 && (
                   <tr>
-                    <td colSpan="2" style={{ ...styles.td, textAlign: "center", backgroundColor: "rgba(0, 0, 0, 0.3)" }}>
+                    <td colSpan="4" style={{ ...styles.td, textAlign: "center", backgroundColor: "rgba(0, 0, 0, 0.3)" }}>
                       <span
                         onClick={handleViewAllLowStock}
                         style={styles.viewAllText}
@@ -787,19 +875,83 @@ const Dashboard = () => {
               </tbody>
             </table>
           </div>
+
+          {!isEmployeeDashboard && (
+            <div style={styles.tableContainer}>
+              <div style={styles.tableHeader}>
+                <h3 style={styles.tableTitle}>
+                  <FaMoneyBillWave color="#10b981" />
+                  Payment Methods
+                </h3>
+              </div>
+
+              {stats.paymentMethods.length > 0 ? (
+                <div style={styles.paymentGrid}>
+                  {stats.paymentMethods.map((method, index) => (
+                    <div key={index} style={styles.paymentCard}>
+                      <div style={styles.paymentMethod}>
+                        <span style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          backgroundColor:
+                            method.method === 'cash' ? '#10b981' :
+                              method.method === 'card' ? '#3b82f6' :
+                                method.method === 'upi' ? '#8b5cf6' : '#f59e0b'
+                        }} />
+                        {method.method}
+                      </div>
+                      <div style={styles.paymentAmount}>
+                        {formatCurrency(method.total)}
+                      </div>
+                      <div style={styles.paymentCount}>
+                        {method.count} {method.count === 1 ? 'transaction' : 'transactions'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                  <FaMoneyBillWave size={32} style={{ opacity: 0.5, marginBottom: "12px" }} />
+                  <p style={{ color: "#94a3b8" }}>No payment data available</p>
+                </div>
+              )}
+
+              {stats.paymentMethods.length > 0 && (
+                <div style={{
+                  marginTop: "20px",
+                  padding: "16px",
+                  backgroundColor: "rgba(0, 0, 0, 0.5)",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  backdropFilter: "blur(4px)",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ color: "#cbd5e1" }}>Total Payments</span>
+                    <span style={{ fontSize: "20px", fontWeight: "600", color: "#10b981" }}>
+                      {formatCurrency(stats.billing.totalPayments || 0)}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
+                    All time total
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-        <button
-          style={styles.shortcutButton}
-          onClick={() => setShowShortcuts(true)}
-          className="shortcut-button"
-        >
-          <FaKeyboard /> <span style={{ fontWeight: "bold" }}>?</span> Shortcuts
-        </button>
+      <button
+        style={styles.shortcutButton}
+        onClick={() => setShowShortcuts(true)}
+        className="shortcut-button"
+      >
+        <FaKeyboard /> <span style={{ fontWeight: "bold" }}>?</span> Shortcuts
+      </button>
 
-        <ShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
-      </div>
+      <ShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+    </div>
   );
 };
 

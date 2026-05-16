@@ -84,18 +84,26 @@ const VisitBillPage = () => {
 
   const hasPermission = (submoduleId) => {
     if (isAdmin) return true;
-    // Default to false for visibility controls if not explicitly granted
-    if (submoduleId === 'profit_visibility' || submoduleId === 'date_filter_visibility') {
+    if (!permissions) return false;
+
+    // Handle Array format (from UserSettings)
+    if (Array.isArray(permissions)) {
       const perm = permissions.find(p => p.submodule_id === submoduleId);
       return perm?.view === true;
     }
-    // For other submodules, keep existing logic (if any)
-    return permissions.some(p => p.submodule_id === submoduleId && p.view);
+
+    // Handle Object format (from AccessControl/UserTypes)
+    if (typeof permissions === 'object') {
+      return permissions[submoduleId]?.view === true;
+    }
+
+    return false;
   };
 
   const fetchPermissions = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/permissions?userType=${userType}`);
+      const employeeId = user.id || user.employee_id || "";
+      const response = await axios.get(`${API_BASE_URL}/permissions?userType=${userType}&employeeId=${employeeId}`);
       setPermissions(response.data);
     } catch (error) {
       console.error("Error fetching permissions:", error);
@@ -1166,17 +1174,7 @@ const VisitBillPage = () => {
       );
     }
 
-    if (!hasPermission('date_filter_visibility')) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const endOfToday = new Date();
-      endOfToday.setHours(23, 59, 59, 999);
-
-      filtered = filtered.filter(bill => {
-        const billDate = new Date(bill.createdAt);
-        return billDate >= today && billDate <= endOfToday;
-      });
-    } else if (dateRange.start && dateRange.end) {
+    if (dateRange.start && dateRange.end) {
       const start = new Date(dateRange.start);
       start.setHours(0, 0, 0, 0);
       const end = new Date(dateRange.end);
@@ -1677,7 +1675,7 @@ const VisitBillPage = () => {
       border: "1px solid #374151",
       marginBottom: "20px",
       display: "grid",
-      gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr auto",
+      gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 1fr auto",
       gap: "12px",
       alignItems: "center",
     },
@@ -2358,6 +2356,9 @@ const VisitBillPage = () => {
               <th style={{ ...styles.th, textAlign: 'right' }}>Discount</th>
               <th style={{ ...styles.th, textAlign: 'right' }}>Tax</th>
               <th style={{ ...styles.th, textAlign: 'right' }}>Total</th>
+              {hasPermission('profit_visibility') && (
+                <th style={{ ...styles.th, textAlign: 'right' }}>Profit</th>
+              )}
               <th style={{ ...styles.th, textAlign: 'right' }}>Paid</th>
               <th style={{ ...styles.th, textAlign: 'right' }}>Due</th>
               <th style={{ ...styles.th, textAlign: 'center' }}>Payment</th>
@@ -2367,7 +2368,7 @@ const VisitBillPage = () => {
           <tbody>
             {currentBills.length === 0 ? (
               <tr>
-                <td colSpan="14" style={styles.noData}>
+                <td colSpan={hasPermission('profit_visibility') ? "15" : "14"} style={styles.noData}>
                   {searchTerm || filterPaymentMethod !== 'all' || filterCustomerType !== 'all' || dateRange.start
                     ? <div>
                       <Filter size={30} style={{ marginBottom: '10px', opacity: 0.5 }} />
@@ -2478,6 +2479,13 @@ const VisitBillPage = () => {
                       </span>
                     </td>
                     <td style={{ ...styles.td, textAlign: 'right' }}><strong>{formatCurrency(bill.total)}</strong></td>
+                    {hasPermission('profit_visibility') && (
+                      <td style={{ ...styles.td, textAlign: 'right' }}>
+                        <span style={{ color: '#f59e0b', fontWeight: '600' }}>
+                          {formatCurrency(bill.profit)}
+                        </span>
+                      </td>
+                    )}
                     <td style={{ ...styles.td, textAlign: 'right' }}>{formatCurrency(bill.paidAmount)}</td>
                     <td style={{ ...styles.td, textAlign: 'right' }}>
                       <span style={{
