@@ -81,6 +81,7 @@ const VisitBillPage = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const userType = localStorage.getItem("userType") || user.user_type || "";
   const isAdmin = userType.toLowerCase() === "admin";
+  const isEmployee = userType.toLowerCase() === "employee";
 
   const hasPermission = (submoduleId) => {
     if (isAdmin) return true;
@@ -913,7 +914,7 @@ const VisitBillPage = () => {
             <!-- Header with Logo -->
             <div class="receipt-header">
               <div class="receipt-logo">
-                <img src="/Dc-logo.jpg" alt="Dressing Concepts" class="receipt-logo-img" onerror="this.style.display='none'" />
+                <img src="/Dressing_Concept.png" alt="Dressing Concepts" class="receipt-logo-img" onerror="this.style.display='none'" />
               </div>
               <div class="receipt-shop">${companyDetails.name || "DRESSING CONCEPTS"}</div>
               <div class="receipt-tagline">Style · Quality · Value</div>
@@ -1043,6 +1044,44 @@ const VisitBillPage = () => {
       </html>
     `);
     printWindow.document.close();
+  };
+
+  // Send Digital Bill via Messenger
+  const sendDigitalBillMessenger = async (bill) => {
+    if (!bill.customerPhone && !bill.customer_phone) {
+      showMessage("error", "❌ Customer phone number not available");
+      return;
+    }
+
+    const phoneNumber = bill.customer_phone || bill.customerPhone;
+    const customerName = bill.customer_name || bill.customerName || "Customer";
+    const billNumber = bill.bill_number || bill.billNumber;
+
+    try {
+      const digitalBillLink = `${window.location.origin}/digital-bill?billNo=${billNumber}`;
+      const messageText = `Hi ${customerName}, we are delighted! Thank you for shopping at Dressing Concept. Click the link to get your Digital Bill: ${digitalBillLink}\n\nHappy Shopping!`;
+
+      const response = await axios.post(`${API_BASE_URL}/billing/send-digital-bill`, {
+        phoneNumber,
+        customerName,
+        billNumber,
+        message: messageText,
+        digitalBillLink
+      }, {
+        withCredentials: true,
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (response.data.success) {
+        showMessage("success", `✅ ${response.data.message}`);
+      } else {
+        showMessage("error", `⚠️ ${response.data.message}`);
+      }
+    } catch (err) {
+      const backendMessage = err.response?.data?.error || err.response?.data?.message;
+      showMessage("error", backendMessage || "❌ Unable to send digital bill link");
+      console.error("Error sending digital bill:", err);
+    }
   };
 
   // WhatsApp share function with company details
@@ -2186,47 +2225,57 @@ const VisitBillPage = () => {
         gap: '15px',
         marginBottom: '20px'
       }}>
-        <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #6366f1' }}>
-          <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <TrendingUp size={14} color="#6366f1" /> TOTAL SALES
+        {hasPermission('sales_visibility') && (
+          <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #6366f1' }}>
+            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <TrendingUp size={14} color="#6366f1" /> TOTAL SALES
+            </div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.total.amount)}</div>
+            <div style={{ fontSize: '11px', color: '#6366f1' }}>{salesSummary.total.count} Bills</div>
           </div>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.total.amount)}</div>
-          <div style={{ fontSize: '11px', color: '#6366f1' }}>{salesSummary.total.count} Bills</div>
-        </div>
+        )}
 
-        <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #059669' }}>
-          <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-             <DollarSign size={14} color="#059669" /> CASH
+        {hasPermission('cash_visibility') && (
+          <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #059669' }}>
+            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+               <DollarSign size={14} color="#059669" /> CASH
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.cash.amount)}</div>
+            <div style={{ fontSize: '11px', color: '#059669' }}>{salesSummary.cash.count} Bills</div>
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.cash.amount)}</div>
-          <div style={{ fontSize: '11px', color: '#059669' }}>{salesSummary.cash.count} Bills</div>
-        </div>
+        )}
 
-        <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #3b82f6' }}>
-          <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-             <CreditCard size={14} color="#3b82f6" /> CARD
+        {hasPermission('card_visibility') && (
+          <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #3b82f6' }}>
+            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+               <CreditCard size={14} color="#3b82f6" /> CARD
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.card.amount)}</div>
+            <div style={{ fontSize: '11px', color: '#3b82f6' }}>{salesSummary.card.count} Bills</div>
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.card.amount)}</div>
-          <div style={{ fontSize: '11px', color: '#3b82f6' }}>{salesSummary.card.count} Bills</div>
-        </div>
+        )}
 
-        <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #8b5cf6' }}>
-          <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-             <Smartphone size={14} color="#8b5cf6" /> UPI
+        {hasPermission('upi_visibility') && (
+          <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #8b5cf6' }}>
+            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+               <Smartphone size={14} color="#8b5cf6" /> UPI
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.upi.amount)}</div>
+            <div style={{ fontSize: '11px', color: '#8b5cf6' }}>{salesSummary.upi.count} Bills</div>
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.upi.amount)}</div>
-          <div style={{ fontSize: '11px', color: '#8b5cf6' }}>{salesSummary.upi.count} Bills</div>
-        </div>
+        )}
 
-        <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #10b981' }}>
-          <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-             <Globe size={14} color="#10b981" /> ONLINE
+        {hasPermission('online_visibility') && (
+          <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #10b981' }}>
+            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+               <Globe size={14} color="#10b981" /> ONLINE
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.online.amount)}</div>
+            <div style={{ fontSize: '11px', color: '#10b981' }}>{salesSummary.online.count} Bills</div>
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.online.amount)}</div>
-          <div style={{ fontSize: '11px', color: '#10b981' }}>{salesSummary.online.count} Bills</div>
-        </div>
+        )}
 
-        {hasPermission('profit_visibility') && (
+        {!isEmployee && hasPermission('profit_visibility') && (
           <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #f59e0b' }}>
             <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                <TrendingUp size={14} color="#f59e0b" /> PROFIT
@@ -2255,12 +2304,18 @@ const VisitBillPage = () => {
           value={quickDate}
           onChange={(e) => handleQuickDateChange(e.target.value)}
         >
-          <option value="today">Today</option>
-          <option value="yesterday">Yesterday</option>
-          <option value="past2days">Past 2 Days</option>
-          <option value="thisweek">Last 7 Days</option>
-          <option value="thismonth">This Month</option>
-          <option value="all">Custom Range</option>
+          {isEmployee ? (
+            <option value="today">Today</option>
+          ) : (
+            <>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="past2days">Past 2 Days</option>
+              <option value="thisweek">Last 7 Days</option>
+              <option value="thismonth">This Month</option>
+              <option value="all">Custom Range</option>
+            </>
+          )}
         </select>
 
         <select
@@ -2273,24 +2328,30 @@ const VisitBillPage = () => {
           <option value="card">Card</option>
           <option value="upi">UPI</option>
           <option value="online">Online</option>
-          <option value="netbanking">Netbanking</option>
-          <option value="cheque">Cheque</option>
-          <option value="mixed">Mixed</option>
+          {!isEmployee && (
+            <>
+              <option value="netbanking">Netbanking</option>
+              <option value="cheque">Cheque</option>
+              <option value="mixed">Mixed</option>
+            </>
+          )}
         </select>
 
-        <select
-          style={styles.filterSelect}
-          value={filterCustomerType}
-          onChange={(e) => setFilterCustomerType(e.target.value)}
-        >
-          <option value="all">All Customers</option>
-          <option value="internal">Internal (Staff)</option>
-          <option value="external">External</option>
-          <option value="regular">Regular</option>
-          <option value="wholesale">Wholesale</option>
-          <option value="vip">VIP</option>
-          <option value="corporate">Corporate</option>
-        </select>
+        {!isEmployee && (
+          <select
+            style={styles.filterSelect}
+            value={filterCustomerType}
+            onChange={(e) => setFilterCustomerType(e.target.value)}
+          >
+            <option value="all">All Customers</option>
+            <option value="internal">Internal (Staff)</option>
+            <option value="external">External</option>
+            <option value="regular">Regular</option>
+            <option value="wholesale">Wholesale</option>
+            <option value="vip">VIP</option>
+            <option value="corporate">Corporate</option>
+          </select>
+        )}
 
         {hasPermission('date_filter_visibility') && (
           <>
@@ -2312,16 +2373,18 @@ const VisitBillPage = () => {
           </>
         )}
 
-        <select
-          style={styles.filterSelect}
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-        >
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-          <option value="highest">Highest Amount</option>
-          <option value="lowest">Lowest Amount</option>
-        </select>
+        {!isEmployee && (
+          <select
+            style={styles.filterSelect}
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="highest">Highest Amount</option>
+            <option value="lowest">Lowest Amount</option>
+          </select>
+        )}
 
         <button
           style={styles.filterButton}
@@ -2541,34 +2604,21 @@ const VisitBillPage = () => {
                         <button
                           style={{
                             ...styles.whatsappButton,
-                            opacity: whatsappStatus[bill.id] === 'sending' ? 0.7 : 1,
-                            cursor: whatsappStatus[bill.id] === 'sending' ? 'wait' : 'pointer',
-                            backgroundColor: whatsappStatus[bill.id] === 'sent' ? '#059669' : '#25D366',
+                            backgroundColor: '#007bff',
                             margin: 0
                           }}
-                          onClick={() => handleWhatsAppShare(bill)}
-                          title="Share on WhatsApp (F10)"
-                          disabled={whatsappStatus[bill.id] === 'sending'}
+                          onClick={() => sendDigitalBillMessenger(bill)}
+                          title="Send Digital Bill via Messenger"
                           onMouseEnter={(e) => {
-                            if (!whatsappStatus[bill.id]) {
-                              e.currentTarget.style.backgroundColor = '#128C7E';
-                              e.currentTarget.style.transform = 'scale(1.05)';
-                            }
+                            e.currentTarget.style.backgroundColor = '#0056b3';
+                            e.currentTarget.style.transform = 'scale(1.05)';
                           }}
                           onMouseLeave={(e) => {
-                            if (!whatsappStatus[bill.id]) {
-                              e.currentTarget.style.backgroundColor = '#25D366';
-                              e.currentTarget.style.transform = 'scale(1)';
-                            }
+                            e.currentTarget.style.backgroundColor = '#007bff';
+                            e.currentTarget.style.transform = 'scale(1)';
                           }}
                         >
-                          {whatsappStatus[bill.id] === 'sending' ? (
-                            <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                          ) : whatsappStatus[bill.id] === 'sent' ? (
-                            <CheckCircle size={14} />
-                          ) : (
-                            <MessageCircle size={14} />
-                          )}
+                          📱
                         </button>
                       </div>
                     </td>

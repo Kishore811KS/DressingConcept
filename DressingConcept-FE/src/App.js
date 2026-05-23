@@ -12,6 +12,7 @@ import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import Product from "./components/Product";
 import Bill from "./components/Bill";
+import DigitalBill from "./components/DigitalBill";
 import VisitBillPage from "./components/VisitPage";
 import SupplierPage from "./components/Supplier";
 import SupplierDuplicatePage from "./components/SupplierList";
@@ -84,6 +85,7 @@ function Layout() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/product" element={<Product />} />
           <Route path="/Bill" element={<Bill />} />
+          <Route path="/digital-bill" element={<DigitalBill />} />
           <Route path="/billreport" element={<VisitBillPage />} />
           <Route path="/supplier" element={<SupplierPage />} />
           <Route path="/supplierList" element={<SupplierDuplicatePage />} />

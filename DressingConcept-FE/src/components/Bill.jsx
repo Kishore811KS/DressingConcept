@@ -33,8 +33,7 @@ export default function Bill() {
   }, []);
 
   const [loading, setLoading] = useState(false);
-  
-  // Persistence logic: Load initial state from localStorage if available
+
   const getSavedState = (key, defaultValue) => {
     try {
       const saved = localStorage.getItem("bill_draft");
@@ -88,9 +87,6 @@ export default function Bill() {
   const [mobileSuggestions, setMobileSuggestions] = useState([]);
   const [showMobileSuggestions, setShowMobileSuggestions] = useState(false);
   const [activeRowIndex, setActiveRowIndex] = useState(0);
-  const [salesPersonSuggestions, setSalesPersonSuggestions] = useState([]);
-  const [showSalesPersonSuggestions, setShowSalesPersonSuggestions] = useState(false);
-  const [salesPersonList, setSalesPersonList] = useState([]);
 
   const [employees, setEmployees] = useState([]);
   const [spSuggestions, setSPSuggestions] = useState([]);
@@ -100,8 +96,9 @@ export default function Bill() {
   const [totalStockInStore, setTotalStockInStore] = useState(0);
   const [customers, setCustomers] = useState([]);
   const [availablePoints, setAvailablePoints] = useState(0);
+  const [billNumberSuggestions, setBillNumberSuggestions] = useState([]);
+  const [showBillNumberSuggestions, setShowBillNumberSuggestions] = useState(false);
 
-  // Refs for focusing inputs
   const rowInputRefs = useRef([]);
   const qtyInputRefs = useRef([]);
   const customerNameRef = useRef(null);
@@ -128,8 +125,6 @@ export default function Bill() {
     loadCustomers();
     loadEmployees();
     loadStockStatistics();
-
-    // Auto-refresh statistics every 10 seconds to keep counts in sync
     const statsInterval = setInterval(loadStockStatistics, 10000);
     return () => clearInterval(statsInterval);
   }, []);
@@ -143,7 +138,6 @@ export default function Bill() {
     }
   };
 
-  // Save state to localStorage whenever it changes
   useEffect(() => {
     const state = {
       rows, billNo, counter, customerName, memberId, mobileNumber, salesPerson,
@@ -168,29 +162,25 @@ export default function Bill() {
     return () => clearTimeout(timer);
   }, [message, error]);
 
-  // Close mobile suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (mobileContainerRef.current && !mobileContainerRef.current.contains(event.target)) {
         setShowMobileSuggestions(false);
       }
       if (salesPersonContainerRef.current && !salesPersonContainerRef.current.contains(event.target)) {
-        setShowSalesPersonSuggestions(false);
+        setShowSPSuggestions(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Update rows when Classic Mode is toggled
   useEffect(() => {
-    setRows((prevRows) => 
+    setRows((prevRows) =>
       prevRows.map((row) => {
         if (!row.productId || !row._dbId) return row;
-        
         const originalProduct = products.find(p => p.id === row._dbId);
         if (!originalProduct) return row;
-
         const normalized = normalizeProduct(originalProduct);
         return {
           ...row,
@@ -202,13 +192,6 @@ export default function Bill() {
     );
   }, [classicCustomer, products]);
 
-  // Build sales person list from products
-  useEffect(() => {
-    const uniqueSalesPersons = [...new Set(products.map(p => p.salesPerson).filter(Boolean))];
-    setSalesPersonList(uniqueSalesPersons);
-  }, [products]);
-
-  // Helper to show temporary messages
   const showTempMessage = (type, text) => {
     if (type === "success") setMessage(text);
     else setError(text);
@@ -231,7 +214,7 @@ export default function Bill() {
       setShowSPSuggestions(false);
       return;
     }
-    const filtered = employees.filter(emp => 
+    const filtered = employees.filter(emp =>
       emp.full_name && emp.full_name.toLowerCase().startsWith(input.toLowerCase())
     ).slice(0, 10);
     setSPSuggestions(filtered);
@@ -247,14 +230,12 @@ export default function Bill() {
     setShowSPSuggestions(false);
   };
 
-  // Filter mobile suggestions based on input
   const filterMobileSuggestions = (input) => {
     if (!input || input.length < 2) {
       setMobileSuggestions([]);
       setShowMobileSuggestions(false);
       return;
     }
-
     const filtered = customers
       .filter(customer =>
         customer.phone &&
@@ -265,41 +246,14 @@ export default function Bill() {
     setShowMobileSuggestions(filtered.length > 0);
   };
 
-  // Filter sales person suggestions
-  const filterSalesPersonSuggestions = (input) => {
-    if (!input || input.length === 0) {
-      setSalesPersonSuggestions([]);
-      setShowSalesPersonSuggestions(false);
-      return;
-    }
-
-    const filtered = salesPersonList
-      .filter(name =>
-        name &&
-        name.toLowerCase().includes(input.toLowerCase())
-      )
-      .slice(0, 10);
-    setSalesPersonSuggestions(filtered);
-    setShowSalesPersonSuggestions(filtered.length > 0);
-  };
-
-  // Handle sales person change with suggestions
   const handleSalesPersonChange = (value) => {
     setSalesPerson(value);
-    filterSalesPersonSuggestions(value);
+    filterSPSuggestions(value, -1);
   };
 
-  // Select sales person suggestion
-  const selectSalesPersonSuggestion = (name) => {
-    setSalesPerson(name);
-    setShowSalesPersonSuggestions(false);
-  };
-
-  // Handle mobile number change with suggestions
   const handleMobileChangeWithSuggestions = (value) => {
     setMobileNumber(value);
     filterMobileSuggestions(value);
-
     if (value.length >= 10) {
       fetchCustomerDetails(value);
     } else if (value.length < 10) {
@@ -311,7 +265,6 @@ export default function Bill() {
     }
   };
 
-  // Select suggestion
   const selectMobileSuggestion = (customer) => {
     setMobileNumber(customer.phone);
     setCustomerName(customer.name || "");
@@ -321,7 +274,6 @@ export default function Bill() {
     salesPersonRef.current?.focus();
   };
 
-  // Fetch customer details from API
   const fetchCustomerDetails = async (value) => {
     try {
       const response = await axios.get(`${API_BASE_URL}/billing/customer/${value}`);
@@ -342,7 +294,30 @@ export default function Bill() {
     }
   };
 
-  // Helper: returns true if this product is a deleted/placeholder entry
+  const fetchBillDetails = async (billNumber) => {
+    if (!billNumber || billNumber.trim().length === 0) {
+      setShowBillNumberSuggestions(false);
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/billing/bills/number/${billNumber.trim()}`);
+      if (response.data) {
+        const bill = response.data;
+        // Pre-fill customer details from previous bill
+        if (bill.customer_name) setCustomerName(bill.customer_name);
+        if (bill.customer_phone) setMobileNumber(bill.customer_phone);
+        if (bill.customer_address) setAddress(bill.customer_address);
+        if (bill.created_by_name) setSalesPerson(bill.created_by_name);
+        if (bill.reward_points_available) setAvailablePoints(bill.reward_points_available);
+        setShowBillNumberSuggestions(false);
+      }
+    } catch (err) {
+      console.log("Bill not found or could not fetch details", err);
+      setShowBillNumberSuggestions(false);
+    }
+  };
+
   const isDeletedProduct = (p) => {
     const name = String(p.name || p.productName || "");
     const code = String(p.productCode || p.id || "");
@@ -383,7 +358,6 @@ export default function Bill() {
     let netPrice = money(product.netPrice || (mrp - (mrp * discountPercent / 100)));
     let finalDiscountPercent = discountPercent;
 
-    // Use Classic Mode pricing if enabled and available
     if (classicCustomer && product.classicCustomer) {
       const cp = money(product.classicCustomer);
       mrp = cp;
@@ -515,7 +489,6 @@ export default function Bill() {
     }
   };
 
-  // FIXED: Product search handler that only adds/updates on Enter
   const handleProductSearch = (index, value, onDone) => {
     const query = String(value || "").trim();
     if (!query) {
@@ -539,13 +512,11 @@ export default function Bill() {
       const normalized = normalizeProduct(product);
 
       setRows((current) => {
-        // Check if product already exists in the bill (excluding current row)
         const existingIndex = current.findIndex((row, rowIndex) =>
           rowIndex !== index && (row._dbId === normalized._dbId || (row.productId && row.productId === normalized.productId))
         );
 
         if (existingIndex !== -1) {
-          // Product exists: increase quantity by 1
           showTempMessage("success", `✅ Quantity increased for ${normalized.description}`);
 
           const nextRows = current.map((row, rowIndex) => {
@@ -556,7 +527,6 @@ export default function Bill() {
             return row;
           });
 
-          // Clear the current row
           const clearedRows = nextRows.map((row, rowIndex) => {
             if (rowIndex === index) {
               return {
@@ -574,15 +544,12 @@ export default function Bill() {
             return row;
           });
 
-          // Move to next row after processing
           if (onDone) setTimeout(() => onDone(index + 1, true), 100);
           return clearedRows;
         }
 
-        // Product is new: add to current row
         const nextRows = current.map((row, rowIndex) => (rowIndex === index ? normalized : row));
 
-        // Check if we need a new blank row
         const lastRow = nextRows[nextRows.length - 1];
         if (lastRow.productId && lastRow.productId !== "") {
           nextRows.push({
@@ -681,24 +648,56 @@ export default function Bill() {
     }, 50);
   };
 
-  // Calculate payment totals
+  // ─── Focus qty field for a given row index ────────────────────────────────
+  const focusQtyField = (index) => {
+    setTimeout(() => {
+      const qtyInput = qtyInputRefs.current[index];
+      if (qtyInput) {
+        qtyInput.focus();
+        qtyInput.select();
+      }
+    }, 50);
+  };
+
+  // ─── After qty is confirmed, move to next row's product-id field ──────────
+  const moveToNextRow = (currentIndex) => {
+    setRows((current) => {
+      // Ensure there is a blank row after the current one
+      const nextIndex = currentIndex + 1;
+      if (nextIndex >= current.length) {
+        const blank = {
+          productId: "",
+          description: "",
+          tax: "",
+          unit: "",
+          mrp: "",
+          discountPercent: "",
+          netPrice: "",
+          quantity: "",
+          salesPerson: "",
+        };
+        setTimeout(() => {
+          const el = rowInputRefs.current[nextIndex];
+          if (el) { el.focus(); el.select(); }
+        }, 60);
+        return [...current, blank];
+      }
+      setTimeout(() => {
+        const el = rowInputRefs.current[nextIndex];
+        if (el) { el.focus(); el.select(); }
+      }, 60);
+      return current;
+    });
+  };
+
   const paymentTotals = useMemo(() => {
     const cash = Number(cashReceived) || 0;
     const upi = Number(upiAmount) || 0;
     const card = Number(cardAmount) || 0;
     const online = Number(onlineAmount) || 0;
     const previous = Number(paidBefore) || 0;
-
     const totalPaid = money(cash + upi + card + online + previous);
-
-    return {
-      cash,
-      upi,
-      card,
-      online,
-      previous,
-      totalPaid
-    };
+    return { cash, upi, card, online, previous, totalPaid };
   }, [cashReceived, upiAmount, cardAmount, onlineAmount, paidBefore]);
 
   const totals = useMemo(() => {
@@ -720,15 +719,9 @@ export default function Bill() {
     const manualPercentDiscount = netBeforeDiscount * ((Number(discountPercent) || 0) / 100);
     const manualDiscount = money(manualPercentDiscount + (Number(discountAmount) || 0));
     const billValue = Math.round(Math.max(0, netBeforeDiscount - manualDiscount + taxTotal));
-
-    // Calculate balance/return
     const balanceDue = money(Math.max(0, billValue - paymentTotals.totalPaid));
     const returnAmount = money(Math.max(0, paymentTotals.totalPaid - billValue));
-
-    // For display purposes, "Total Paid" usually means "Amount applied to the bill"
     const displayPaid = Math.min(paymentTotals.totalPaid, billValue);
-
-    // Check if payment is complete (exact amount or overpayment)
     const isPaymentComplete = paymentTotals.totalPaid >= billValue;
     const isExactPayment = paymentTotals.totalPaid === billValue;
     const isOverPayment = paymentTotals.totalPaid > billValue;
@@ -753,33 +746,19 @@ export default function Bill() {
     };
   }, [rows, discountPercent, discountAmount, paymentTotals]);
 
-  // Update payment fields when numbers change
   const handlePaymentChange = (type, value) => {
     const numValue = value === "" ? "" : Number(value);
-
     switch (type) {
-      case 'cash':
-        setCashReceived(numValue);
-        break;
-      case 'upi':
-        setUpiAmount(numValue);
-        break;
-      case 'card':
-        setCardAmount(numValue);
-        break;
-      case 'online':
-        setOnlineAmount(numValue);
-        break;
-      case 'paidBefore':
-        setPaidBefore(numValue);
-        break;
-      default:
-        break;
+      case 'cash': setCashReceived(numValue); break;
+      case 'upi': setUpiAmount(numValue); break;
+      case 'card': setCardAmount(numValue); break;
+      case 'online': setOnlineAmount(numValue); break;
+      case 'paidBefore': setPaidBefore(numValue); break;
+      default: break;
     }
   };
 
   const saveBill = async () => {
-    // Validate payment before saving
     if (!totals.canSave) {
       if (totals.billValue === 0) {
         setError("Add at least one product before saving.");
@@ -796,7 +775,6 @@ export default function Bill() {
     setMessage("");
 
     try {
-      // Determine primary payment method
       let paymentMethod = "cash";
       if (paymentTotals.card > 0) paymentMethod = "card";
       else if (paymentTotals.upi > 0) paymentMethod = "upi";
@@ -843,10 +821,7 @@ export default function Bill() {
       const savedNumber = response.data?.billNumber || billNo;
       setBillNo(savedNumber);
       setMessage(`Bill saved successfully! Bill No: ${savedNumber}`);
-      
-      // Clear persistence after successful save
       localStorage.removeItem("bill_draft");
-      
       await loadProducts();
       return savedNumber;
     } catch (err) {
@@ -925,12 +900,10 @@ export default function Bill() {
     }
   };
 
-  // Set active row index when focusing
   const handleRowFocus = (index) => {
     setActiveRowIndex(index);
   };
 
-  // Handle quick add key press
   const handleQuickAddKeyDown = (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -941,7 +914,6 @@ export default function Bill() {
     }
   };
 
-  // Focus quick add input
   const focusQuickAdd = () => {
     if (quickAddInputRef.current) {
       quickAddInputRef.current.focus();
@@ -949,7 +921,6 @@ export default function Bill() {
     }
   };
 
-  // Focus first empty product field
   const focusFirstEmptyProductField = () => {
     let targetIndex = -1;
     for (let i = 0; i < rows.length; i++) {
@@ -958,11 +929,7 @@ export default function Bill() {
         break;
       }
     }
-
-    if (targetIndex === -1 && rows.length > 0) {
-      targetIndex = rows.length - 1;
-    }
-
+    if (targetIndex === -1 && rows.length > 0) targetIndex = rows.length - 1;
     if (targetIndex !== -1 && rowInputRefs.current[targetIndex]) {
       setActiveRowIndex(targetIndex);
       rowInputRefs.current[targetIndex].focus();
@@ -970,7 +937,6 @@ export default function Bill() {
     }
   };
 
-  // Keyboard Shortcuts Handler
   useEffect(() => {
     const handleKeyDown = (event) => {
       const activeElement = document.activeElement;
@@ -978,7 +944,6 @@ export default function Bill() {
         activeElement?.tagName === 'TEXTAREA' ||
         activeElement?.isContentEditable;
 
-      // F2 - Focus Product Search
       if (event.key === 'F2') {
         event.preventDefault();
         event.stopPropagation();
@@ -987,7 +952,6 @@ export default function Bill() {
         return;
       }
 
-      // Ctrl+Shift+A OR Insert - Focus Quick Add input
       if ((event.ctrlKey && event.shiftKey && event.key === 'A') || event.key === 'Insert') {
         event.preventDefault();
         focusQuickAdd();
@@ -995,7 +959,6 @@ export default function Bill() {
         return;
       }
 
-      // F3 - Focus Customer Name
       if (event.key === 'F3') {
         event.preventDefault();
         customerNameRef.current?.focus();
@@ -1003,7 +966,6 @@ export default function Bill() {
         return;
       }
 
-      // F4 - Focus Mobile Number
       if (event.key === 'F4') {
         event.preventDefault();
         mobileRef.current?.focus();
@@ -1011,7 +973,6 @@ export default function Bill() {
         return;
       }
 
-      // F5 - Focus Sales Person
       if (event.key === 'F5') {
         event.preventDefault();
         salesPersonRef.current?.focus();
@@ -1019,7 +980,6 @@ export default function Bill() {
         return;
       }
 
-      // F6 - Focus Cash Received
       if (event.key === 'F6') {
         event.preventDefault();
         cashReceivedRef.current?.focus();
@@ -1027,7 +987,6 @@ export default function Bill() {
         return;
       }
 
-      // F7 - Focus Member ID
       if (event.key === 'F7') {
         event.preventDefault();
         memberIdRef.current?.focus();
@@ -1035,7 +994,6 @@ export default function Bill() {
         return;
       }
 
-      // Ctrl+Enter - Add current quick product
       if ((event.ctrlKey && event.key === 'Enter') && quickProductQuery.trim()) {
         event.preventDefault();
         addByQuery(quickProductQuery);
@@ -1045,7 +1003,6 @@ export default function Bill() {
         return;
       }
 
-      // Ctrl+S - Save Bill
       if ((event.ctrlKey || event.metaKey) && (event.key === 's' || event.key === 'S')) {
         event.preventDefault();
         if (rows.filter(r => r.productId && r._dbId).length > 0) {
@@ -1056,7 +1013,6 @@ export default function Bill() {
         return;
       }
 
-      // Ctrl+P - Print Bill
       if ((event.ctrlKey || event.metaKey) && (event.key === 'p' || event.key === 'P')) {
         event.preventDefault();
         if (rows.filter(r => r.productId && r._dbId).length > 0) {
@@ -1067,14 +1023,12 @@ export default function Bill() {
         return;
       }
 
-      // Ctrl+N - New/Clear Bill
       if ((event.ctrlKey || event.metaKey) && (event.key === 'n' || event.key === 'N')) {
         event.preventDefault();
         clearBill();
         return;
       }
 
-      // Alt+1 - Toggle Sale Return
       if (event.altKey && event.key === '1') {
         event.preventDefault();
         setSaleReturn(prev => !prev);
@@ -1082,7 +1036,6 @@ export default function Bill() {
         return;
       }
 
-      // Alt+2 - Toggle Card Bill
       if (event.altKey && event.key === '2') {
         event.preventDefault();
         setCardBill(prev => !prev);
@@ -1090,7 +1043,6 @@ export default function Bill() {
         return;
       }
 
-      // Alt+3 - Toggle No Rewards
       if (event.altKey && event.key === '3') {
         event.preventDefault();
         setNoRewards(prev => !prev);
@@ -1098,7 +1050,6 @@ export default function Bill() {
         return;
       }
 
-      // Alt+4 - Toggle Classic Customer
       if (event.altKey && event.key === '4') {
         event.preventDefault();
         setClassicCustomer(prev => !prev);
@@ -1106,7 +1057,6 @@ export default function Bill() {
         return;
       }
 
-      // Alt+C - Focus Card Amount
       if (event.altKey && event.key === 'c') {
         event.preventDefault();
         cardAmountRef.current?.focus();
@@ -1114,7 +1064,6 @@ export default function Bill() {
         return;
       }
 
-      // Alt+U - Focus UPI Amount
       if (event.altKey && event.key === 'u') {
         event.preventDefault();
         upiAmountRef.current?.focus();
@@ -1122,7 +1071,6 @@ export default function Bill() {
         return;
       }
 
-      // Alt+D - Focus Discount Percent
       if (event.altKey && event.key === 'd') {
         event.preventDefault();
         discountPercentRef.current?.focus();
@@ -1130,7 +1078,6 @@ export default function Bill() {
         return;
       }
 
-      // Alt+A - Focus Discount Amount
       if (event.altKey && event.key === 'a') {
         event.preventDefault();
         discountAmountRef.current?.focus();
@@ -1138,7 +1085,6 @@ export default function Bill() {
         return;
       }
 
-      // Delete - Remove last product
       if (event.key === 'Delete' && !isTyping) {
         event.preventDefault();
         const filledRows = rows.filter(r => r.productId && r._dbId);
@@ -1154,12 +1100,11 @@ export default function Bill() {
         return;
       }
 
-      // Escape - Clear error/message and blur focus
       if (event.key === 'Escape') {
         setError("");
         setMessage("");
         setShowMobileSuggestions(false);
-        setShowSalesPersonSuggestions(false);
+        setShowSPSuggestions(false);
         document.activeElement?.blur();
         return;
       }
@@ -1173,7 +1118,6 @@ export default function Bill() {
     <div className="sale-page">
       <style>{saleStyles}</style>
 
-      {/* Shortcut Keys Bar */}
       <div className="shortcut-bar">
         <div className="shortcut-title">🔥 SHORTCUTS:</div>
         <div className="shortcut-list">
@@ -1188,6 +1132,7 @@ export default function Bill() {
           <span><kbd>Ctrl+P</kbd>🖨️Print</span>
           <span><kbd>Ctrl+N</kbd>🆕New</span>
           <span><kbd>Alt+1-4</kbd>⚙️Toggles</span>
+          <span><kbd>+</kbd>📦Qty</span>
           <span><kbd>Delete</kbd>❌Remove</span>
           <span><kbd>Esc</kbd>🔇Clear</span>
         </div>
@@ -1213,7 +1158,22 @@ export default function Bill() {
             </div>
             <div className="field-group">
               <label>Bill No</label>
-              <input value={billNo} onChange={(event) => setBillNo(event.target.value)} />
+              <input
+                value={billNo}
+                onChange={(event) => {
+                  setBillNo(event.target.value);
+                  if (event.target.value.trim().length > 2) {
+                    fetchBillDetails(event.target.value);
+                  }
+                }}
+                onFocus={() => {
+                  if (billNo && billNo.length > 2) {
+                    setShowBillNumberSuggestions(true);
+                  }
+                }}
+                onBlur={() => setTimeout(() => setShowBillNumberSuggestions(false), 200)}
+                placeholder="Enter bill number to fetch details"
+              />
             </div>
             <div className="check-group">
               <label className="check"><input type="checkbox" checked={saleReturn} onChange={(event) => setSaleReturn(event.target.checked)} /> SALE RETURN <span className="shortcut-hint">Alt+1</span></label>
@@ -1231,7 +1191,7 @@ export default function Bill() {
               <input ref={memberIdRef} value={memberId} onChange={(event) => setMemberId(event.target.value)} />
             </div>
             <div className="mobile-field-group" ref={mobileContainerRef}>
-              <label>Classic Customer <span className="shortcut-hint">F4</span></label>
+              <label>Customer <span className="shortcut-hint">F4</span></label>
               <input
                 ref={mobileRef}
                 value={mobileNumber}
@@ -1267,24 +1227,25 @@ export default function Bill() {
                 onChange={(event) => handleSalesPersonChange(event.target.value)}
                 onFocus={() => {
                   if (salesPerson && salesPerson.length > 0) {
-                    filterSalesPersonSuggestions(salesPerson);
-                  } else if (salesPersonList.length > 0) {
-                    setSalesPersonSuggestions(salesPersonList.slice(0, 10));
-                    setShowSalesPersonSuggestions(true);
+                    filterSPSuggestions(salesPerson, -1);
+                  } else if (employees.length > 0) {
+                    setSPSuggestions(employees.slice(0, 10));
+                    setShowSPSuggestions(true);
+                    setActiveSPIndex(-1);
                   }
                 }}
-                placeholder="Type sales person name"
+                placeholder="Select sales person from employees"
                 autoComplete="off"
               />
-              {showSalesPersonSuggestions && salesPersonSuggestions.length > 0 && (
+              {showSPSuggestions && activeSPIndex === -1 && spSuggestions.length > 0 && (
                 <div className="salesperson-suggestions">
-                  {salesPersonSuggestions.map((name, idx) => (
+                  {spSuggestions.map((emp, idx) => (
                     <div
                       key={idx}
                       className="salesperson-suggestion-item"
-                      onClick={() => selectSalesPersonSuggestion(name)}
+                      onClick={() => selectSPSuggestion(emp.full_name)}
                     >
-                      <span className="suggestion-name">{name}</span>
+                      <span className="suggestion-name">{emp.full_name}</span>
                     </div>
                   ))}
                 </div>
@@ -1312,10 +1273,6 @@ export default function Bill() {
                 <label>Stock In Store</label>
                 <input value={totalStockInStore} readOnly />
               </div>
-              {/* <div className="field-group">
-                <label>Godown Stock</label>
-                <input value="0" readOnly />
-              </div> */}
             </div>
           </div>
         </div>
@@ -1368,41 +1325,38 @@ export default function Bill() {
                 const amount = money(netPrice * (Number(row.quantity) || 0));
                 return (
                   <tr key={`row-${index}-${row._dbId || 'empty'}`}>
+                    {/* ── Product ID cell ── */}
                     <td>
                       <input
                         ref={(el) => { rowInputRefs.current[index] = el; }}
                         value={row.productId}
                         onChange={(event) => updateRow(index, "productId", event.target.value)}
                         onFocus={() => handleRowFocus(index)}
-                        onBlur={(event) => {
-                          // No action on blur - only on Enter
-                        }}
                         onKeyDown={(event) => {
+                          // ── '+' key: jump to Qty field of THIS row ──────────
                           if (event.key === '+') {
                             event.preventDefault();
-                            if (index > 0) {
-                              const prevQtyInput = qtyInputRefs.current[index - 1];
-                              if (prevQtyInput) {
-                                prevQtyInput.focus();
-                                prevQtyInput.select();
-                              }
+                            // If the row already has a product loaded, jump to its qty
+                            if (row._dbId) {
+                              focusQtyField(index);
+                            } else if (index > 0) {
+                              // Jump to previous row's qty (legacy behaviour for empty row)
+                              focusQtyField(index - 1);
                             }
                             return;
                           }
+
                           if (event.key === 'Enter') {
                             event.preventDefault();
                             const typedValue = event.target.value;
                             if (typedValue) {
                               handleProductSearch(index, typedValue, (targetIndex, isExisting) => {
                                 setTimeout(() => {
-                                  // For existing product, targetIndex already points to the row with quantity increased
-                                  // For new product, targetIndex points to the next empty row
                                   const targetInput = rowInputRefs.current[targetIndex];
                                   if (targetInput) {
                                     targetInput.focus();
                                     targetInput.select();
                                   } else if (targetIndex === rows.length && !isExisting) {
-                                    // If we need to focus a newly added row
                                     setTimeout(() => {
                                       const newEmptyIndex = rows.findIndex(r => !r.productId);
                                       if (newEmptyIndex !== -1 && rowInputRefs.current[newEmptyIndex]) {
@@ -1413,7 +1367,6 @@ export default function Bill() {
                                 }, 50);
                               });
                             } else {
-                              // Move to next row if empty
                               const nextIndex = index + 1;
                               if (nextIndex < rows.length && rowInputRefs.current[nextIndex]) {
                                 rowInputRefs.current[nextIndex].focus();
@@ -1423,32 +1376,57 @@ export default function Bill() {
                             }
                           }
                         }}
-                        placeholder="Product ID (F2 to focus)"
+                        placeholder="Product ID (F2)"
                       />
                     </td>
+
                     <td><input value={row.description} onChange={(event) => updateRow(index, "description", event.target.value)} /></td>
                     <td><input type="number" value={row.tax} onChange={(event) => updateRow(index, "tax", event.target.value)} /></td>
                     <td><input value={row.unit} onChange={(event) => updateRow(index, "unit", event.target.value)} /></td>
                     <td><input type="number" value={row.mrp} onChange={(event) => updateRow(index, "mrp", event.target.value)} /></td>
                     <td><input type="number" value={row.discountPercent} onChange={(event) => updateRow(index, "discountPercent", event.target.value)} /></td>
                     <td><input type="number" value={netPrice} onChange={(event) => updateRow(index, "netPrice", event.target.value)} /></td>
-                    <td><input
-                      ref={(el) => { qtyInputRefs.current[index] = el; }}
-                      type="number" 
-                      min="1" 
-                      max={row.stock || undefined} 
-                      value={row.quantity} 
-                      onChange={(event) => updateRow(index, "quantity", event.target.value)} 
-                    /></td>
+
+                    {/* ── Qty cell: Enter saves and moves to next row ── */}
+                    <td>
+                      <input
+                        ref={(el) => { qtyInputRefs.current[index] = el; }}
+                        type="number"
+                        min="1"
+                        max={row.stock || undefined}
+                        value={row.quantity}
+                        onChange={(event) => updateRow(index, "quantity", event.target.value)}
+                        onFocus={(event) => {
+                          handleRowFocus(index);
+                          // Select all on focus so user can type straight away
+                          event.target.select();
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            // Commit qty (already tracked via onChange) and move forward
+                            moveToNextRow(index);
+                          }
+                          // Allow '+' from qty field too — jump to next row's product input
+                          if (event.key === '+') {
+                            event.preventDefault();
+                            moveToNextRow(index);
+                          }
+                        }}
+                      />
+                    </td>
+
                     <td className="amount-cell">{amount}</td>
+
+                    {/* ── Sales Person cell ── */}
                     <td className="action-cell" style={{ position: 'relative' }}>
                       <div className="sp-suggestion-container" style={{ flex: 1 }}>
-                        <input 
-                          value={row.salesPerson || ""} 
+                        <input
+                          value={row.salesPerson || ""}
                           onChange={(event) => {
                             updateRow(index, "salesPerson", event.target.value);
                             filterSPSuggestions(event.target.value, index);
-                          }} 
+                          }}
                           onFocus={() => {
                             setActiveRowIndex(index);
                             if (row.salesPerson) filterSPSuggestions(row.salesPerson, index);
@@ -1622,7 +1600,7 @@ export default function Bill() {
       <div className="print-only">
         <div className="receipt-header">
           <div className="receipt-logo">
-            <img src="/Dc-logo.jpg" alt="Dressing Concepts" className="receipt-logo-img" />
+            <img src="/Dressing_Concept.png" alt="Dressing Concepts" className="receipt-logo-img" />
           </div>
           <div className="receipt-shop">DRESSING CONCEPTS</div>
           <div className="receipt-tagline">Style · Quality · Value</div>
@@ -2137,6 +2115,13 @@ const saleStyles = `
     padding-left: 4px;
   }
 
+  /* Highlight the qty field when it has focus — makes it obvious it's editable */
+  .sale-grid td:nth-child(8) input:focus {
+    background: #e8f5e9;
+    border: 1px solid #4caf50 !important;
+    border-radius: 3px;
+  }
+
   .amount-cell {
     font-weight: 700;
     color: #2c3e50;
@@ -2323,24 +2308,14 @@ const saleStyles = `
   }
 
   @media (max-width: 1400px) {
-    .footer-panel {
-      gap: 8px;
-    }
-    .pay-value {
-      font-size: 16px;
-    }
+    .footer-panel { gap: 8px; }
+    .pay-value { font-size: 16px; }
   }
 
   @media (max-width: 1200px) {
-    .sale-window {
-      min-width: 900px;
-    }
-    .footer-panel {
-      grid-template-columns: repeat(3, 1fr);
-    }
-    .pay-board {
-      grid-column: span 1;
-    }
+    .sale-window { min-width: 900px; }
+    .footer-panel { grid-template-columns: repeat(3, 1fr); }
+    .pay-board { grid-column: span 1; }
   }
 
   .print-only { display: none; }
@@ -2361,16 +2336,8 @@ const saleStyles = `
       color: #000;
       background: #fff;
     }
-    .receipt-logo {
-      text-align: center;
-      margin-bottom: 6px;
-    }
-    .receipt-logo-img {
-      width: 62px;
-      height: 62px;
-      object-fit: contain;
-      display: inline-block;
-    }
+    .receipt-logo { text-align: center; margin-bottom: 6px; }
+    .receipt-logo-img { width: 150px; height: 150px; object-fit: contain; display: inline-block; }
     .receipt-shop { font-size: 15px; font-weight: 900; text-align: center; }
     .receipt-dash { border-top: 1px dashed #000; margin: 5px 0; }
     .receipt-table { width: 100%; border-collapse: collapse; }
@@ -2386,7 +2353,6 @@ const saleStyles = `
     .receipt-qr img { width: 52px; height: 52px; }
   }
 
-  /* Sales Person Suggestions */
   .sp-suggestions {
     position: absolute;
     top: 100%;

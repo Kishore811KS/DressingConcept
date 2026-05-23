@@ -352,6 +352,11 @@ const AccessControl = () => {
                         )}
                         <td style={{ ...styles.td, color: "#cbd5e1" }}>
                           {sub === "profit_visibility" ? "Show/Hide Profit Container" : 
+                           sub === "sales_visibility" ? "Show/Hide SALES Box" :
+                           sub === "cash_visibility" ? "Show/Hide CASH Box" :
+                           sub === "card_visibility" ? "Show/Hide CARD Box" :
+                           sub === "upi_visibility" ? "Show/Hide UPI Box" :
+                           sub === "online_visibility" ? "Show/Hide ONLINE Box" :
                            sub === "date_filter_visibility" ? "Show/Hide Date Filter" : 
                            sub === "employee_dashboard" ? "Employee Dashboard" : 
                            sub === "dashboard" ? "Dashboard" : sub}

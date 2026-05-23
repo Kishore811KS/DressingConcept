@@ -43,6 +43,11 @@ const calculateProduct = (product) => {
 };
 
 export default function Products() {
+  // Get user type
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const userType = localStorage.getItem("userType") || user.user_type || "";
+  const isEmployee = userType.toLowerCase() === "employee";
+
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -428,7 +433,9 @@ export default function Products() {
               <Upload size={16} /> Import
               <input ref={fileInputRef} type="file" hidden accept=".xlsx,.xls,.csv" onChange={handleImport} />
             </label>
-            <button ref={addButtonRef} style={{ ...styles.button, ...styles.primaryButton }} onClick={handleAddNew} title="Add New (F4)"><Plus size={16} /> Add New</button>
+            {!isEmployee && (
+              <button ref={addButtonRef} style={{ ...styles.button, ...styles.primaryButton }} onClick={handleAddNew} title="Add New (F4)"><Plus size={16} /> Add New</button>
+            )}
           </div>
         </div>
 
@@ -457,16 +464,24 @@ export default function Products() {
               <tr>
                 <th style={{ ...styles.th, width: 50, textAlign: "center" }}>#</th>
                 <th style={{ ...styles.th, width: 110 }}>Product ID</th>
-                <th style={{ ...styles.th, width: 220, textAlign: "left" }}>Description</th>
-                <th style={{ ...styles.th, width: 60, textAlign: "center" }}>Tax</th>
+                {!isEmployee && (
+                  <>
+                    <th style={{ ...styles.th, width: 220, textAlign: "left" }}>Description</th>
+                    <th style={{ ...styles.th, width: 60, textAlign: "center" }}>Tax</th>
+                  </>
+                )}
                 <th style={{ ...styles.th, width: 60, textAlign: "center" }}>Unit</th>
-                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>MRP (₹)</th>
-                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Pur Rate</th>
-                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Classic Price</th>
-                <th style={{ ...styles.th, width: 90, textAlign: "right" }}>N. Profit</th>
-                <th style={{ ...styles.th, width: 90, textAlign: "right" }}>C. Profit</th>
-                <th style={{ ...styles.th, width: 70, textAlign: "center" }}>Qty</th>
-                <th style={{ ...styles.th, width: 110, textAlign: "right" }}>Total Value (₹)</th>
+                {!isEmployee && (
+                  <>
+                    <th style={{ ...styles.th, width: 100, textAlign: "right" }}>MRP (₹)</th>
+                    <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Pur Rate</th>
+                    <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Classic Price</th>
+                    <th style={{ ...styles.th, width: 90, textAlign: "right" }}>N. Profit</th>
+                    <th style={{ ...styles.th, width: 90, textAlign: "right" }}>C. Profit</th>
+                    <th style={{ ...styles.th, width: 70, textAlign: "center" }}>Qty</th>
+                    <th style={{ ...styles.th, width: 110, textAlign: "right" }}>Total Value (₹)</th>
+                  </>
+                )}
                 <th style={{ ...styles.th, width: 80, textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
@@ -491,22 +506,34 @@ export default function Products() {
                     {idx + 1}
                   </td>
                   <td style={{ ...styles.td, fontFamily: "monospace", color: "#a5b4fc", fontSize: 12 }}>{item.productCode || item.id}</td>
-                  <td style={{ ...styles.td, fontWeight: 500 }}>{item.name || "-"}</td>
-                  <td style={{ ...styles.td, textAlign: "center", color: "#d1d5db" }}>{toNumber(item.tax).toFixed(1)}</td>
+                  {!isEmployee && (
+                    <>
+                      <td style={{ ...styles.td, fontWeight: 500 }}>{item.name || "-"}</td>
+                      <td style={{ ...styles.td, textAlign: "center", color: "#d1d5db" }}>{toNumber(item.tax).toFixed(1)}</td>
+                    </>
+                  )}
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     <span style={styles.badge}>{item.unit || "PCS"}</span>
                   </td>
-                  <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.mrp).toFixed(2)}</td>
-                  <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.purchaseRate).toFixed(2)}</td>
-                  <td style={{ ...styles.td, textAlign: "right", color: "#d1d5db" }}>{item.classicCustomer || "-"}</td>
-                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#10b981" }}>{toNumber(item.normalProfit).toFixed(2)}</td>
-                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#3b82f6" }}>{toNumber(item.classicProfit).toFixed(2)}</td>
-                  <td style={{ ...styles.td, textAlign: "center", color: toNumber(item.quantity) === 0 ? "#ef4444" : "#f9fafb" }}>{item.quantity || 0}</td>
-                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#a5b4fc" }}>{toNumber(item.amount).toFixed(2)}</td>
+                  {!isEmployee && (
+                    <>
+                      <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.mrp).toFixed(2)}</td>
+                      <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.purchaseRate).toFixed(2)}</td>
+                      <td style={{ ...styles.td, textAlign: "right", color: "#d1d5db" }}>{item.classicCustomer || "-"}</td>
+                      <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#10b981" }}>{toNumber(item.normalProfit).toFixed(2)}</td>
+                      <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#3b82f6" }}>{toNumber(item.classicProfit).toFixed(2)}</td>
+                      <td style={{ ...styles.td, textAlign: "center", color: toNumber(item.quantity) === 0 ? "#ef4444" : "#f9fafb" }}>{item.quantity || 0}</td>
+                      <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#a5b4fc" }}>{toNumber(item.amount).toFixed(2)}</td>
+                    </>
+                  )}
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     <div style={styles.actionButtons}>
-                      <button style={styles.editButton} onClick={() => handleEdit(item)} title="Edit (Ctrl+D)"><Edit size={15} /></button>
-                      <button style={styles.deleteButton} onClick={() => handleDelete(item)} title="Delete (Delete key)"><Trash2 size={15} /></button>
+                      {!isEmployee && (
+                        <>
+                          <button style={styles.editButton} onClick={() => handleEdit(item)} title="Edit (Ctrl+D)"><Edit size={15} /></button>
+                          <button style={styles.deleteButton} onClick={() => handleDelete(item)} title="Delete (Delete key)"><Trash2 size={15} /></button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -515,7 +542,7 @@ export default function Products() {
           </table>
         </div>
 
-        {editingItem && (
+        {!isEmployee && editingItem && (
           <div style={styles.overlayModal}>
             <div style={styles.modal}>
               <div style={styles.modalHeader}>
