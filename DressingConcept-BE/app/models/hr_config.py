@@ -12,6 +12,12 @@ class HRConfig(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def __init__(self, month=None, year=None, working_days=22, **kwargs):
+        super().__init__(**kwargs)
+        self.month = month
+        self.year = year
+        self.working_days = working_days
+
     def to_dict(self):
         return {
             'month': self.month,

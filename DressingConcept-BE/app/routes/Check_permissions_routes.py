@@ -35,6 +35,7 @@ MODULES_JSON = {
             "submodules": [
                 {"id": "create_bill", "name": "Create Bill"},
                 {"id": "bill_reports", "name": "Bill Reports"},
+                {"id": "bill_number_edit", "name": "Edit Bill Number"},
                 {"id": "service_bill", "name": "Service Bill"},
                 {"id": "service_bills", "name": "Service Bills"},
                 {"id": "quotations", "name": "Quotations"},

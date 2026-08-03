@@ -19,6 +19,9 @@ class Attendance(db.Model):
     # Relationship
     employee = db.relationship('Employee', backref='attendances')
     
+    def __init__(self, **kwargs):
+        super(Attendance, self).__init__(**kwargs)
+    
     def to_dict(self):
         return {
             'id': self.id,

@@ -72,7 +72,7 @@ class Bill(db.Model):
     # Relationships
     items = db.relationship('BillItem', backref='bill', lazy=True, cascade='all, delete-orphan')
     
-    def calculate_totals(self):
+    def calculate_totals(self, is_tax_inclusive=True):
         """Calculate all bill totals"""
         if not self.subtotal:
             self.subtotal = sum(item.total for item in self.items)
@@ -83,13 +83,21 @@ class Bill(db.Model):
         else:
             discount_amount = self.discount
         
-        # Apply tax
-        if self.tax_type == 'percentage':
-            tax_amount = ((self.subtotal - discount_amount) * self.tax) / 100
+        # Apply tax (Inclusive Tax method: entered prices include tax)
+        if is_tax_inclusive:
+            net_after_discount = max(0, self.subtotal - discount_amount)
+            if self.tax_type == 'percentage' and self.tax > 0:
+                tax_amount = (net_after_discount * self.tax) / (100 + self.tax)
+            else:
+                tax_amount = self.tax
+            self.total = round(net_after_discount)
         else:
-            tax_amount = self.tax
-        
-        self.total = self.subtotal - discount_amount + tax_amount
+            if self.tax_type == 'percentage':
+                tax_amount = ((self.subtotal - discount_amount) * self.tax) / 100
+            else:
+                tax_amount = self.tax
+            self.total = self.subtotal - discount_amount + tax_amount
+            
         self.profit = sum(item.profit for item in self.items)
         self.change_amount = max(0, self.paid_amount - self.total)
         
@@ -176,6 +184,7 @@ class BillItem(db.Model):
     product_name = db.Column(db.String(100), nullable=False)
     product_model = db.Column(db.String(100))
     product_type = db.Column(db.String(100))
+    tax = db.Column(db.Float, default=5.0)
     sell_price = db.Column(db.Float, nullable=False)
     buy_price = db.Column(db.Float, default=0)
     quantity = db.Column(db.Integer, nullable=False)
@@ -196,6 +205,7 @@ class BillItem(db.Model):
             'productName': self.product_name,
             'productModel': self.product_model,
             'productType': self.product_type,
+            'tax': round(getattr(self, 'tax', 0) or (self.product.tax if self.product and hasattr(self.product, 'tax') else 0) or 5.0, 2),
             'sellPrice': round(self.sell_price or 0, 2),
             'buyPrice': round(self.buy_price or 0, 2),
             'quantity': self.quantity,

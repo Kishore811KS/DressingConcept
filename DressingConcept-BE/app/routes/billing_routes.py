@@ -14,26 +14,20 @@ from dateutil.relativedelta import relativedelta  # Add this import for warranty
 billing_bp = Blueprint("billing_bp", __name__)
 
 def generate_unique_bill_number():
-    """Generate a unique random bill number"""
-    while True:
-        # Format: BT-YYMMDD-XXXXXXXX (BT = Brain Tech)
-        now = datetime.now()
-        year = str(now.year)[-2:]
-        month = str(now.month).zfill(2)
-        day = str(now.day).zfill(2)
+    """Generate a unique 4-digit bill number (e.g. 0001, 0025, 1234)"""
+    last_bill = Bill.query.order_by(Bill.id.desc()).first()
+    if last_bill and last_bill.bill_number and last_bill.bill_number.isdigit():
+        next_num = int(last_bill.bill_number) + 1
+        bill_number = str(next_num).zfill(4)
+    else:
+        count = Bill.query.count() + 1
+        bill_number = str(count).zfill(4)
+    
+    while Bill.query.filter_by(bill_number=bill_number).first():
+        num = int(bill_number) + 1 if bill_number.isdigit() else random.randint(1, 9999)
+        bill_number = str(num).zfill(4)
         
-        # Generate 8 random alphanumeric characters
-        random_chars = ''.join(random.choices(
-            string.ascii_uppercase + string.digits, 
-            k=8
-        ))
-        
-        bill_number = f"BT-{year}{month}{day}-{random_chars}"
-        
-        # Check if this number already exists
-        existing = Bill.query.filter_by(bill_number=bill_number).first()
-        if not existing:
-            return bill_number
+    return bill_number
 
 
 # ------------------ SEARCH PRODUCTS FOR BILLING ------------------
@@ -67,6 +61,7 @@ def search_products_for_billing():
             'tax': p.tax or 0,
             'mrp': p.mrp or p.buy_price or p.sell_price,
             'discountPercent': p.discount_percent or 0,
+            'discountAmount': p.discount_amount or 0,
             'netPrice': p.net_price or p.sell_price,
             'salesPerson': p.sales_person or '',
             'type': p.type or '',
@@ -165,13 +160,39 @@ def get_all_rewards():
         return jsonify({"error": "Failed to fetch rewards"}), 400
 
 
-# ------------------ GET ALL CUSTOMERS (for quick selection) ------------------
+# ------------------ GET ALL CUSTOMERS (consolidated) ------------------
 @billing_bp.route("/billing/customers", methods=["GET"])
 def get_all_customers():
-    """Get unique customers from bill history"""
+    """Get unique customers consolidated from CustomerRewards and bill history"""
     try:
-        # Get unique customers from bills
-        customers = db.session.query(
+        rewards = CustomerRewards.query.all()
+        customers_dict = {}
+
+        for r in rewards:
+            if r.phone:
+                customers_dict[r.phone] = {
+                    'name': r.name or 'Walk-in Customer',
+                    'firstName': r.first_name or '',
+                    'lastName': r.last_name or '',
+                    'phone': r.phone,
+                    'email': r.email or '',
+                    'gst': r.gst or '',
+                    'address': r.address or '',
+                    'type': r.customer_type or 'regular',
+                    'dateOfBirth': r.date_of_birth.isoformat() if r.date_of_birth else '',
+                    'memberId': r.member_id or '',
+                    'weddingAnniversary': r.wedding_anniversary.isoformat() if r.wedding_anniversary else '',
+                    'celebrationDate': r.celebration_date.isoformat() if r.celebration_date else '',
+                    'isClassicCustomer': bool(r.is_classic_customer),
+                    'isSupplier': bool(r.is_supplier),
+                    'supplierIGST': round(r.supplier_igst or 0, 2),
+                    'billCount': r.bill_count or 0,
+                    'rewardPoints': r.current_balance or 0,
+                    'totalSpent': r.total_spend or 0,
+                    'lastVisit': r.updated_at.isoformat() if r.updated_at else (r.created_at.isoformat() if r.created_at else None)
+                }
+
+        bills_query = db.session.query(
             Bill.customer_name,
             Bill.customer_phone,
             Bill.customer_email,
@@ -181,29 +202,362 @@ def get_all_customers():
             func.count(Bill.id).label('bill_count'),
             func.max(Bill.created_at).label('last_visit')
         ).filter(Bill.customer_phone.isnot(None), Bill.customer_phone != '')\
-         .group_by(Bill.customer_name, Bill.customer_phone, Bill.customer_email, 
-                   Bill.customer_gst, Bill.customer_address, Bill.customer_type)\
-         .order_by(func.max(Bill.created_at).desc()).limit(50).all()
-        
-        result = [{
-            'name': c[0],
-            'phone': c[1],
-            'email': c[2] or '',
-            'gst': c[3] or '',
-            'address': c[4] or '',
-            'type': c[5] or 'regular',
-            'billCount': c[6],
-            'lastVisit': c[7].isoformat() if c[7] else None
-        } for c in customers]
-        
+         .group_by(Bill.customer_name, Bill.customer_phone, Bill.customer_email,
+                   Bill.customer_gst, Bill.customer_address, Bill.customer_type).all()
+
+        for c in bills_query:
+            phone = c[1]
+            if phone:
+                if phone in customers_dict:
+                    cust = customers_dict[phone]
+                    if c[0] and c[0] != 'Walk-in Customer':
+                        cust['name'] = c[0]
+                    if c[2] and not cust['email']: cust['email'] = c[2]
+                    if c[3] and not cust['gst']:   cust['gst'] = c[3]
+                    if c[4] and not cust['address']: cust['address'] = c[4]
+                    if c[5]: cust['type'] = c[5]
+                    if c[6]: cust['billCount'] = c[6]
+                    if c[7]: cust['lastVisit'] = c[7].isoformat()
+                else:
+                    customers_dict[phone] = {
+                        'name': c[0] or 'Walk-in Customer',
+                        'firstName': '',
+                        'lastName': '',
+                        'phone': phone,
+                        'email': c[2] or '',
+                        'gst': c[3] or '',
+                        'address': c[4] or '',
+                        'type': c[5] or 'regular',
+                        'dateOfBirth': '',
+                        'memberId': '',
+                        'weddingAnniversary': '',
+                        'celebrationDate': '',
+                        'isClassicCustomer': False,
+                        'isSupplier': False,
+                        'supplierIGST': 0.0,
+                        'billCount': c[6] or 0,
+                        'rewardPoints': 0,
+                        'totalSpent': 0,
+                        'lastVisit': c[7].isoformat() if c[7] else None
+                    }
+
+        result = list(customers_dict.values())
+
         return jsonify({
             'success': True,
             'customers': result
         }), 200
-        
+
     except Exception as e:
         print(f"Get customers error: {str(e)}")
         return jsonify({"error": "Failed to fetch customers"}), 400
+
+
+# ------------------ ADD / CREATE NEW CUSTOMER ------------------
+@billing_bp.route("/billing/customers", methods=["POST"])
+def add_new_customer():
+    """Add a new customer manually or save details"""
+    try:
+        data = request.get_json() or {}
+        phone = data.get('phone') or data.get('customerPhone')
+        name = data.get('name') or data.get('customerName') or 'Walk-in Customer'
+
+        if not phone:
+            return jsonify({"error": "Phone number is required"}), 400
+
+        rewards = CustomerRewards.query.filter_by(phone=phone).first()
+        if not rewards:
+            rewards = CustomerRewards()
+            rewards.phone = phone
+            rewards.total_points_earned = 0.0
+            rewards.total_points_redeemed = 0.0
+            rewards.current_balance = 0.0
+            rewards.total_spend = 0.0
+            rewards.bill_count = 0
+            db.session.add(rewards)
+
+        # Always update profile fields
+        if name and name != 'Walk-in Customer':
+            rewards.name = name
+        rewards.first_name = data.get('firstName') or data.get('first_name') or rewards.first_name or ''
+        rewards.last_name = data.get('lastName') or data.get('last_name') or rewards.last_name or ''
+        rewards.email = data.get('email') or data.get('customerEmail') or rewards.email or ''
+        rewards.gst = data.get('gst') or data.get('customerGST') or rewards.gst or ''
+        rewards.address = data.get('address') or data.get('customerAddress') or rewards.address or ''
+        rewards.customer_type = data.get('type') or data.get('customerType') or rewards.customer_type or 'regular'
+        rewards.member_id = data.get('memberId') or data.get('member_id') or rewards.member_id or ''
+        rewards.is_classic_customer = bool(data.get('isClassicCustomer', rewards.is_classic_customer or False))
+        rewards.is_supplier = bool(data.get('isSupplier', rewards.is_supplier or False))
+        rewards.supplier_igst = float(data.get('supplierIGST', rewards.supplier_igst or 0))
+
+        # Parse optional date fields
+        from datetime import date
+        def parse_date(val):
+            if not val: return None
+            try:
+                return date.fromisoformat(str(val))
+            except Exception:
+                return None
+
+        rewards.date_of_birth = parse_date(data.get('dateOfBirth')) or rewards.date_of_birth
+        rewards.wedding_anniversary = parse_date(data.get('weddingAnniversary')) or rewards.wedding_anniversary
+        rewards.celebration_date = parse_date(data.get('celebrationDate')) or rewards.celebration_date
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Customer saved successfully",
+            "customer": rewards.to_dict()
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Add customer error: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+
+
+# ------------------ IMPORT CUSTOMERS (Excel / CSV) ------------------
+@billing_bp.route("/billing/customers/import", methods=["POST"])
+def import_customers():
+    """Import customer records from Excel (.xlsx/.xls) or CSV file"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file uploaded. Please attach a file under key 'file'"}), 400
+
+        file = request.files['file']
+        if not file or not file.filename:
+            return jsonify({"error": "No file selected"}), 400
+
+        filename = file.filename.lower()
+        rows_data = []
+
+        # Read Excel (.xlsx, .xls) or CSV
+        if filename.endswith('.xlsx') or filename.endswith('.xls'):
+            try:
+                import openpyxl
+                wb = openpyxl.load_workbook(file, data_only=True)
+                sheet = wb.active
+                raw_rows = list(sheet.iter_rows(values_only=True))
+                if not raw_rows or len(raw_rows) < 2:
+                    return jsonify({"error": "Excel file is empty or missing data rows"}), 400
+                
+                headers = [str(h).strip() if h is not None else '' for h in raw_rows[0]]
+                for idx, row in enumerate(raw_rows[1:], start=2):
+                    row_dict = {headers[i]: row[i] for i in range(min(len(headers), len(row)))}
+                    rows_data.append((idx, row_dict))
+            except Exception as ex_err:
+                return jsonify({"error": f"Failed to read Excel file: {str(ex_err)}"}), 400
+        elif filename.endswith('.csv'):
+            import csv, io
+            stream = io.StringIO(file.stream.read().decode("utf-8", errors="ignore"), newline=None)
+            reader = csv.DictReader(stream)
+            for idx, row_dict in enumerate(reader, start=2):
+                rows_data.append((idx, row_dict))
+        else:
+            return jsonify({"error": "Unsupported file format. Please upload an Excel (.xlsx/.xls) or CSV file"}), 400
+
+        # Helper normalizer for keys
+        def norm_key(k):
+            return str(k or '').strip().lower().replace(' ', '_').replace('-', '_')
+
+        def clean_phone(val):
+            if val is None: return ''
+            if isinstance(val, float): val = int(val)
+            s = str(val).strip()
+            if s.endswith('.0'): s = s[:-2]
+            return s
+
+        def parse_date_val(val):
+            if not val: return None
+            from datetime import date, datetime
+            if isinstance(val, (datetime, date)):
+                return val if isinstance(val, date) else val.date()
+            val_str = str(val).strip()
+            if not val_str or val_str.lower() in ('none', 'null', 'n/a', '-', ''):
+                return None
+            for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', '%Y/%m/%d', '%d.%m.%Y', '%m/%d/%Y'):
+                try:
+                    return datetime.strptime(val_str, fmt).date()
+                except ValueError:
+                    pass
+            return 'INVALID_DATE'
+
+        def parse_bool_val(val):
+            if isinstance(val, bool): return val
+            if isinstance(val, (int, float)): return bool(val)
+            s = str(val or '').strip().lower()
+            return s in ('true', '1', 'yes', 'y', 'classic', 'supplier')
+
+        def parse_float_val(val, default=0.0):
+            if val is None or val == '': return default
+            try: return float(val)
+            except ValueError: return default
+
+        imported_count = 0
+        updated_count = 0
+        errors = []
+
+        for row_num, row in rows_data:
+            # Map normalized headers
+            norm_map = {norm_key(k): v for k, v in row.items() if k}
+
+            raw_phone = norm_map.get('mobile_number') or norm_map.get('mobilenumber') or norm_map.get('phone') or norm_map.get('mobile') or norm_map.get('phone_number')
+            phone = clean_phone(raw_phone)
+
+            # Validation: Mobile Number is required
+            if not phone or len(phone) < 5:
+                errors.append(f"Row {row_num}: Mobile_Number is missing or invalid ('{raw_phone or ''}')")
+                continue
+
+            first_name = str(norm_map.get('first_name') or norm_map.get('firstname') or '').strip()
+            last_name = str(norm_map.get('last_name') or norm_map.get('lastname') or '').strip()
+            email = str(norm_map.get('email_id') or norm_map.get('emailid') or norm_map.get('email') or '').strip()
+            address = str(norm_map.get('address') or '').strip()
+            member_id = str(norm_map.get('member_id') or norm_map.get('memberid') or '').strip()
+            gst = str(norm_map.get('gst') or norm_map.get('gst_number') or '').strip()
+
+            dob = parse_date_val(norm_map.get('date_of_birth') or norm_map.get('dateofbirth') or norm_map.get('dob'))
+            anniversary = parse_date_val(norm_map.get('wedding_anniversary') or norm_map.get('anniversary'))
+            celebration = parse_date_val(norm_map.get('celebration_date') or norm_map.get('celebration'))
+
+            if dob == 'INVALID_DATE':
+                errors.append(f"Row {row_num}: Invalid Date_of_Birth format")
+                dob = None
+            if anniversary == 'INVALID_DATE':
+                errors.append(f"Row {row_num}: Invalid Wedding_Anniversary format")
+                anniversary = None
+            if celebration == 'INVALID_DATE':
+                errors.append(f"Row {row_num}: Invalid Celebration_Date format")
+                celebration = None
+
+            is_classic = parse_bool_val(norm_map.get('isclassic_customer') or norm_map.get('is_classic_customer') or norm_map.get('classic_customer'))
+            is_supplier = parse_bool_val(norm_map.get('issupplier') or norm_map.get('is_supplier') or norm_map.get('supplier'))
+
+            rewards_pt = parse_float_val(norm_map.get('rewards_point') or norm_map.get('rewards_points') or norm_map.get('reward_points') or norm_map.get('points'))
+            supplier_igst = parse_float_val(norm_map.get('issupplier_igst') or norm_map.get('supplier_igst') or norm_map.get('supplierigst'))
+
+            # Check if customer exists by phone
+            rewards = CustomerRewards.query.filter_by(phone=phone).first()
+            is_new = False
+            if not rewards:
+                rewards = CustomerRewards()
+                rewards.phone = phone
+                rewards.total_points_earned = 0.0
+                rewards.total_points_redeemed = 0.0
+                rewards.current_balance = rewards_pt
+                rewards.total_spend = 0.0
+                rewards.bill_count = 0
+                db.session.add(rewards)
+                is_new = True
+            else:
+                if rewards_pt > 0:
+                    rewards.current_balance = rewards_pt
+
+            # Update profile fields
+            full_name = f"{first_name} {last_name}".strip()
+            if full_name:
+                rewards.name = full_name
+            elif not rewards.name:
+                rewards.name = 'Walk-in Customer'
+
+            if first_name: rewards.first_name = first_name
+            if last_name:  rewards.last_name = last_name
+            if email:      rewards.email = email
+            if address:    rewards.address = address
+            if gst:        rewards.gst = gst
+            if member_id:  rewards.member_id = member_id
+            if dob:        rewards.date_of_birth = dob
+            if anniversary: rewards.wedding_anniversary = anniversary
+            if celebration: rewards.celebration_date = celebration
+
+            rewards.is_classic_customer = is_classic
+            rewards.is_supplier = is_supplier
+            rewards.supplier_igst = supplier_igst
+            rewards.customer_type = 'classic' if is_classic else (rewards.customer_type or 'regular')
+
+            if is_new:
+                imported_count += 1
+            else:
+                updated_count += 1
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": f"Successfully processed {imported_count + updated_count} records",
+            "importedCount": imported_count,
+            "updatedCount": updated_count,
+            "totalProcessed": len(rows_data),
+            "errors": errors
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Import customers error: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"error": f"Failed to import customers: {str(e)}"}), 500
+
+
+# ------------------ EXPORT CUSTOMERS (Excel .xlsx) ------------------
+@billing_bp.route("/billing/customers/export-excel", methods=["GET"])
+def export_customers_excel():
+    """Export customer records as a binary Excel (.xlsx) file with specified columns"""
+    try:
+        import openpyxl, io
+        from flask import send_file
+
+        rewards = CustomerRewards.query.all()
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Customers"
+
+        headers = [
+            'First_Name', 'Last_Name', 'Date_of_Birth', 'Mobile_Number', 'Email_ID',
+            'Address', 'Rewards_Point', 'Member_ID', 'Wedding_Anniversary',
+            'Celebration_Date', 'isClassic_Customer', 'ISSUPPLIER', 'ISSUPPLIER_IGST'
+        ]
+        ws.append(headers)
+
+        for r in rewards:
+            f_name = r.first_name or ''
+            l_name = r.last_name or ''
+            if not f_name and r.name:
+                parts = r.name.strip().split(' ')
+                f_name = parts[0] or ''
+                l_name = ' '.join(parts[1:]) or ''
+
+            ws.append([
+                f_name,
+                l_name,
+                r.date_of_birth.isoformat() if r.date_of_birth else '',
+                r.phone or '',
+                r.email or '',
+                r.address or '',
+                round(r.current_balance or 0, 2),
+                r.member_id or '',
+                r.wedding_anniversary.isoformat() if r.wedding_anniversary else '',
+                r.celebration_date.isoformat() if r.celebration_date else '',
+                'TRUE' if r.is_classic_customer else 'FALSE',
+                'TRUE' if r.is_supplier else 'FALSE',
+                round(r.supplier_igst or 0, 2)
+            ])
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name="customer_details.xlsx"
+        )
+    except Exception as e:
+        print(f"Export customers error: {str(e)}")
+        return jsonify({"error": f"Failed to export customers: {str(e)}"}), 500
+
+
 
 
 # ------------------ CREATE NEW BILL ------------------
@@ -222,7 +576,13 @@ def create_bill():
         
         # Create new bill instance with unique number
         bill = Bill()
-        bill.bill_number = generate_unique_bill_number()
+        req_bill_no = str(data.get('billNumber', '')).strip()
+        if req_bill_no and req_bill_no.isdigit():
+            bill.bill_number = req_bill_no.zfill(4)
+        elif req_bill_no:
+            bill.bill_number = req_bill_no
+        else:
+            bill.bill_number = generate_unique_bill_number()
         
         # Customer Information
         bill.customer_name = data.get('customerName', 'Walk-in Customer')
@@ -324,18 +684,18 @@ def create_bill():
             item_profit = unit_profit * quantity
             
             # Create bill item with status (defaults to 'pending' from model)
-            bill_item = BillItem(
-                product_id=product.id,
-                product_code=product.product_code,
-                product_name=product.name,
-                product_model=product.model or '',
-                product_type=product.type or '',
-                sell_price=line_price,
-                buy_price=product.buy_price or 0,
-                quantity=quantity,
-                total=item_total,
-                profit=item_profit
-            )
+            bill_item = BillItem()
+            bill_item.product_id = product.id
+            bill_item.product_code = product.product_code
+            bill_item.product_name = product.name
+            bill_item.product_model = product.model or ''
+            bill_item.product_type = product.type or ''
+            bill_item.tax = float(item_data.get('tax') or product.tax or 5.0)
+            bill_item.sell_price = line_price
+            bill_item.buy_price = product.buy_price or 0
+            bill_item.quantity = quantity
+            bill_item.total = item_total
+            bill_item.profit = item_profit
             
             # Update product quantity
             product.quantity -= quantity
@@ -348,30 +708,39 @@ def create_bill():
                 'status': 'pending'
             })
         
-        # Calculate all totals (including discount and tax)
-        bill.calculate_totals()
+        # Calculate all totals (including discount and tax) using inclusive tax method
+        bill.calculate_totals(is_tax_inclusive=True)
+        if data.get('total') is not None:
+            bill.total = float(data['total'])
         
         # Update or Create CustomerRewards
-        if bill.customer_phone:
-            rewards = CustomerRewards.query.filter_by(phone=bill.customer_phone).first()
-            points_earned = float(data.get('rewardPointsEarned', 0))
-            points_redeemed = float(data.get('rewardPointsRedeemed', 0))
-            
+        cust_phone = bill.customer_phone or data.get('contact') or data.get('phone') or data.get('customerPhone')
+        member_id = data.get('memberId') or data.get('member_id')
+        rewards = None
+        if cust_phone:
+            rewards = CustomerRewards.query.filter_by(phone=cust_phone).first()
+        if not rewards and member_id:
+            rewards = CustomerRewards.query.filter_by(member_id=member_id).first()
+
+        points_earned = float(data.get('rewardPointsEarned', 0))
+        points_redeemed = float(data.get('rewardPointsRedeemed', 0))
+
+        if rewards or cust_phone:
             if not rewards:
-                rewards = CustomerRewards(
-                    phone=bill.customer_phone,
-                    name=bill.customer_name,
-                    total_points_earned=points_earned,
-                    total_points_redeemed=points_redeemed,
-                    current_balance=points_earned - points_redeemed,
-                    total_spend=bill.total,
-                    bill_count=1
-                )
+                rewards = CustomerRewards()
+                rewards.phone = cust_phone
+                rewards.name = bill.customer_name
+                rewards.member_id = member_id or ''
+                rewards.total_points_earned = points_earned
+                rewards.total_points_redeemed = points_redeemed
+                rewards.current_balance = max(0.0, points_earned - points_redeemed)
+                rewards.total_spend = bill.total
+                rewards.bill_count = 1
                 db.session.add(rewards)
             else:
                 rewards.total_points_earned += points_earned
                 rewards.total_points_redeemed += points_redeemed
-                rewards.current_balance = rewards.total_points_earned - rewards.total_points_redeemed
+                rewards.current_balance = max(0.0, rewards.total_points_earned - rewards.total_points_redeemed)
                 rewards.total_spend += bill.total
                 rewards.bill_count += 1
                 if not rewards.name or rewards.name == 'Walk-in Customer':
@@ -605,6 +974,123 @@ def complete_all_bill_items(bill_id):
         db.session.rollback()
         print(f"Complete all items error: {str(e)}")
         return jsonify({"error": str(e)}), 400
+
+
+# ------------------ GET CUSTOMER BILLS (unified search + date range) ------------------
+@billing_bp.route("/billing/customer-bills", methods=["GET"])
+def get_customer_bills_by_phone_date():
+    """Search bills by bill_number, phone, or customer name; filter by date range"""
+    try:
+        search = request.args.get('search', '').strip()
+        phone = request.args.get('phone', '').strip()
+        from_date_str = request.args.get('from_date', '').strip()
+        to_date_str = request.args.get('to_date', '').strip()
+        date_str = request.args.get('date', '').strip()
+
+        query = Bill.query
+
+        term = search or phone
+        if term:
+            query = query.filter(
+                or_(
+                    Bill.customer_phone == term,
+                    Bill.bill_number.ilike(f'%{term}%'),
+                    Bill.customer_name.ilike(f'%{term}%')
+                )
+            )
+
+        if from_date_str:
+            try:
+                fd = datetime.strptime(from_date_str, '%Y-%m-%d')
+                query = query.filter(Bill.created_at >= fd)
+            except ValueError:
+                return jsonify({"error": "Invalid from_date. Use YYYY-MM-DD"}), 400
+
+        if to_date_str:
+            try:
+                td = datetime.strptime(to_date_str, '%Y-%m-%d')
+                td = td.replace(hour=23, minute=59, second=59)
+                query = query.filter(Bill.created_at <= td)
+            except ValueError:
+                return jsonify({"error": "Invalid to_date. Use YYYY-MM-DD"}), 400
+
+        if date_str and not from_date_str and not to_date_str:
+            try:
+                filter_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                query = query.filter(func.date(Bill.created_at) == filter_date)
+            except ValueError:
+                return jsonify({"error": "Invalid date. Use YYYY-MM-DD"}), 400
+
+        bills_data = query.order_by(Bill.created_at.asc()).all()
+
+        if not bills_data:
+            return jsonify({"bills": [], "customers": {}, "totalBills": 0, "message": "No bills found"}), 200
+
+        def build_bill_dict(bill):
+            items = []
+            for item in bill.items:
+                items.append({
+                    "id": item.id,
+                    "productName": item.product_name or "",
+                    "productCode": item.product_code or "",
+                    "description": item.description or "",
+                    "quantity": item.quantity or 0,
+                    "unit": item.unit or "PCS",
+                    "mrp": round(item.mrp or 0, 2),
+                    "sellingPrice": round(item.selling_price or 0, 2),
+                    "discount": round(item.discount or 0, 2),
+                    "tax": round(item.tax or 0, 2),
+                    "total": round(item.total or 0, 2),
+                    "status": item.item_status or "completed"
+                })
+            return {
+                "id": bill.id,
+                "billNumber": bill.bill_number,
+                "billDate": bill.created_at.strftime('%d-%m-%Y') if bill.created_at else "",
+                "billTime": bill.created_at.strftime('%I:%M %p') if bill.created_at else "",
+                "billDateRaw": bill.created_at.isoformat() if bill.created_at else "",
+                "customerName": bill.customer_name or "",
+                "customerPhone": bill.customer_phone or "",
+                "customerEmail": bill.customer_email or "",
+                "customerGST": bill.customer_gst or "",
+                "customerAddress": bill.customer_address or "",
+                "customerType": bill.customer_type or "regular",
+                "subtotal": round(bill.subtotal or 0, 2),
+                "discount": round(bill.discount or 0, 2),
+                "tax": round(bill.tax or 0, 2),
+                "total": round(bill.total or 0, 2),
+                "paidAmount": round(bill.paid_amount or 0, 2),
+                "paymentMethod": bill.payment_method or "",
+                "paymentStatus": bill.payment_status or "",
+                "createdBy": bill.created_by_name or bill.created_by or "",
+                "items": items
+            }
+
+        result = [build_bill_dict(b) for b in bills_data]
+
+        customers_map = {}
+        for b in result:
+            key = b["customerPhone"] or b["customerName"]
+            if key not in customers_map:
+                customers_map[key] = {
+                    "name": b["customerName"],
+                    "phone": b["customerPhone"],
+                    "email": b["customerEmail"],
+                    "gst": b["customerGST"],
+                    "address": b["customerAddress"],
+                    "type": b["customerType"],
+                }
+
+        return jsonify({
+            "bills": result,
+            "customers": customers_map,
+            "totalBills": len(result)
+        }), 200
+
+    except Exception as e:
+        print(f"Get customer bills error: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"error": "Failed to fetch customer bills"}), 500
 
 
 # ------------------ GET ALL BILLS (with pagination) ------------------
@@ -1337,4 +1823,143 @@ def check_product_warranty(product_id, bill_id):
         
     except Exception as e:
         print(f"Check warranty error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ------------------ MESSENGER / SMS CONFIG ------------------
+@billing_bp.route("/billing/messenger-config", methods=["GET"])
+def messenger_config():
+    """Whether SMS is actually sent to phones or only logged (test mode)."""
+    return jsonify(get_messenger_config()), 200
+
+
+# ------------------ SEND DIGITAL BILL VIA MESSENGER ------------------
+@billing_bp.route("/billing/send-digital-bill", methods=["POST"])
+def send_digital_bill():
+    """Send digital bill link SMS to customer phone (Fast2SMS, Twilio, or mock if unconfigured)."""
+    try:
+        data = request.get_json() or {}
+        raw_phone = str(data.get('phoneNumber', '')).strip()
+        customer_name = str(data.get('customerName', 'Customer')).strip() or 'Customer'
+        bill_number = str(data.get('billNumber', '')).strip()
+        bill_id = data.get('billId') or data.get('bill_id')
+        digital_bill_link = str(data.get('digitalBillLink', '')).strip()
+
+        try:
+            phone_number = validate_phone_number(raw_phone)
+        except SmsValidationError as exc:
+            return jsonify({'success': False, 'error': str(exc)}), 400
+
+        bill = None
+        if bill_id is not None:
+            try:
+                bill = Bill.query.get(int(bill_id))
+            except (TypeError, ValueError):
+                bill = None
+        if not bill and bill_number:
+            bill = Bill.query.filter_by(bill_number=bill_number).first()
+
+        if not bill:
+            return jsonify({'success': False, 'error': 'Bill not found'}), 404
+
+        bill_number = bill.bill_number
+        if not customer_name or customer_name == 'Customer':
+            customer_name = bill.customer_name or 'Customer'
+
+        try:
+            if not digital_bill_link:
+                digital_bill_link = build_digital_bill_url(bill_number)
+            message_text = build_digital_bill_sms(customer_name, digital_bill_link)
+        except SmsValidationError as exc:
+            return jsonify({'success': False, 'error': str(exc)}), 400
+
+        try:
+            message, mode = send_sms(
+                phone_number,
+                message_text,
+                bill_number=bill_number,
+            )
+        except SmsValidationError as exc:
+            return jsonify({'success': False, 'error': str(exc), 'smsDelivered': False}), 400
+        except RuntimeError as cfg_err:
+            return jsonify({'success': False, 'error': str(cfg_err)}), 503
+        except Exception as send_err:
+            print(f"[SMS ERROR] {send_err}")
+            print(traceback.format_exc())
+            return jsonify({
+                'success': False,
+                'error': f'Failed to send SMS: {send_err}',
+            }), 400
+
+        sms_delivered = mode == 'production'
+
+        return jsonify({
+            'success': True,
+            'smsDelivered': sms_delivered,
+            'message': f'Digital bill message sent to {phone_number}',
+            'phoneNumber': phone_number,
+            'billNumber': bill_number,
+            'digitalBillLink': digital_bill_link,
+            'messageSid': getattr(message, 'sid', None),
+            'messageStatus': getattr(message, 'status', None),
+            'mode': mode,
+            'provider': mode,
+            'timestamp': datetime.now().isoformat(),
+        }), 200
+
+    except Exception as e:
+        print(f"Send digital bill error: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
+# ------------------ GET DIGITAL BILL (Phone Verification) ------------------
+@billing_bp.route("/billing/digital-bill/<string:bill_number>/<string:phone_number>", methods=["GET"])
+def get_digital_bill(bill_number, phone_number):
+    """Get bill details after phone number verification"""
+    try:
+        # Verify the bill exists and phone number matches
+        bill = Bill.query.filter_by(bill_number=bill_number).first()
+        
+        if not bill:
+            return jsonify({'error': 'Bill not found'}), 404
+
+        if not phones_match_bill(bill, phone_number):
+            return jsonify({'error': 'Phone number does not match this bill'}), 403
+
+        # Get bill details
+        bill_items = BillItem.query.filter_by(bill_id=bill.id).all()
+
+        # Format bill data
+        bill_data = {
+            'id': bill.id,
+            'billNumber': bill.bill_number,
+            'customerName': bill.customer_name or 'Walk-in Customer',
+            'customerPhone': bill.customer_phone or '',
+            'customerAddress': bill.customer_address or '',
+            'totalAmount': float(bill.total or 0),
+            'subtotal': float(bill.subtotal or 0),
+            'discount': float(bill.discount or 0),
+            'tax': float(bill.tax or 0),
+            'paidAmount': float(bill.paid_amount or 0),
+            'paymentMethod': bill.payment_method or 'Cash',
+            'createdAt': bill.created_at.isoformat() if bill.created_at else None,
+            'items': []
+        }
+
+        # Add bill items
+        for item in bill_items:
+            bill_data['items'].append({
+                'productName': item.product_name or '',
+                'productModel': item.product_model or '',
+                'quantity': item.quantity or 1,
+                'price': float(item.sell_price or 0),
+                'total': float(item.total or 0)
+            })
+
+        return jsonify(bill_data), 200
+
+    except Exception as e:
+        print(f"Get digital bill error: {str(e)}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500

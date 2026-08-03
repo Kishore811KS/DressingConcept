@@ -56,7 +56,7 @@ def create_product():
             try:
                 watts = float(data['watts'])
             except (TypeError, ValueError):
-                watts = data['watts']  # Keep as string if not float
+                watts = None
 
         product = Product(
             product_code=data.get("productCode", "").strip(),
@@ -67,6 +67,7 @@ def create_product():
             tax=float(data.get("tax", 0) or 0),
             mrp=float(data.get("mrp", data.get("buyPrice", 0)) or 0),
             discount_percent=float(data.get("discountPercent", 0) or 0),
+            discount_amount=float(data.get("discountAmount", 0) or 0),
             net_price=float(data.get("netPrice", 0) or 0),
             sales_person=data.get("salesPerson", "").strip(),
             classic_customer=float(data.get("classicCustomer", 0) or 0),
@@ -143,11 +144,16 @@ def update_product(id):
         product = Product.query.get_or_404(id)
         data = request.get_json()
         
-        # Validate input for updated fields
-        if data.get('buyPrice') or data.get('sellPrice') or data.get('quantity'):
-            errors = validate_product_data(data)
-            if errors:
-                return jsonify({"errors": errors}), 400
+        # Validate input for updated fields by merging with existing product attributes
+        validation_data = {
+            'name': data.get('name') if data.get('name') is not None else product.name,
+            'buyPrice': data.get('buyPrice') if data.get('buyPrice') is not None else product.buy_price,
+            'sellPrice': data.get('sellPrice') if data.get('sellPrice') is not None else product.sell_price,
+            'quantity': data.get('quantity') if data.get('quantity') is not None else product.quantity
+        }
+        errors = validate_product_data(validation_data)
+        if errors:
+            return jsonify({"errors": errors}), 400
 
         # Update only provided fields
         if data.get('name') is not None:
@@ -166,6 +172,8 @@ def update_product(id):
             product.mrp = float(data['mrp'] or 0)
         if data.get('discountPercent') is not None:
             product.discount_percent = float(data['discountPercent'] or 0)
+        if data.get('discountAmount') is not None:
+            product.discount_amount = float(data['discountAmount'] or 0)
         if data.get('netPrice') is not None:
             product.net_price = float(data['netPrice'] or 0)
         if data.get('salesPerson') is not None:
@@ -175,10 +183,13 @@ def update_product(id):
         if data.get('type') is not None:
             product.type = data['type'].strip()
         if data.get('watts') is not None:
-            try:
-                product.watts = float(data['watts'])
-            except (TypeError, ValueError):
-                product.watts = data['watts']
+            if data['watts'] == "" or data['watts'] is None:
+                product.watts = None
+            else:
+                try:
+                    product.watts = float(data['watts'])
+                except (TypeError, ValueError):
+                    product.watts = None
         if data.get('buyPrice') is not None:
             product.buy_price = float(data['buyPrice'])
         if data.get('sellPrice') is not None:
@@ -260,6 +271,7 @@ def bulk_create_products():
                     tax=float(product_data.get("tax", 0) or 0),
                     mrp=float(product_data.get("mrp", product_data.get("buyPrice", 0)) or 0),
                     discount_percent=float(product_data.get("discountPercent", 0) or 0),
+                    discount_amount=float(product_data.get("discountAmount", 0) or 0),
                     net_price=float(product_data.get("netPrice", 0) or 0),
                     sales_person=product_data.get("salesPerson", "").strip(),
                     classic_customer=float(product_data.get("classicCustomer", 0) or 0),

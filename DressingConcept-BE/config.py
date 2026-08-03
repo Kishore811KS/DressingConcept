@@ -2,34 +2,21 @@ import os
 import pymysql
 from datetime import timedelta
 
-# Make PyMySQL act like MySQLdb (Windows fix)
+# 🔹 Make PyMySQL act like MySQLdb (Windows fix)
 pymysql.install_as_MySQLdb()
 
 class Config:
-    # Database configuration
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        'DATABASE_URL',
-        'mysql+pymysql://root:root123@localhost/dress'
-    )
+    SQLALCHEMY_DATABASE_URI = 'mysql://root:root123@localhost/dress'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # File upload configuration
-    BASE_DIR = os.getcwd()
-    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+    UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'docx', 'xlsx'}
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
-
+    
     # JWT Configuration
-    JWT_SECRET_KEY = os.environ.get(
-        'JWT_SECRET_KEY',
-        'your-secret-key-change-this-in-production'
-    )
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'your-secret-key-change-this-in-production')
     JWT_TOKEN_LOCATION = ['headers']
     JWT_HEADER_NAME = 'Authorization'
     JWT_HEADER_TYPE = 'Bearer'
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
-
-
-# Ensure upload folder exists
-if not os.path.exists(Config.UPLOAD_FOLDER):
-    os.makedirs(Config.UPLOAD_FOLDER)

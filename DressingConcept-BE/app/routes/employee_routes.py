@@ -294,6 +294,23 @@ def get_companies_list():
         print(f"Error in get_companies_list: {str(e)}")
         return jsonify({'error': 'Failed to fetch companies'}), 500
 
+def _get_request_val(key, default=None):
+    if request.form and key in request.form:
+        val = request.form.get(key)
+        if val is not None and str(val).strip() != '':
+            return str(val).strip()
+    if request.is_json or request.content_type == 'application/json':
+        data = request.get_json(silent=True) or {}
+        if isinstance(data, dict) and key in data:
+            val = data.get(key)
+            if val is not None and str(val).strip() != '':
+                return str(val).strip()
+    if request.values and key in request.values:
+        val = request.values.get(key)
+        if val is not None and str(val).strip() != '':
+            return str(val).strip()
+    return default
+
 @employee_bp.route('/employees', methods=['POST'])
 def create_employee():
     """Create a new employee"""
@@ -302,7 +319,7 @@ def create_employee():
         employee_id = generate_employee_id()
         
         # Check if email exists
-        email = request.form.get('email')
+        email = _get_request_val('email')
         if not email:
             return jsonify({'error': 'Email is required'}), 400
             
@@ -311,21 +328,22 @@ def create_employee():
             return jsonify({'error': 'Email already exists'}), 400
         
         # Get user_type
-        user_type = request.form.get('user_type', 'employee')
+        user_type = _get_request_val('user_type', 'employee')
         
         # Handle date of joining
         date_of_joining = None
-        if request.form.get('date_of_joining'):
+        doj_str = _get_request_val('date_of_joining')
+        if doj_str:
             try:
                 date_of_joining = datetime.strptime(
-                    request.form.get('date_of_joining'), '%Y-%m-%d'
+                    doj_str, '%Y-%m-%d'
                 ).date()
             except:
                 pass
         
         # Handle company
-        current_company = request.form.get('current_company')
-        company_id = request.form.get('company_id')
+        current_company = _get_request_val('current_company')
+        company_id = _get_request_val('company_id')
         
         # Validate company if company_id is provided
         if company_id:
@@ -348,29 +366,29 @@ def create_employee():
             pan_filename = save_file(pan_file, f"pan_{employee_id}")
         
         # Hash password if provided
-        password = request.form.get('password')
+        password = _get_request_val('password')
         password_hash = generate_password_hash(password) if password else None
         
         # Create employee
         employee = Employee(
             employee_id=employee_id,
-            full_name=request.form.get('full_name'),
+            full_name=_get_request_val('full_name'),
             email=email,
             password_hash=password_hash,
-            phone_number=request.form.get('phone_number'),
-            department=request.form.get('department'),
-            designation=request.form.get('designation'),
+            phone_number=_get_request_val('phone_number'),
+            department=_get_request_val('department'),
+            designation=_get_request_val('designation'),
             date_of_joining=date_of_joining,
             current_company=current_company,
             company_id=company_id if company_id else None,
             user_type=user_type,
-            aadhar_card_number=request.form.get('aadhar_card_number'),
-            pan_card_number=request.form.get('pan_card_number'),
-            address=request.form.get('address'),
-            emergency_contact=request.form.get('emergency_contact'),
-            blood_group=request.form.get('blood_group'),
-            marital_status=request.form.get('marital_status'),
-            basic_salary=float(request.form.get('basic_salary', 0) or 0),
+            aadhar_card_number=_get_request_val('aadhar_card_number'),
+            pan_card_number=_get_request_val('pan_card_number'),
+            address=_get_request_val('address'),
+            emergency_contact=_get_request_val('emergency_contact'),
+            blood_group=_get_request_val('blood_group'),
+            marital_status=_get_request_val('marital_status'),
+            basic_salary=float(_get_request_val('basic_salary', 0) or 0),
             aadhar_attachment=aadhar_filename,
             pan_attachment=pan_filename
         )
@@ -397,30 +415,31 @@ def update_employee(id):
             return jsonify({'error': 'Employee not found'}), 404
         
         # Check if email exists for other employee
-        email = request.form.get('email')
+        email = _get_request_val('email')
         if email and email != employee.email:
             existing_email = Employee.query.filter_by(email=email).first()
             if existing_email:
                 return jsonify({'error': 'Email already exists'}), 400
         
         # Update user_type if provided
-        user_type = request.form.get('user_type')
+        user_type = _get_request_val('user_type')
         if user_type:
             employee.user_type = user_type
         
         # Handle date of joining
-        if request.form.get('date_of_joining'):
+        doj_str = _get_request_val('date_of_joining')
+        if doj_str:
             try:
                 date_of_joining = datetime.strptime(
-                    request.form.get('date_of_joining'), '%Y-%m-%d'
+                    doj_str, '%Y-%m-%d'
                 ).date()
                 employee.date_of_joining = date_of_joining
             except:
                 pass
         
         # Handle company
-        current_company = request.form.get('current_company')
-        company_id = request.form.get('company_id')
+        current_company = _get_request_val('current_company')
+        company_id = _get_request_val('company_id')
         
         if company_id:
             company = Company.query.get(company_id)
@@ -430,9 +449,6 @@ def update_employee(id):
             employee.company_id = company_id
         elif current_company:
             employee.current_company = current_company
-            employee.company_id = None
-        else:
-            employee.current_company = None
             employee.company_id = None
         
         # Handle file uploads
@@ -457,36 +473,36 @@ def update_employee(id):
             employee.pan_attachment = pan_filename
         
         # Update password if provided
-        password = request.form.get('password')
+        password = _get_request_val('password')
         if password and password.strip():
             employee.password_hash = generate_password_hash(password)
         
         # Update fields
-        if request.form.get('full_name'):
-            employee.full_name = request.form.get('full_name')
+        if _get_request_val('full_name'):
+            employee.full_name = _get_request_val('full_name')
         if email:
             employee.email = email
-        if request.form.get('phone_number'):
-            employee.phone_number = request.form.get('phone_number')
-        if request.form.get('department'):
-            employee.department = request.form.get('department')
-        if request.form.get('designation'):
-            employee.designation = request.form.get('designation')
-        if request.form.get('aadhar_card_number'):
-            employee.aadhar_card_number = request.form.get('aadhar_card_number')
-        if request.form.get('pan_card_number'):
-            employee.pan_card_number = request.form.get('pan_card_number')
-        if request.form.get('address'):
-            employee.address = request.form.get('address')
-        if request.form.get('emergency_contact'):
-            employee.emergency_contact = request.form.get('emergency_contact')
-        if request.form.get('blood_group'):
-            employee.blood_group = request.form.get('blood_group')
-        if request.form.get('marital_status'):
-            employee.marital_status = request.form.get('marital_status')
-        if request.form.get('basic_salary') is not None:
+        if _get_request_val('phone_number'):
+            employee.phone_number = _get_request_val('phone_number')
+        if _get_request_val('department'):
+            employee.department = _get_request_val('department')
+        if _get_request_val('designation'):
+            employee.designation = _get_request_val('designation')
+        if _get_request_val('aadhar_card_number'):
+            employee.aadhar_card_number = _get_request_val('aadhar_card_number')
+        if _get_request_val('pan_card_number'):
+            employee.pan_card_number = _get_request_val('pan_card_number')
+        if _get_request_val('address'):
+            employee.address = _get_request_val('address')
+        if _get_request_val('emergency_contact'):
+            employee.emergency_contact = _get_request_val('emergency_contact')
+        if _get_request_val('blood_group'):
+            employee.blood_group = _get_request_val('blood_group')
+        if _get_request_val('marital_status'):
+            employee.marital_status = _get_request_val('marital_status')
+        if _get_request_val('basic_salary') is not None:
             try:
-                employee.basic_salary = float(request.form.get('basic_salary') or 0)
+                employee.basic_salary = float(_get_request_val('basic_salary') or 0)
             except:
                 pass
         
@@ -523,6 +539,11 @@ def delete_employee(id):
             if os.path.exists(file_path):
                 os.remove(file_path)
 
+        from app.models.attendance import Attendance
+        from app.models.salary import Salary
+        
+        Attendance.query.filter_by(employee_id=id).delete()
+        Salary.query.filter_by(employee_id=id).delete()
         
         db.session.delete(employee)
         db.session.commit()

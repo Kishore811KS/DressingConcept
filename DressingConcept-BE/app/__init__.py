@@ -1,8 +1,15 @@
+from pathlib import Path
+
+from dotenv import load_dotenv
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+
+# Load .env before Config is imported
+load_dotenv(Path(__file__).resolve().parents[1] / '.env', override=True)
+
 from config import Config
 
 # Initialize extensions

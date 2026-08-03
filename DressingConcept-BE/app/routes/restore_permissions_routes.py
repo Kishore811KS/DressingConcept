@@ -10,7 +10,7 @@ restore_permissions_bp = Blueprint('restore_permissions', __name__)
 # All submodules from your modules configuration
 SUBMODULES = [
     "dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
-    "create_bill", "bill_reports", "service_bill", "service_bills", 
+    "create_bill", "bill_reports", "bill_number_edit", "service_bill", "service_bills", 
     "quotations", "invoices", "discount", "add_supplier", "supplier_list", 
     "payment_tracking", "employee", "user_type", "attendance", "company", 
     "enquiries", "customer_details", "usersettings"

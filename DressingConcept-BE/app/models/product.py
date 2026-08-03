@@ -14,6 +14,7 @@ class Product(db.Model):
     tax = db.Column(db.Float, default=0)
     mrp = db.Column(db.Float, default=0)
     discount_percent = db.Column(db.Float, default=0)
+    discount_amount = db.Column(db.Float, default=0)
     net_price = db.Column(db.Float, default=0)
     sales_person = db.Column(db.String(100))
     classic_customer = db.Column(db.String(20))
@@ -29,7 +30,22 @@ class Product(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
     def calculate_values(self):
+        base_price = self.mrp or self.sell_price or 0
+        disc_amt = float(self.discount_amount) if getattr(self, 'discount_amount', None) is not None else 0
+
+        if disc_amt > 0 and base_price > 0:
+            self.discount_percent = round((disc_amt / base_price) * 100, 2)
+            self.discount_amount = round(disc_amt, 2)
+        elif getattr(self, 'discount_percent', 0) and getattr(self, 'discount_percent', 0) > 0 and base_price > 0:
+            self.discount_amount = round(base_price * (self.discount_percent / 100), 2)
+        else:
+            self.discount_amount = round(disc_amt, 2)
+
         discount = self.discount_percent or 0
         self.net_price = round((self.sell_price or 0) - ((self.sell_price or 0) * discount / 100), 2)
 
@@ -64,6 +80,11 @@ class Product(db.Model):
         except (ValueError, TypeError):
             classic_price = 0
 
+        disc_amt = getattr(self, 'discount_amount', 0)
+        if (disc_amt is None or disc_amt == 0) and getattr(self, 'discount_percent', 0) and (self.mrp or self.sell_price):
+            base_price = self.mrp or self.sell_price or 0
+            disc_amt = round(base_price * ((self.discount_percent or 0) / 100), 2)
+
         return {
             "id": self.id,
             "productCode": self.product_code,
@@ -74,6 +95,7 @@ class Product(db.Model):
             "tax": self.tax,
             "mrp": self.mrp,
             "discountPercent": self.discount_percent,
+            "discountAmount": round(disc_amt or 0, 2),
             "netPrice": self.net_price,
             "salesPerson": self.sales_person,
             "classicCustomer": self.classic_customer,

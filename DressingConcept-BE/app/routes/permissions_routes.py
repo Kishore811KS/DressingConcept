@@ -21,7 +21,8 @@ MODULES_JSON = {
       "id": "inventory",
       "name": "Inventory",
       "submodules": [
-        { "id": "products", "name": "Products" },
+        { "id": "admin_products", "name": "Admin Products" },
+        { "id": "employee_products", "name": "Employee Products" },
         { "id": "category", "name": "Category" },
         { "id": "stock_in", "name": "Stock In" },
         { "id": "stock_out", "name": "Stock Out" },
@@ -34,7 +35,13 @@ MODULES_JSON = {
       "submodules": [
         { "id": "create_bill", "name": "Create Bill" },
         { "id": "bill_reports", "name": "Bill Reports" },
+        { "id": "bill_number_edit", "name": "Edit Bill Number" },
         { "id": "profit_visibility", "name": "Show/Hide Profit Container" },
+        { "id": "sales_visibility", "name": "Show/Hide SALES Box" },
+        { "id": "cash_visibility", "name": "Show/Hide CASH Box" },
+        { "id": "card_visibility", "name": "Show/Hide CARD Box" },
+        { "id": "upi_visibility", "name": "Show/Hide UPI Box" },
+        { "id": "online_visibility", "name": "Show/Hide ONLINE Box" },
         { "id": "date_filter_visibility", "name": "Show/Hide Date Filter" },
         { "id": "service_bill", "name": "Service Bill" },
         { "id": "service_bills", "name": "Service Bills" },
@@ -53,6 +60,7 @@ MODULES_JSON = {
         { "id": "employee", "name": "Employee" },
         { "id": "user_type", "name": "User Type" },
         { "id": "attendance", "name": "Attendance" },
+        { "id": "salary", "name": "Salary" },
         { "id": "company", "name": "Company" }
       ]
     },
