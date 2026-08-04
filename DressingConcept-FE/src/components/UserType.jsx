@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 const UserTypeManager = () => {
   const navigate = useNavigate();
   // State for the form input value
@@ -16,7 +30,7 @@ const UserTypeManager = () => {
   const [error, setError] = useState('');
 
   // API base URL - adjust according to your backend
-  const API_BASE_URL = 'http://localhost:5000/api';
+
 
   // Fetch all user types on component mount
   useEffect(() => {
@@ -28,14 +42,10 @@ const UserTypeManager = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/user-types`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch user types');
-      }
-      const data = await response.json();
-      setUserTypes(data);
+      const response = await api.get(`/user-types`);
+      setUserTypes(response.data);
     } catch (err) {
-      setError('Error fetching user types: ' + err.message);
+      setError('Error fetching user types: ' + (err.response?.data?.error || err.message));
       console.error('Fetch error:', err);
     } finally {
       setLoading(false);
@@ -54,20 +64,12 @@ const UserTypeManager = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/user-types`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: trimmedValue }),
-      });
+      const response = await api.post(`/user-types`, 
+        { name: trimmedValue },
+        { withCredentials: true }
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to add user type');
-      }
-
-      const newUserType = await response.json();
+      const newUserType = response.data;
       setUserTypes([...userTypes, newUserType]);
       
       // Auto-set as active role for configuration
@@ -76,7 +78,7 @@ const UserTypeManager = () => {
       setUserTypeInput('');
       alert(`User Type "${trimmedValue}" added. Role is now active for configuration.`);
     } catch (err) {
-      alert('Error: ' + err.message);
+      alert('Error: ' + (err.response?.data?.error || err.message));
       console.error('Add error:', err);
     } finally {
       setLoading(false);
@@ -94,27 +96,19 @@ const UserTypeManager = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/user-types/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: trimmedValue }),
-      });
+      const response = await api.put(`/user-types/${id}`, 
+        { name: trimmedValue },
+        { withCredentials: true }
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update user type');
-      }
-
-      const updatedUserType = await response.json();
+      const updatedUserType = response.data;
       setUserTypes(userTypes.map(type =>
         type.id === id ? updatedUserType : type
       ));
       setEditingId(null);
       setEditValue('');
     } catch (err) {
-      alert('Error: ' + err.message);
+      alert('Error: ' + (err.response?.data?.error || err.message));
       console.error('Update error:', err);
     } finally {
       setLoading(false);
@@ -138,18 +132,11 @@ const UserTypeManager = () => {
     if (window.confirm('Are you sure you want to delete this user type?')) {
       setLoading(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/user-types/${id}`, {
-          method: 'DELETE',
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to delete user type');
-        }
+        const response = await api.delete(`/user-types/${id}`);
 
         setUserTypes(userTypes.filter(type => type.id !== id));
       } catch (err) {
-        alert('Error: ' + err.message);
+        alert('Error: ' + (err.response?.data?.error || err.message));
         console.error('Delete error:', err);
       } finally {
         setLoading(false);

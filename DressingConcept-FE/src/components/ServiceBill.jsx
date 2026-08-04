@@ -1,6 +1,20 @@
 // ServiceBill.jsx
 import React, { useState, useEffect, useRef } from 'react';
+
 import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 
 const ServiceBill = () => {
   // State management
@@ -88,14 +102,7 @@ const ServiceBill = () => {
   const serviceNameInputRef = useRef(null);
 
   // Create axios instance with better configuration
-  const api = axios.create({
-    baseURL: 'http://localhost:5000/api',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    timeout: 10000 // Increased timeout to 10 seconds
-  });
+  
 
   // Add request interceptor for debugging
   api.interceptors.request.use(request => {
@@ -1494,7 +1501,7 @@ const ServiceBill = () => {
         <body>
           <div id="billPaper">
             <div class="bill-header">
-              <img src="/avva-logo.jpeg" class="bill-logo" alt="Avva Inventory Logo">
+              <img src="/Dressing_Concept.png" class="bill-logo" alt="Dressing Concept Logo">
               <h1>${shopDetails.name}</h1>
               <p>${shopDetails.address}</p>
               <p>${shopDetails.city}</p>
@@ -1770,7 +1777,7 @@ const ServiceBill = () => {
     const due = calculateDue();
     const activeServices = manualServices.filter(s => s.quantity > 0);
 
-    let message = `*Avva Inventory - SERVICE BILL*\n`;
+    let message = `*Dressing Concept - SERVICE BILL*\n`;
     message += `${shopDetails.address}\n`;
     message += `${shopDetails.city}\n`;
     message += `Ph: ${shopDetails.phone}\n`;
@@ -2106,7 +2113,7 @@ const ServiceBill = () => {
             ref={billPaperRef}
           >
             <div className="bill-header">
-              <img src="/avva-logo.jpeg" alt="Avva Inventory Logo" style={{ maxWidth: '100px', marginBottom: '5px', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
+              <img src="/Dressing_Concept.png" alt="Dressing Concept Logo" style={{ maxWidth: '100px', marginBottom: '5px', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
               <h1 style={baseStyles.billHeaderH1}>{shopDetails.name}</h1>
               <p style={baseStyles.billHeaderP}>{shopDetails.address}</p>
               <p style={baseStyles.billHeaderP}>{shopDetails.city}</p>

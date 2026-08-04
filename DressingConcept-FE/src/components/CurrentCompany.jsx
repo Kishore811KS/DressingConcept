@@ -1,15 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
+
 import axios from 'axios';
 
-// Configure axios instance with base URL
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: `${BASE_URL}/api`,
   withCredentials: true,
   headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
+    'Content-Type': 'application/json'
   }
 });
+
+
+// Configure axios instance with base URL
+
 
 const Company = () => {
   const [companyInfo, setCompanyInfo] = useState({
@@ -19,31 +26,31 @@ const Company = () => {
     phone: '',
     alternate_phone: '',
     email: '',
-    
+
     // GST Information
     gst_number: '',
-    
+
     // Registration Details
     registration_date: '',
-    
+
     // Banking Details
     bank_name: '',
     bank_account_number: '',
     bank_ifsc: '',
     bank_branch: '',
     upi_id: '',
-    
+
     // Logo
     logo: null,
     logo_preview: '',
     logo_filename: '',
     logo_mime_type: '',
-    
+
     // Additional
     notes: '',
     is_active: true
   });
-  
+
   const [companies, setCompanies] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
@@ -70,7 +77,7 @@ const Company = () => {
     try {
       setLoading(true);
       let response;
-      
+
       if (searchTerm.trim() === '') {
         // Fetch with pagination
         response = await api.get(`/companies/?page=${currentPage}&limit=${itemsPerPage}`);
@@ -78,7 +85,7 @@ const Company = () => {
         // Search with pagination
         response = await api.get(`/companies/search?q=${encodeURIComponent(searchTerm)}&page=${currentPage}&limit=${itemsPerPage}`);
       }
-      
+
       if (response.data) {
         const companiesData = response.data.companies || response.data;
         // Process logo data for each company
@@ -104,7 +111,7 @@ const Company = () => {
       fetchCompanies();
       return;
     }
-    
+
     try {
       setLoading(true);
       const response = await api.get(`/companies/search?q=${encodeURIComponent(term)}&page=1&limit=${itemsPerPage}`);
@@ -142,13 +149,13 @@ const Company = () => {
         showNotification('Please select a valid image file (JPEG, PNG, GIF, WEBP)', 'error');
         return;
       }
-      
+
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         showNotification('Logo size should be less than 5MB', 'error');
         return;
       }
-      
+
       // Create preview URL
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -198,11 +205,11 @@ const Company = () => {
       showNotification('Please fill in Phone Number', 'error');
       return;
     }
-    
+
     try {
       setLoading(true);
       setUploadProgress(0);
-      
+
       // Prepare data for API
       const formData = new FormData();
       formData.append('name', companyInfo.name.trim());
@@ -219,13 +226,13 @@ const Company = () => {
       formData.append('upi_id', companyInfo.upi_id?.trim() || '');
       formData.append('notes', companyInfo.notes?.trim() || '');
       formData.append('is_active', companyInfo.is_active);
-      
+
       if (companyInfo.logo instanceof File) {
         formData.append('logo', companyInfo.logo);
       } else if (editingId && companyInfo.remove_logo) {
         formData.append('remove_logo', 'true');
       }
-      
+
       let response;
       if (editingId) {
         // Update existing company
@@ -258,7 +265,7 @@ const Company = () => {
           await fetchCompanies();
         }
       }
-      
+
       // Reset form and close popup
       resetForm();
       setIsPopupOpen(false);
@@ -281,7 +288,7 @@ const Company = () => {
     if (company.logo_data) {
       logoPreview = `data:${company.logo_mime_type || 'image/jpeg'};base64,${company.logo_data}`;
     }
-    
+
     setCompanyInfo({
       // Basic Information
       name: company.name || '',
@@ -289,27 +296,27 @@ const Company = () => {
       phone: company.phone || '',
       alternate_phone: company.alternate_phone || '',
       email: company.email || '',
-      
+
       // GST Information
       gst_number: company.gst_number || '',
-      
+
       // Registration Details
       registration_date: company.registration_date ? company.registration_date.split('T')[0] : '',
-      
+
       // Banking Details
       bank_name: company.bank_name || '',
       bank_account_number: company.bank_account_number || '',
       bank_ifsc: company.bank_ifsc || '',
       bank_branch: company.bank_branch || '',
       upi_id: company.upi_id || '',
-      
+
       // Logo
       logo: null,
       logo_preview: logoPreview,
       logo_filename: company.logo_filename || '',
       logo_mime_type: company.logo_mime_type || '',
       remove_logo: false,
-      
+
       // Additional
       notes: company.notes || '',
       is_active: company.is_active !== undefined ? company.is_active : true
@@ -327,7 +334,7 @@ const Company = () => {
     if (company.logo_data) {
       logoPreview = `data:${company.logo_mime_type || 'image/jpeg'};base64,${company.logo_data}`;
     }
-    
+
     setCompanyInfo({
       // Basic Information
       name: company.name || '',
@@ -335,26 +342,26 @@ const Company = () => {
       phone: company.phone || '',
       alternate_phone: company.alternate_phone || '',
       email: company.email || '',
-      
+
       // GST Information
       gst_number: company.gst_number || '',
-      
+
       // Registration Details
       registration_date: company.registration_date ? company.registration_date.split('T')[0] : '',
-      
+
       // Banking Details
       bank_name: company.bank_name || '',
       bank_account_number: company.bank_account_number || '',
       bank_ifsc: company.bank_ifsc || '',
       bank_branch: company.bank_branch || '',
       upi_id: company.upi_id || '',
-      
+
       // Logo
       logo: null,
       logo_preview: logoPreview,
       logo_filename: company.logo_filename || '',
       logo_mime_type: company.logo_mime_type || '',
-      
+
       // Additional
       notes: company.notes || '',
       is_active: company.is_active !== undefined ? company.is_active : true
@@ -461,7 +468,7 @@ const Company = () => {
   const getPageNumbers = () => {
     const pageNumbers = [];
     const maxPagesToShow = 5;
-    
+
     if (totalPages <= maxPagesToShow) {
       for (let i = 1; i <= totalPages; i++) {
         pageNumbers.push(i);
@@ -489,7 +496,7 @@ const Company = () => {
         pageNumbers.push(totalPages);
       }
     }
-    
+
     return pageNumbers;
   };
 
@@ -618,8 +625,8 @@ const Company = () => {
                       </span>
                     </td>
                     <td className="actions">
-                      <button 
-                        onClick={() => handleView(company)} 
+                      <button
+                        onClick={() => handleView(company)}
                         className="btn-view-table"
                         title="View"
                       >
@@ -628,8 +635,8 @@ const Company = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
                       </button>
-                      <button 
-                        onClick={() => handleEdit(company)} 
+                      <button
+                        onClick={() => handleEdit(company)}
                         className="btn-edit-table"
                         title="Edit"
                       >
@@ -638,8 +645,8 @@ const Company = () => {
                         </svg>
                       </button>
                       {!company.is_active ? (
-                        <button 
-                          onClick={() => handleRestore(company.id)} 
+                        <button
+                          onClick={() => handleRestore(company.id)}
                           className="btn-restore-table"
                           title="Restore"
                         >
@@ -648,8 +655,8 @@ const Company = () => {
                           </svg>
                         </button>
                       ) : null}
-                      <button 
-                        onClick={() => handleDelete(company.id)} 
+                      <button
+                        onClick={() => handleDelete(company.id)}
                         className="btn-delete-table"
                         title="Delete Permanently"
                       >
@@ -681,7 +688,7 @@ const Company = () => {
                   </svg>
                   Previous
                 </button>
-                
+
                 <div className="pagination-numbers">
                   {getPageNumbers().map((page, index) => (
                     page === '...' ? (
@@ -697,7 +704,7 @@ const Company = () => {
                     )
                   ))}
                 </div>
-                
+
                 <button
                   onClick={handleNextPage}
                   disabled={currentPage === totalPages}
@@ -723,14 +730,14 @@ const Company = () => {
                 </h2>
                 <button onClick={closePopup} className="close-btn">&times;</button>
               </div>
-              
+
               {/* Notification inside popup */}
               {saveStatus.message && (
                 <div className={`popup-notification ${saveStatus.type}`}>
                   {saveStatus.message}
                 </div>
               )}
-              
+
               {/* Progress Indicator */}
               <div className="progress-indicator">
                 <div className={`progress-step ${activeTab === 'basic' ? 'active' : (activeTab === 'tax' || activeTab === 'banking') && !isViewing ? 'completed' : ''}`}>
@@ -748,7 +755,7 @@ const Company = () => {
                   <div className="step-label">Banking</div>
                 </div>
               </div>
-              
+
               <div className="popup-body">
                 {/* Basic Information Tab */}
                 {activeTab === 'basic' && (
@@ -795,7 +802,7 @@ const Company = () => {
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="form-group">
                       <label>Company Name {!isViewing && '*'}</label>
                       <input
@@ -809,7 +816,7 @@ const Company = () => {
                         className={isViewing ? 'readonly-input' : ''}
                       />
                     </div>
-                    
+
                     <div className="form-group">
                       <label>Address {!isViewing && '*'}</label>
                       <textarea
@@ -823,7 +830,7 @@ const Company = () => {
                         className={isViewing ? 'readonly-input' : ''}
                       />
                     </div>
-                    
+
                     <div className="form-row">
                       <div className="form-group">
                         <label>Phone {!isViewing && '*'}</label>
@@ -838,7 +845,7 @@ const Company = () => {
                           className={isViewing ? 'readonly-input' : ''}
                         />
                       </div>
-                      
+
                       <div className="form-group">
                         <label>Alternate Phone</label>
                         <input
@@ -852,7 +859,7 @@ const Company = () => {
                         />
                       </div>
                     </div>
-                    
+
                     <div className="form-group">
                       <label>Email</label>
                       <input
@@ -865,7 +872,7 @@ const Company = () => {
                         className={isViewing ? 'readonly-input' : ''}
                       />
                     </div>
-                    
+
                     <div className="form-group">
                       <label>Registration Date</label>
                       <input
@@ -877,7 +884,7 @@ const Company = () => {
                         className={isViewing ? 'readonly-input' : ''}
                       />
                     </div>
-                    
+
                     <div className="form-group">
                       <label>Notes</label>
                       <textarea
@@ -892,7 +899,7 @@ const Company = () => {
                     </div>
                   </>
                 )}
-                
+
                 {/* Tax Info Tab */}
                 {activeTab === 'tax' && (
                   <>
@@ -908,14 +915,14 @@ const Company = () => {
                         className={isViewing ? 'readonly-input' : ''}
                       />
                       {!isViewing && (
-                        <small style={{color: '#718096', fontSize: '0.75rem', marginTop: '4px', display: 'block'}}>
+                        <small style={{ color: '#718096', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
                           Format: 15 characters (e.g., 22AAAAA0000A1Z5)
                         </small>
                       )}
                     </div>
                   </>
                 )}
-                
+
                 {/* Banking Tab */}
                 {activeTab === 'banking' && (
                   <>
@@ -931,7 +938,7 @@ const Company = () => {
                         className={isViewing ? 'readonly-input' : ''}
                       />
                     </div>
-                    
+
                     <div className="form-row">
                       <div className="form-group">
                         <label>Account Number</label>
@@ -945,7 +952,7 @@ const Company = () => {
                           className={isViewing ? 'readonly-input' : ''}
                         />
                       </div>
-                      
+
                       <div className="form-group">
                         <label>IFSC Code</label>
                         <input
@@ -959,7 +966,7 @@ const Company = () => {
                         />
                       </div>
                     </div>
-                    
+
                     <div className="form-row">
                       <div className="form-group">
                         <label>Bank Branch</label>
@@ -973,7 +980,7 @@ const Company = () => {
                           className={isViewing ? 'readonly-input' : ''}
                         />
                       </div>
-                      
+
                       <div className="form-group">
                         <label>UPI ID</label>
                         <input
@@ -990,7 +997,7 @@ const Company = () => {
                   </>
                 )}
               </div>
-              
+
               <div className="popup-footer">
                 <div className="form-group checkbox-group">
                   <label>
@@ -1024,7 +1031,7 @@ const Company = () => {
                           Previous
                         </button>
                       )}
-                      
+
                       {activeTab !== 'banking' ? (
                         <button onClick={handleNextTab} className="btn-next">
                           Next

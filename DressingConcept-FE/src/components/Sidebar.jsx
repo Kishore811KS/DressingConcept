@@ -35,7 +35,22 @@ import {
   FaReceipt,
   FaChartLine,
   FaKeyboard,
+  FaUndo,
 } from "react-icons/fa";
+
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
 
 const Sidebar = ({ isOpen }) => {
   const HEADER_HEIGHT = "65px";
@@ -65,7 +80,8 @@ const Sidebar = ({ isOpen }) => {
   const getShortcut = (path) => {
     const shortcuts = {
       '/dashboard': 'D',
-      '/product': 'P',
+      '/admin-product': 'P',
+      '/employee-product': 'EP',
       '/type': 'C',
       '/itemlist': 'V',
       '/stockout': 'O',
@@ -73,6 +89,7 @@ const Sidebar = ({ isOpen }) => {
       '/warranty': 'W',
       '/bill': 'B',
       '/billreport': 'R',
+      '/salereturn': 'SR',
       '/service': 'G',
       '/serviceBillView': 'X',
       '/employeebill': 'Y',
@@ -239,10 +256,11 @@ const Sidebar = ({ isOpen }) => {
           )}
 
           {/* Inventory Management */}
-          {isSectionVisible(["products", "category", "stock_in", "stock_out", "low_stock"]) && (
+          {isSectionVisible(["admin_products", "employee_products", "category", "stock_in", "stock_out", "low_stock"]) && (
             <>
               <div style={styles.sectionTitle}>Inventory</div>
-              {hasPermission("products") && renderLink("/product", <FaBoxes style={styles.icon} />, "Products")}
+              {hasPermission("admin_products") && renderLink("/admin-product", <FaBoxes style={styles.icon} />, "Admin Products")}
+              {hasPermission("employee_products") && renderLink("/employee-product", <FaBoxes style={styles.icon} />, "Employee Products")}
               {hasPermission("category") && renderLink("/type", <FaTags style={styles.icon} />, "Category")}
               {hasPermission("stock_in") && renderLink("/itemlist", <FaArrowDown style={styles.icon} />, "Stock In")}
               {hasPermission("stock_out") && renderLink("/stockout", <FaArrowUp style={styles.icon} />, "Stock Out")}
@@ -250,13 +268,13 @@ const Sidebar = ({ isOpen }) => {
             </>
           )}
 
-          {/* Warranty Section */}
+          {/* Warranty Section
           {isSectionVisible(["warranty"]) && (
             <>
               <div style={styles.sectionTitle}>Warranty</div>
               {hasPermission("warranty") && renderLink("/warranty", <FaShieldAlt style={styles.icon} />, "Warranty")}
             </>
-          )}
+          )} */}
 
           {/* Billing Section */}
           {isSectionVisible(["create_bill", "bill_reports", "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount"]) && (
@@ -264,11 +282,12 @@ const Sidebar = ({ isOpen }) => {
               <div style={styles.sectionTitle}>Billing</div>
               {hasPermission("create_bill") && renderLink("/bill", <FaReceipt style={styles.icon} />, "Create Bill")}
               {hasPermission("bill_reports") && renderLink("/billreport", <FaChartLine style={styles.icon} />, "Bill Reports")}
+              {hasPermission("bill_reports") && renderLink("/salereturn", <FaUndo style={styles.icon} />, "Sale Return")}
               {hasPermission("service_bill") && renderLink("/service", <FaShoppingCart style={styles.icon} />, "Service Bill")}
               {hasPermission("service_bills") && renderLink("/serviceBillView", <FaFileContract style={styles.icon} />, "Service Bills")}
-              {hasPermission("sales_bills") && renderLink("/employeebill", <FaUserCircle style={styles.icon} />, "SalesBill(emp)")}
+              {/* {hasPermission("sales_bills") && renderLink("/employeebill", <FaUserCircle style={styles.icon} />, "SalesBill(emp)")} */}
               {hasPermission("quotations") && renderLink("/quotation", <FaClipboardList style={styles.icon} />, "Quotations")}
-              {hasPermission("discount") && renderLink("/discount", <FaPercent style={styles.icon} />, "Discount")}
+              {/* {hasPermission("discount") && renderLink("/discount", <FaPercent style={styles.icon} />, "Discount")} */}
             </>
           )}
 

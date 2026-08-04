@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
+import jsPDF from "jspdf";
 import { 
   FaMoneyBillWave, 
   FaCalendarAlt, 
@@ -10,6 +10,20 @@ import {
   FaUser
 } from "react-icons/fa";
 
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 const Salary = () => {
   const [loading, setLoading] = useState(false);
   const [salaries, setSalaries] = useState([]);
@@ -19,15 +33,8 @@ const Salary = () => {
   const [toast, setToast] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const API_BASE_URL = "http://localhost:5000/api/salary";
   const token = localStorage.getItem("token");
 
-  const api = axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-      Authorization: token ? `Bearer ${token}` : "",
-    },
-  });
 
   const showToast = (msg, isError = false) => {
     setToast({ msg, isError });
@@ -37,7 +44,7 @@ const Salary = () => {
   const calculateSalaries = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/calculate?month=${month}&year=${year}`);
+      const res = await api.get(`/salary/calculate?month=${month}&year=${year}`);
       setSalaries(res.data);
       if (res.data.length > 0 && !selectedEmp) setSelectedEmp(res.data[0]);
       showToast("Salaries calculated successfully");
@@ -52,6 +59,53 @@ const Salary = () => {
     calculateSalaries();
   }, [month, year]);
 
+  const downloadPayslip = (emp) => {
+    if (!emp) return;
+    const doc = new jsPDF();
+    
+    doc.setFontSize(22);
+    doc.text("Dressing Concept - Payslip", 105, 20, null, null, "center");
+    
+    doc.setFontSize(12);
+    doc.text(`Employee Name: ${emp.employee_name || 'Unknown'}`, 20, 40);
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    doc.text(`Month/Year: ${monthNames[month - 1]} ${year}`, 120, 40);
+    
+    doc.line(20, 45, 190, 45); // horizontal line
+    
+    doc.text(`Per Day Rate: Rs. ${emp.basic_salary}`, 20, 60);
+    doc.text(`Working Days in Month: ${emp.working_days_threshold}`, 20, 70);
+    doc.text(`Present Days: ${emp.present_days}`, 20, 80);
+    doc.text(`Paid Leaves: ${emp.paid_leaves}`, 20, 90);
+    doc.text(`Half Days: ${emp.half_days}`, 120, 60);
+    doc.text(`Unpaid Leaves (LOP): ${emp.unpaid_leaves}`, 120, 70);
+    doc.text(`Absent Days: ${emp.absent_days}`, 120, 80);
+    doc.text(`Effective Paid Days: ${emp.effective_days}`, 120, 90);
+    
+    doc.line(20, 95, 190, 95);
+    
+    const totalDeductions = (emp.unpaid_leaves + emp.absent_days + emp.half_days * 0.5) * emp.basic_salary;
+    
+    doc.setFontSize(14);
+    doc.text(`Gross Salary:`, 20, 110);
+    doc.text(`Rs. ${emp.calculated_salary.toLocaleString()}`, 120, 110);
+    
+    doc.text(`LOP Deductions:`, 20, 120);
+    doc.setTextColor(200, 0, 0);
+    doc.text(`- Rs. ${totalDeductions.toLocaleString()}`, 120, 120);
+    doc.setTextColor(0, 0, 0);
+    
+    doc.line(20, 130, 190, 130);
+    
+    doc.setFont("helvetica", "bold");
+    doc.text(`Net Take-Home:`, 20, 140);
+    doc.setTextColor(0, 150, 0);
+    doc.text(`Rs. ${emp.calculated_salary.toLocaleString()}`, 120, 140);
+    doc.setTextColor(0, 0, 0);
+    
+    doc.save(`Payslip_${emp.employee_name || 'Emp'}_${monthNames[month - 1]}_${year}.pdf`);
+  };
+
   const filteredSalaries = useMemo(() => {
     return salaries.filter(s => 
       (s.employee_name || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -60,7 +114,7 @@ const Salary = () => {
 
   const updateStatus = async (salaryId, status) => {
     try {
-      await api.put("/update-status", { salary_id: salaryId, status });
+      await api.put("/salary/update-status", { salary_id: salaryId, status });
       setSalaries(prev => prev.map(s => s.id === salaryId ? { ...s, status } : s));
       if (selectedEmp?.id === salaryId) setSelectedEmp(prev => ({ ...prev, status }));
       showToast(`Marked as ${status}`);
@@ -72,7 +126,7 @@ const Salary = () => {
   const payAll = async () => {
     if (!window.confirm("Mark all pending salaries as paid?")) return;
     try {
-      await api.post("/pay-all", { month, year });
+      await api.post("/salary/pay-all", { month, year });
       setSalaries(prev => prev.map(s => ({ ...s, status: 'paid' })));
       showToast("All salaries marked as paid");
     } catch (err) {
@@ -432,7 +486,7 @@ const Salary = () => {
                  <div style={{ ...styles.detailValue, fontSize: "20px", marginTop: "4px", color: "#2e7d32" }}>₹{selectedEmp.calculated_salary.toLocaleString()}</div>
               </div>
 
-              <button style={styles.downloadBtn}>
+              <button style={styles.downloadBtn} onClick={() => downloadPayslip(selectedEmp)}>
                 <FaDownload /> Download payslip
               </button>
               

@@ -1,5 +1,23 @@
 import React, { useState, useEffect } from 'react';
 
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+
+
+
+
 const SupplierPage = () => {
   // State for current step (1: Supplier Details, 2: Add Items)
   const [currentStep, setCurrentStep] = useState(1);
@@ -61,7 +79,7 @@ const SupplierPage = () => {
   const [searchField, setSearchField] = useState('all');
 
   // Base URL for API
-  const BASE_URL = 'http://localhost:5000';
+
 
   // Check authentication status on mount
   useEffect(() => {
@@ -80,11 +98,8 @@ const SupplierPage = () => {
   // Check if user is authenticated
   const checkAuth = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/check-session`, {
-        credentials: 'include',
-        mode: 'cors'
-      });
-      const data = await response.json();
+      const response = await api.get(`/check-session`);
+      const data = response.data;
       setIsAuthenticated(data.authenticated);
 
       if (data.authenticated) {
@@ -102,23 +117,9 @@ const SupplierPage = () => {
   const fetchSuppliers = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${BASE_URL}/api/suppliers-with-items`, {
-        credentials: 'include',
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
+      const response = await api.get(`/suppliers-with-items`);
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          window.location.href = '/login';
-          return;
-        }
-        throw new Error('Failed to fetch suppliers');
-      }
-
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         setSuppliers(data.suppliers);
 
@@ -132,7 +133,11 @@ const SupplierPage = () => {
         setItems(allItems);
       }
     } catch (err) {
-      setError(err.message);
+      if (err.response && err.response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      setError(err.response?.data?.error || err.message);
       console.error('Error fetching suppliers:', err);
     } finally {
       setLoading(false);
@@ -210,23 +215,18 @@ const SupplierPage = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${BASE_URL}/api/upload`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-        mode: 'cors'
+      const response = await api.post(`/upload`, formData, {
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to upload file');
-      }
-
-      const data = await response.json();
+      const data = response.data;
       return data.filePath; // Returns path like "/uploads/filename.jpg"
     } catch (err) {
       console.error('Error uploading file:', err);
-      alert('Failed to upload file. Please try again.');
+      alert(err.response?.data?.error || 'Failed to upload file. Please try again.');
       return null;
     } finally {
       setUploadingFile(false);
@@ -255,22 +255,14 @@ const SupplierPage = () => {
 
       console.log(`${method} supplier data:`, supplierData);
 
-      const response = await fetch(url, {
+      const response = await api({
         method: method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        mode: 'cors',
-        body: JSON.stringify(supplierData)
+        url: url,
+        data: supplierData,
+        withCredentials: true
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to ${isEditing ? 'update' : 'create'} supplier`);
-      }
-
-      const data = await response.json();
+      const data = response.data;
 
       if (data.success) {
         const savedSupplier = data.supplier;
@@ -285,9 +277,9 @@ const SupplierPage = () => {
         setShowSupplierPopup(false);
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.error || err.message);
       console.error(`Error ${currentSupplier.id ? 'updating' : 'creating'} supplier:`, err);
-      alert(`Failed to ${currentSupplier.id ? 'update' : 'create'} supplier. Please try again.`);
+      alert(err.response?.data?.error || `Failed to ${currentSupplier.id ? 'update' : 'create'} supplier. Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -331,25 +323,11 @@ const SupplierPage = () => {
 
         console.log('Sending item data:', itemData);
 
-        const response = await fetch(`${BASE_URL}/api/suppliers/${selectedSupplier.id}/items`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          mode: 'cors',
-          body: JSON.stringify(itemData)
-        });
+        const response = await api.post(`/suppliers/${selectedSupplier.id}/items`, itemData);
 
         console.log('Item response status:', response.status);
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error('Error response:', errorData);
-          throw new Error(errorData.error || 'Failed to create item');
-        }
-
-        const data = await response.json();
+        const data = response.data;
         console.log('Item success response:', data);
 
         if (data.success) {
@@ -396,9 +374,9 @@ const SupplierPage = () => {
           alert('Item added successfully! It will be automatically added to inventory.');
         }
       } catch (err) {
-        setError(err.message);
+        setError(err.response?.data?.error || err.message);
         console.error('Error creating item:', err);
-        alert('Failed to create item. Please try again.');
+        alert(err.response?.data?.error || 'Failed to create item. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -423,18 +401,9 @@ const SupplierPage = () => {
     if (window.confirm('Are you sure you want to delete this item?')) {
       try {
         setLoading(true);
-        const response = await fetch(`${BASE_URL}/api/items/${itemId}`, {
-          method: 'DELETE',
-          credentials: 'include',
-          mode: 'cors'
-        });
+        const response = await api.delete(`/items/${itemId}`);
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to delete item');
-        }
-
-        const data = await response.json();
+        const data = response.data;
         if (data.success) {
           const itemToDelete = items.find(item => item.id === itemId);
 
@@ -456,9 +425,9 @@ const SupplierPage = () => {
           alert('Item deleted successfully!');
         }
       } catch (err) {
-        setError(err.message);
+        setError(err.response?.data?.error || err.message);
         console.error('Error deleting item:', err);
-        alert('Failed to delete item. Please try again.');
+        alert(err.response?.data?.error || 'Failed to delete item. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -470,18 +439,9 @@ const SupplierPage = () => {
     if (window.confirm('Are you sure you want to delete this supplier? All associated items will also be deleted.')) {
       try {
         setLoading(true);
-        const response = await fetch(`${BASE_URL}/api/suppliers/${supplierId}`, {
-          method: 'DELETE',
-          credentials: 'include',
-          mode: 'cors'
-        });
+        const response = await api.delete(`/suppliers/${supplierId}`);
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to delete supplier');
-        }
-
-        const data = await response.json();
+        const data = response.data;
         if (data.success) {
           // Remove all items associated with this supplier from global items
           setItems(items.filter(item => item.supplier_id !== supplierId));
@@ -497,9 +457,9 @@ const SupplierPage = () => {
           alert('Supplier deleted successfully!');
         }
       } catch (err) {
-        setError(err.message);
+        setError(err.response?.data?.error || err.message);
         console.error('Error deleting supplier:', err);
-        alert('Failed to delete supplier. Please try again.');
+        alert(err.response?.data?.error || 'Failed to delete supplier. Please try again.');
       } finally {
         setLoading(false);
       }

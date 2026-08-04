@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import logo from "./assets/logo.jpeg";
@@ -13,6 +14,21 @@ const Login = () => {
   const [infoMessage, setInfoMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const enterFullscreen = () => {
+    const elem = document.documentElement;
+    if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().catch((err) => {
+          console.warn("Error attempting to enable fullscreen:", err);
+        });
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      } else if (elem.msRequestFullscreen) {
+        elem.msRequestFullscreen();
+      }
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -26,23 +42,25 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // First try employee login
-      console.log("Attempting employee login...");
-      const employeeResponse = await fetch("http://localhost:5000/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include", // Important: Include cookies for session
-        body: JSON.stringify({
-          email: email,
-          password: password,
-        }),
-      });
+      let employeeData = null;
+      let employeeSuccess = false;
 
-      const employeeData = await employeeResponse.json();
+      try {
+        // First try employee login
+        console.log("Attempting employee login...");
+        const employeeResponse = await axios.post("http://localhost:5000/api/auth/login",
+          { email, password },
+          { withCredentials: true }
+        );
+        employeeData = employeeResponse.data;
+        if (employeeData && employeeData.user) {
+          employeeSuccess = true;
+        }
+      } catch (err) {
+        console.log("Employee login endpoint failed.");
+      }
 
-      if (employeeResponse.ok && employeeData.user) {
+      if (employeeSuccess && employeeData.user) {
         // Employee login successful
         console.log("Employee login successful:", employeeData);
 
@@ -59,31 +77,20 @@ const Login = () => {
           localStorage.setItem("company", employeeData.user.current_company);
         }
 
+        enterFullscreen();
         setLoading(false);
         navigate("/dashboard");
         return;
       }
 
       // If employee login fails, try the old login endpoint
-      console.log("Employee login failed, trying old login endpoint...");
-      const oldResponse = await fetch("http://localhost:5000/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: email,
-          password: password,
-        }),
+      console.log("Trying old login endpoint...");
+      const oldResponse = await axios.post("http://localhost:5000/api/login", {
+        email,
+        password
       });
 
-      const oldData = await oldResponse.json();
-
-      if (!oldResponse.ok) {
-        setError(oldData.error || "Invalid email or password");
-        setLoading(false);
-        return;
-      }
+      const oldData = oldResponse.data;
 
       // Standard login successful
       console.log("Standard login successful:", oldData);
@@ -93,6 +100,7 @@ const Login = () => {
       const userToStore = {
         id: userData.id || userData.user_id,
         employee_id: userData.employee_id || userData.emp_id || null,
+        username: userData.username,
         full_name: userData.full_name || userData.name || userData.username,
         email: userData.email,
         user_type: userData.user_type || userData.role || "user",
@@ -107,12 +115,13 @@ const Login = () => {
       localStorage.setItem("isLoggedIn", "true");
       localStorage.setItem("loginType", "standard");
 
+      enterFullscreen();
       setLoading(false);
       navigate("/dashboard");
 
     } catch (err) {
       console.error("Login error:", err);
-      setError("Server error. Please check your connection and try again.");
+      setError(err.response?.data?.error || err.message || "Server error. Please check your connection and try again.");
       setLoading(false);
     }
   };

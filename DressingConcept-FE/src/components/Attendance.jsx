@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from "date-fns";
-import axios from "axios";
 import { 
   FaCalendarAlt, 
   FaUserCheck, 
@@ -12,6 +11,20 @@ import {
   FaUserClock,
   FaChevronDown
 } from "react-icons/fa";
+
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
 
 const Attendance = () => {
   const [loading, setLoading] = useState(false);
@@ -25,15 +38,6 @@ const Attendance = () => {
   const [toast, setToast] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const API_BASE_URL = "http://localhost:5000/api";
-  const token = localStorage.getItem("token");
-
-  const api = axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-      Authorization: token ? `Bearer ${token}` : "",
-    },
-  });
 
   useEffect(() => {
     fetchAttendance(format(selectedDate, "yyyy-MM-dd"));

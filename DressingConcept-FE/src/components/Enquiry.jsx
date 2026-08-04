@@ -17,7 +17,21 @@ import {
   FaTrash,
 } from "react-icons/fa";
 
-const API = "http://localhost:5000/api";
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+
 
 const STATUS_COLORS = {
   Pending: { bg: "#fbbf24", text: "#000" },
@@ -319,8 +333,8 @@ const EnquiryPage = () => {
     setLoading(true);
     try {
       const [eq, nf] = await Promise.all([
-        fetch(`${API}/enquiries`).then((r) => r.json()),
-        fetch(`${API}/enquiries/notifications`).then((r) => r.json()),
+        api.get(`/enquiries`).then((r) => r.data),
+        api.get(`/enquiries/notifications`).then((r) => r.data),
       ]);
       setEnquiries(eq);
       setNotifications(nf);
@@ -337,35 +351,34 @@ const EnquiryPage = () => {
     const method = editTarget ? "PUT" : "POST";
     const url = editTarget ? `${API}/enquiries/${editTarget.id}` : `${API}/enquiries`;
     try {
-      const res = await fetch(url, {
+      await api({
         method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, called: false, status: "Pending" }), // Ensure status is Pending for new entries
+        url,
+        data: { ...form, called: false, status: "Pending" },
       });
-      if (!res.ok) { const d = await res.json(); alert(d.error || "Error"); return; }
       setShowModal(false);
       setEditTarget(null);
       fetchAll();
     } catch (err) {
-      alert("Server error. Please try again.");
+      alert(err.response?.data?.error || "Server error. Please try again.");
     }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this enquiry?")) return;
-    await fetch(`${API}/enquiries/${id}`, { method: "DELETE" });
-    fetchAll();
+    try {
+      await api.delete(`/enquiries/${id}`);
+      fetchAll();
+    } catch (err) {
+      alert(err.response?.data?.error || "Error deleting enquiry");
+    }
   };
 
   const handleAccept = async (enq) => {
     if (enq.status === "Visited") return;
     setAcceptingId(enq.id);
     try {
-      await fetch(`${API}/enquiries/${enq.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...enq, status: "Visited" }),
-      });
+      await api.put(`/enquiries/${enq.id}`, { ...enq, status: "Visited" });
       setToast({ show: true, message: `${enq.customer_name} marked as visited!` });
       setTimeout(() => setToast({ show: false, message: "" }), 3000);
       fetchAll();
@@ -380,11 +393,7 @@ const EnquiryPage = () => {
     if (enq.status === "Cancelled") return;
     if (!window.confirm(`Cancel enquiry for ${enq.customer_name}?`)) return;
     try {
-      await fetch(`${API}/enquiries/${enq.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...enq, status: "Cancelled" }),
-      });
+      await api.put(`/enquiries/${enq.id}`, { ...enq, status: "Cancelled" });
       fetchAll();
     } catch (err) {
       alert("Error updating status.");
@@ -394,11 +403,7 @@ const EnquiryPage = () => {
   const handleToggleCalled = async (enq) => {
     setUpdatingCalled(enq.id);
     try {
-      await fetch(`${API}/enquiries/${enq.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...enq, called: !enq.called }),
-      });
+      await api.put(`/enquiries/${enq.id}`, { ...enq, called: !enq.called });
       fetchAll();
     } catch (err) {
       alert("Error updating called status.");
@@ -414,11 +419,7 @@ const EnquiryPage = () => {
     }
     setUpdatingFollowup(selectedEnquiry.id);
     try {
-      await fetch(`${API}/enquiries/${selectedEnquiry.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...selectedEnquiry, next_followup_date: newFollowupDate }),
-      });
+      await api.put(`/enquiries/${selectedEnquiry.id}`, { ...selectedEnquiry, next_followup_date: newFollowupDate });
       setShowFollowupModal(false);
       setSelectedEnquiry(null);
       setNewFollowupDate("");

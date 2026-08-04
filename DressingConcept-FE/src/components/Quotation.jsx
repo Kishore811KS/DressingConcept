@@ -1,19 +1,27 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 const QuotationPage = () => {
   // Create axios instance with credentials
-  const api = axios.create({
-    baseURL: 'http://localhost:5000/api',
-    withCredentials: true,
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
+  
 
   // Add request interceptor for debugging
   api.interceptors.request.use(request => {
@@ -809,8 +817,8 @@ const QuotationPage = () => {
         </head>
         <body>
           <div class="header">
-            <img src="/avva-logo.jpeg" class="company-logo" alt="Avva Inventory Logo">
-            <div class="company-name">Avva Inventory</div>
+            <img src="/Dressing_Concept.png" class="company-logo" alt="Dressing Concept Logo">
+            <div class="company-name">Dressing Concept</div>
             <div class="company-details">No.71, M.T.H.road (Opp padi post office), Padi, Chennai - 600 050</div>
             <div class="company-details">Phone: 98657 09626 | Email: hiprintsolutions@gmail.com | GST: 33ABCDE1234F1Z5</div>
           </div>       
@@ -1163,7 +1171,7 @@ const QuotationPage = () => {
             <div style={styles.modalContent}>
               {/* Company Header */}
               <div style={styles.viewCompanyHeader}>
-                <img src="/avva-logo.jpeg" alt="Avva Inventory Logo" style={{ maxWidth: '120px', marginBottom: '10px' }} />
+                <img src="/Dressing_Concept.png" alt="Dressing Concept Logo" style={{ maxWidth: '120px', marginBottom: '10px' }} />
                 <h3 style={{ color: '#3b82f6', margin: 0 }}>{companyDetails.name}</h3>
                 <p style={{ margin: '5px 0', color: '#94a3b8' }}>{companyDetails.address}</p>
                 <p style={{ margin: 0, color: '#94a3b8' }}>Phone: {companyDetails.phone} | Email: {companyDetails.email}</p>

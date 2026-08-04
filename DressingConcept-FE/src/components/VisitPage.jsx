@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
@@ -47,6 +47,21 @@ import {
   Globe
 } from 'lucide-react';
 
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+
 // Crown icon component for VIP customers
 const Crown = (props) => (
   <svg
@@ -64,7 +79,7 @@ const Crown = (props) => (
   </svg>
 );
 
-const API_BASE_URL = 'http://localhost:5000/api';
+
 
 const VisitBillPage = () => {
   const [bills, setBills] = useState([]);
@@ -76,11 +91,12 @@ const VisitBillPage = () => {
   const [message, setMessage] = useState({ type: "", text: "" });
   const [copiedBillNo, setCopiedBillNo] = useState(null);
   const [permissions, setPermissions] = useState([]);
+  const [whatsappStatus, setWhatsappStatus] = useState({});
 
   // Get user info
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const userType = localStorage.getItem("userType") || user.user_type || "";
-  const isAdmin = userType.toLowerCase() === "admin";
+  const isAdmin = userType.toLowerCase() === "admin" || user?.email === 'admin@m3cars.com' || user?.user_type?.toLowerCase() === 'admin';
   const isEmployee = userType.toLowerCase() === "employee";
 
   const hasPermission = (submoduleId) => {
@@ -104,13 +120,12 @@ const VisitBillPage = () => {
   const fetchPermissions = async () => {
     try {
       const employeeId = user.id || user.employee_id || "";
-      const response = await axios.get(`${API_BASE_URL}/permissions?userType=${userType}&employeeId=${employeeId}`);
+      const response = await api.get(`/permissions?userType=${userType}&employeeId=${employeeId}`);
       setPermissions(response.data);
     } catch (error) {
       console.error("Error fetching permissions:", error);
     }
   };
-  const [whatsappStatus, setWhatsappStatus] = useState({});
 
   // Company/Shop Details from Backend
   const [companyDetails, setCompanyDetails] = useState({
@@ -147,14 +162,7 @@ const VisitBillPage = () => {
 
 
   // Create axios instance with credentials
-  const api = axios.create({
-    baseURL: API_BASE_URL,
-    withCredentials: true,
-    timeout: 10000,
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
+  
 
   // Payment method icons and colors
   const paymentMethodMap = {
@@ -213,7 +221,7 @@ const VisitBillPage = () => {
 
       summary.total.count += 1;
       summary.total.amount += amount;
-      summary.profit += parseFloat(bill.profit || 0);
+      summary.profit += Math.abs(parseFloat(bill.profit || 0));
     });
 
 
@@ -427,7 +435,7 @@ const VisitBillPage = () => {
         try {
           const fullUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
           console.log('Trying endpoint:', fullUrl);
-          const res = await axios.get(fullUrl, { withCredentials: true });
+          const res = await api.get(fullUrl);
           if (res.data) {
             response = res;
             success = true;
@@ -512,7 +520,6 @@ const VisitBillPage = () => {
           discountType: 'amount',
           tax: parseFloat(bill.tax || bill.taxAmount || 0),
           taxType: 'amount',
-          profit: parseFloat(bill.profit || 0),
           total: parseFloat(bill.total || bill.grandTotal || bill.amount || 0),
           profit: parseFloat(bill.profit || bill.summary?.profit || 0),
           itemCount: parseInt(bill.itemCount || (bill.items ? bill.items.length : 0)),
@@ -1061,7 +1068,7 @@ const VisitBillPage = () => {
       const digitalBillLink = `${window.location.origin}/digital-bill?billNo=${billNumber}`;
       const messageText = `Hi ${customerName}, we are delighted! Thank you for shopping at Dressing Concept. Click the link to get your Digital Bill: ${digitalBillLink}\n\nHappy Shopping!`;
 
-      const response = await axios.post(`${API_BASE_URL}/billing/send-digital-bill`, {
+      const response = await api.post(`/billing/send-digital-bill`, {
         phoneNumber,
         customerName,
         billNumber,
@@ -1091,10 +1098,13 @@ const VisitBillPage = () => {
       return;
     }
 
+    // Show sending status
     setWhatsappStatus(prev => ({ ...prev, [bill.id]: 'sending' }));
 
+    // Clean phone number (remove non-digits)
     const cleanPhone = bill.customerPhone.replace(/\D/g, '');
 
+    // Check if phone number is valid
     if (cleanPhone.length < 10) {
       showMessage("error", "❌ Please enter a valid 10-digit phone number");
       setWhatsappStatus(prev => ({ ...prev, [bill.id]: 'error' }));
@@ -1104,8 +1114,10 @@ const VisitBillPage = () => {
       return;
     }
 
+    // Format phone number for WhatsApp (add country code if not present)
     const whatsappNumber = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
 
+    // Create message with company details
     const dueAmount = (bill.total || 0) - (bill.paidAmount || 0);
     const items = bill.items || [];
 
@@ -1176,9 +1188,13 @@ const VisitBillPage = () => {
     message += `Goods once sold will not be taken back\n`;
     message += `** Computer generated bill **\n`;
 
+    // Encode message for URL
     const encodedMessage = encodeURIComponent(message);
+
+    // Open WhatsApp
     window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
 
+    // Update status
     setWhatsappStatus(prev => ({ ...prev, [bill.id]: 'sent' }));
     showMessage("success", "✅ WhatsApp opened successfully!");
 
@@ -1248,7 +1264,7 @@ const VisitBillPage = () => {
     setSearchTerm('');
     setFilterPaymentMethod('all');
     setFilterCustomerType('all');
-    
+
     setDateRange({ start: '', end: '' });
     setQuickDate('all');
 
@@ -1262,11 +1278,11 @@ const VisitBillPage = () => {
     setQuickDate(option);
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
-    
+
     let start = '';
     let end = todayStr;
 
-    switch(option) {
+    switch (option) {
       case 'today':
         start = todayStr;
         break;
@@ -1297,7 +1313,7 @@ const VisitBillPage = () => {
       default:
         return;
     }
-    
+
     setDateRange({ start, end });
   };
 
@@ -1317,7 +1333,6 @@ const VisitBillPage = () => {
         'Customer Phone': bill.customerPhone || '',
         'Customer Email': bill.customerEmail || '',
         'Customer Type': (bill.customerType || 'external').toUpperCase(),
-        'Items Count': bill.itemCount || 0,
         'Items Count': bill.itemCount || 0,
         'Discount Value': bill.discountType === 'percentage' ? `${bill.discountValue}%` : `₹${bill.discountValue.toFixed(2)}`,
         'Discount Amount (₹)': (bill.discountAmount || 0).toFixed(2),
@@ -2238,7 +2253,7 @@ const VisitBillPage = () => {
         {hasPermission('cash_visibility') && (
           <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #059669' }}>
             <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-               <DollarSign size={14} color="#059669" /> CASH
+              <DollarSign size={14} color="#059669" /> CASH
             </div>
             <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.cash.amount)}</div>
             <div style={{ fontSize: '11px', color: '#059669' }}>{salesSummary.cash.count} Bills</div>
@@ -2248,7 +2263,7 @@ const VisitBillPage = () => {
         {hasPermission('card_visibility') && (
           <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #3b82f6' }}>
             <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-               <CreditCard size={14} color="#3b82f6" /> CARD
+              <CreditCard size={14} color="#3b82f6" /> CARD
             </div>
             <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.card.amount)}</div>
             <div style={{ fontSize: '11px', color: '#3b82f6' }}>{salesSummary.card.count} Bills</div>
@@ -2258,7 +2273,7 @@ const VisitBillPage = () => {
         {hasPermission('upi_visibility') && (
           <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #8b5cf6' }}>
             <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-               <Smartphone size={14} color="#8b5cf6" /> UPI
+              <Smartphone size={14} color="#8b5cf6" /> UPI
             </div>
             <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.upi.amount)}</div>
             <div style={{ fontSize: '11px', color: '#8b5cf6' }}>{salesSummary.upi.count} Bills</div>
@@ -2268,20 +2283,20 @@ const VisitBillPage = () => {
         {hasPermission('online_visibility') && (
           <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #10b981' }}>
             <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-               <Globe size={14} color="#10b981" /> ONLINE
+              <Globe size={14} color="#10b981" /> ONLINE
             </div>
             <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.online.amount)}</div>
             <div style={{ fontSize: '11px', color: '#10b981' }}>{salesSummary.online.count} Bills</div>
           </div>
         )}
 
-        {!isEmployee && hasPermission('profit_visibility') && (
-          <div style={{ backgroundColor: '#1f2937', padding: '15px', borderRadius: '8px', border: '1px solid #374151', borderLeft: '4px solid #f59e0b' }}>
-            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-               <TrendingUp size={14} color="#f59e0b" /> PROFIT
+        {(isAdmin || hasPermission('profit_visibility')) && (
+          <div style={{ backgroundColor: '#1c1a10', padding: '15px', borderRadius: '8px', border: '1px solid #f59e0b55', borderLeft: '4px solid #f59e0b', boxShadow: '0 0 12px rgba(245,158,11,0.15)' }}>
+            <div style={{ fontSize: '12px', color: '#d97706', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: '600', letterSpacing: '0.5px' }}>
+              <TrendingUp size={14} color="#f59e0b" /> TOTAL DAILY PROFIT
             </div>
-            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{formatCurrency(salesSummary.profit)}</div>
-            <div style={{ fontSize: '11px', color: '#f59e0b' }}>Cumulative Profit</div>
+            <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#fbbf24' }}>{formatCurrency(Math.abs(salesSummary.profit))}</div>
+            <div style={{ fontSize: '11px', color: '#92400e', marginTop: '3px' }}>Normal + Classic billing profit · Admin only</div>
           </div>
         )}
       </div>
@@ -2545,7 +2560,7 @@ const VisitBillPage = () => {
                     {hasPermission('profit_visibility') && (
                       <td style={{ ...styles.td, textAlign: 'right' }}>
                         <span style={{ color: '#f59e0b', fontWeight: '600' }}>
-                          {formatCurrency(bill.profit)}
+                          {formatCurrency(Math.abs(bill.profit))}
                         </span>
                       </td>
                     )}
@@ -2604,21 +2619,33 @@ const VisitBillPage = () => {
                         <button
                           style={{
                             ...styles.whatsappButton,
-                            backgroundColor: '#007bff',
-                            margin: 0
+                            opacity: whatsappStatus[bill.id] === 'sending' ? 0.7 : 1,
+                            cursor: whatsappStatus[bill.id] === 'sending' ? 'wait' : 'pointer',
+                            backgroundColor: whatsappStatus[bill.id] === 'sent' ? '#059669' : '#25D366'
                           }}
-                          onClick={() => sendDigitalBillMessenger(bill)}
-                          title="Send Digital Bill via Messenger"
+                          onClick={() => handleWhatsAppShare(bill)}
+                          title="Share on WhatsApp"
+                          disabled={whatsappStatus[bill.id] === 'sending'}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#0056b3';
-                            e.currentTarget.style.transform = 'scale(1.05)';
+                            if (!whatsappStatus[bill.id]) {
+                              e.currentTarget.style.backgroundColor = '#128C7E';
+                              e.currentTarget.style.transform = 'scale(1.05)';
+                            }
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#007bff';
-                            e.currentTarget.style.transform = 'scale(1)';
+                            if (!whatsappStatus[bill.id]) {
+                              e.currentTarget.style.backgroundColor = '#25D366';
+                              e.currentTarget.style.transform = 'scale(1)';
+                            }
                           }}
                         >
-                          📱
+                          {whatsappStatus[bill.id] === 'sending' ? (
+                            <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                          ) : whatsappStatus[bill.id] === 'sent' ? (
+                            <CheckCircle size={14} />
+                          ) : (
+                            <MessageCircle size={14} />
+                          )}
                         </button>
                       </div>
                     </td>
@@ -2835,7 +2862,7 @@ const VisitBillPage = () => {
                   <p style={{ ...styles.modalText, color: '#f87171' }}><strong>Discount:</strong> -{formatCurrency(selectedBill.discount || 0)}</p>
                   <p style={{ ...styles.modalText, color: '#60a5fa' }}><strong>Tax:</strong> +{formatCurrency(selectedBill.tax || 0)}</p>
                   {hasPermission('profit_visibility') && (
-                    <p style={{ ...styles.modalText, color: '#fbbf24' }}><strong>Profit:</strong> {formatCurrency(selectedBill.profit || 0)}</p>
+                    <p style={{ ...styles.modalText, color: '#fbbf24' }}><strong>Profit:</strong> {formatCurrency(Math.abs(selectedBill.profit || 0))}</p>
                   )}
                   <p style={{ ...styles.modalText, fontSize: '18px', fontWeight: 'bold', color: '#fff', marginTop: '10px' }}>
                     <strong>Total:</strong> {formatCurrency(selectedBill.total || 0)}

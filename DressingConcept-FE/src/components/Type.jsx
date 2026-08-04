@@ -8,7 +8,21 @@ import {
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
-const API_URL = "http://localhost:5000/api/products";
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+const API_URL = "/products";
 const ITEMS_PER_PAGE = 9;
 
 export default function ItemsByTypePage() {
@@ -56,10 +70,9 @@ export default function ItemsByTypePage() {
     setLoading(true);
     try {
       // Fetch all products (no pagination params to get all for type grouping)
-      const res = await fetch(`${API_URL}?page=1&per_page=1000`);
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const res = await api.get(`${API_URL}?page=1&per_page=1000`);
 
-      const data = await res.json();
+      const data = res.data;
 
       // Handle different response formats (based on ItemsPage.jsx)
       let productsArray = [];
@@ -105,20 +118,23 @@ export default function ItemsByTypePage() {
     // Safely parse values with defaults
     const buy = parseFloat(item.buyPrice) || 0;
     const sell = parseFloat(item.sellPrice) || 0;
+    const mrp = parseFloat(item.mrp) || sell;
     const qty = parseInt(item.quantity) || 0;
 
     const profitPercent = buy > 0 ? (((sell - buy) / buy) * 100).toFixed(2) : "0.00";
-    const amount = (sell * qty).toFixed(2);
+    // Use MRP * qty for amount (matches AdminProduct logic)
+    const amount = (mrp * qty).toFixed(2);
 
     return {
       ...item,
-      id: item.id, // Explicitly preserve ID
+      id: item.id,
       name: item.name || '',
       model: item.model || '',
       type: item.type || '',
       watts: item.watts || '',
       buyPrice: buy,
       sellPrice: sell,
+      mrp,
       quantity: qty,
       profitPercent,
       amount,
@@ -173,16 +189,7 @@ export default function ItemsByTypePage() {
         quantity: parseInt(editingItem.quantity) || 0,
       };
 
-      const res = await fetch(`${API_URL}/${editingItem.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(productData),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || `Failed to update product (${res.status})`);
-      }
+      const res = await api.put(`${API_URL}/${editingItem.id}`, productData);
 
       // Update local state
       const updatedItem = calculateValues({ ...editingItem, ...productData });
@@ -202,7 +209,7 @@ export default function ItemsByTypePage() {
       showMessage("success", "Product updated successfully!");
     } catch (err) {
       console.error("Update error:", err);
-      showMessage("error", `Failed to update: ${err.message}`);
+      showMessage("error", `Failed to update: ${err.response?.data?.error || err.response?.data?.message || err.message}`);
     } finally {
       setSaving(false);
     }
@@ -214,14 +221,7 @@ export default function ItemsByTypePage() {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
 
     try {
-      const res = await fetch(`${API_URL}/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || "Failed to delete product");
-      }
+      const res = await api.delete(`${API_URL}/${id}`);
 
       // Remove from items
       const updatedItems = items.filter(item => item.id !== id);
@@ -253,7 +253,7 @@ export default function ItemsByTypePage() {
       showMessage("success", "Item deleted successfully");
     } catch (err) {
       console.error("Delete error:", err);
-      showMessage("error", `Failed to delete: ${err.message}`);
+      showMessage("error", `Failed to delete: ${err.response?.data?.error || err.response?.data?.message || err.message}`);
     }
   };
 
@@ -884,35 +884,7 @@ export default function ItemsByTypePage() {
             />
           </div>
 
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Model</label>
-            <input
-              style={styles.input}
-              value={editingItem.model || ''}
-              onChange={(e) => handleEditChange('model', e.target.value)}
-              placeholder="Model"
-            />
-          </div>
 
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Type</label>
-            <input
-              style={styles.input}
-              value={editingItem.type || ''}
-              onChange={(e) => handleEditChange('type', e.target.value)}
-              placeholder="Type"
-            />
-          </div>
-
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Warrenty</label>
-            <input
-              style={styles.input}
-              value={editingItem.watts || ''}
-              onChange={(e) => handleEditChange('watts', e.target.value)}
-              placeholder="Watts"
-            />
-          </div>
 
           <div style={styles.formGroup}>
             <label style={styles.label}>Buy Price (₹)</label>
@@ -1253,12 +1225,9 @@ export default function ItemsByTypePage() {
                 <thead>
                   <tr>
                     <th style={styles.th}>Product</th>
-                    <th style={styles.th}>Model</th>
-                    <th style={styles.th}>Warrenty</th>
                     <th style={styles.th}>Buy Price</th>
-                    <th style={styles.th}>Sell Price</th>
+                    <th style={styles.th}>MRP</th>
                     <th style={styles.th}>Quantity</th>
-                    <th style={styles.th}>Profit %</th>
                     <th style={styles.th}>Amount</th>
                     <th style={styles.th}>Actions</th>
                   </tr>
@@ -1273,19 +1242,11 @@ export default function ItemsByTypePage() {
                       </td>
 
                       <td style={styles.td}>
-                        <span style={styles.productModel}>{item.model || '-'}</span>
-                      </td>
-
-                      <td style={styles.td}>
-                        <span>{item.watts || '-'}</span>
-                      </td>
-
-                      <td style={styles.td}>
                         <span style={styles.buyPrice}>₹{item.buyPrice.toFixed(2)}</span>
                       </td>
 
                       <td style={styles.td}>
-                        <span style={styles.sellPrice}>₹{item.sellPrice.toFixed(2)}</span>
+                        <span style={{ color: '#a5b4fc', fontWeight: 600 }}>₹{item.mrp ? parseFloat(item.mrp).toFixed(2) : item.sellPrice.toFixed(2)}</span>
                       </td>
 
                       <td style={styles.td}>
@@ -1293,18 +1254,7 @@ export default function ItemsByTypePage() {
                       </td>
 
                       <td style={styles.td}>
-                        <span style={{
-                          ...styles.profitBadge,
-                          ...(parseFloat(item.profitPercent) >= 0
-                            ? styles.profitPositive
-                            : styles.profitNegative)
-                        }}>
-                          {item.profitPercent}%
-                        </span>
-                      </td>
-
-                      <td style={styles.td}>
-                        <span>₹{parseFloat(item.amount).toFixed(2)}</span>
+                        <span style={{ fontWeight: 600, color: '#fbbf24' }}>₹{parseFloat(item.amount).toFixed(2)}</span>
                       </td>
 
                       <td style={styles.td}>

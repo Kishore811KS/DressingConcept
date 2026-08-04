@@ -8,7 +8,21 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { useNavigate } from "react-router-dom";
 
-const API_URL = "http://localhost:5000/api/products";
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+const API_URL = "/products";
 
 export default function LowStockPage() {
   const navigate = useNavigate();
@@ -69,10 +83,9 @@ export default function LowStockPage() {
     setLoading(true);
     try {
       // Fetch all products first (since we need to filter by quantity)
-      const res = await fetch(`${API_URL}?page=${page}&per_page=100`); // Get more items per page
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const res = await api.get(`${API_URL}?page=${page}&per_page=100`); // Get more items per page
       
-      const data = await res.json();
+      const data = res.data;
       
       // Handle different response formats
       let productsArray = [];
@@ -153,7 +166,7 @@ export default function LowStockPage() {
     Object.entries(orderQuantities).forEach(([itemId, qty]) => {
       const item = filteredItems.find(i => i.id === parseInt(itemId));
       if (item && qty > 0) {
-        total += item.buyPrice * qty;
+        total += (item.buyPrice || item.buy_price || 0) * qty;
       }
     });
     return total;
@@ -178,24 +191,18 @@ export default function LowStockPage() {
       
       for (const orderItem of selectedItems) {
         const item = items.find(i => i.id === orderItem.id);
-        const newQty = item.quantity + orderItem.quantity;
+        const newQty = (item?.quantity || 0) + orderItem.quantity;
         
         // Update in backend
-        const res = await fetch(`${API_URL}/${orderItem.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: item.name,
-            model: item.model || "",
-            type: item.type || "",
-            watts: item.watts || "",
-            buyPrice: item.buyPrice || 0,
-            sellPrice: item.sellPrice || 0,
-            quantity: newQty,
-          }),
+        await api.put(`${API_URL}/${orderItem.id}`, {
+          name: item?.name || item?.description || "Product",
+          model: item?.model || "",
+          type: item?.type || "",
+          watts: item?.watts ? (parseFloat(item.watts) || null) : null,
+          buyPrice: item?.buyPrice ?? item?.buy_price ?? 0,
+          sellPrice: item?.sellPrice ?? item?.sell_price ?? 0,
+          quantity: newQty,
         });
-
-        if (!res.ok) throw new Error(`Failed to update ${item.name}`);
 
         // Update local state
         updatedItems = updatedItems.map(i =>
@@ -216,7 +223,7 @@ export default function LowStockPage() {
       
     } catch (err) {
       console.error("Error placing order:", err);
-      showMessage("error", `Failed to place order: ${err.message}`);
+      showMessage("error", `Failed to place order: ${err.response?.data?.error || err.message}`);
     } finally {
       setProcessingOrder(false);
     }
@@ -231,7 +238,7 @@ export default function LowStockPage() {
         'Product ID': item.productCode || item.id || '',
         'Description': item.name || '',
         'Tax': item.tax || 0,
-        'Unit': item.unit || 'PCS',
+        'Unit': item.unit || 'PCS',        'Unit': item.unit || 'PCS',
         'Qty': item.quantity || 0,
         'Status': item.quantity === 0 ? 'OUT OF STOCK' : 'LOW STOCK',
         'Required': item.quantity === 0 ? lowStockThreshold : Math.max(0, lowStockThreshold - item.quantity),

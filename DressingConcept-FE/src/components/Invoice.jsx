@@ -1,17 +1,23 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 
 const InvoicePage = () => {
   // Create axios instance with credentials
-  const api = axios.create({
-    baseURL: 'http://localhost:5000/api',
-    withCredentials: true,
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    timeout: 10000
-  });
+  
 
   // Add request interceptor for debugging
   api.interceptors.request.use(request => {
@@ -839,8 +845,8 @@ const InvoicePage = () => {
         </head>
         <body>
           <div class="header">
-            <img src="/avva-logo.jpeg" alt="Avva Inventory Logo" style="max-width: 150px; margin-bottom: 10px;">
-            <div class="company-name">Avva Inventory</div>
+            <img src="/Dressing_Concept.png" alt="Dressing Concept Logo" style="max-width: 150px; margin-bottom: 10px;">
+            <div class="company-name">Dressing Concept</div>
             <div class="company-details">No.71, M.T.H.road (Opp padi post office), Padi, Chennai - 600 050</div>
             <div class="company-details">Phone: 98657 09626 | Email: hiprintsolutions@gmail.com | GST: 33ABCDE1234F1Z5</div>
           </div>

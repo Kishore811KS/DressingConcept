@@ -1,14 +1,32 @@
 import React, { useState, useEffect } from 'react';
 
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+
+
+
+
 const SupplierDuplicatePage = () => {
   // State for suppliers list
   const [suppliers, setSuppliers] = useState([]);
   const [groupedSuppliers, setGroupedSuppliers] = useState([]);
   const [filteredGroups, setFilteredGroups] = useState([]);
-  
+
   // State for items
   const [items, setItems] = useState([]);
-  
+
   // Loading and error states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -27,7 +45,7 @@ const SupplierDuplicatePage = () => {
   const [itemsPerPage] = useState(10);
 
   // Base URL for API
-  const BASE_URL = 'http://localhost:5000';
+
 
   // Check authentication status on mount
   useEffect(() => {
@@ -47,15 +65,12 @@ const SupplierDuplicatePage = () => {
   // Check if user is authenticated
   const checkAuth = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/check-session`, {
-        credentials: 'include',
-        mode: 'cors'
-      });
-      const data = await response.json();
+      const response = await api.get(`/check-session`);
+      const data = response.data;
       setIsAuthenticated(data.authenticated);
-      
+
       if (data.authenticated) {
-        fetchSuppliers();
+        loadSuppliers();
       } else {
         // Redirect to login if not authenticated
         window.location.href = '/login';
@@ -66,29 +81,15 @@ const SupplierDuplicatePage = () => {
   };
 
   // Fetch suppliers from API
-  const fetchSuppliers = async () => {
+  const loadSuppliers = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${BASE_URL}/api/suppliers`, {
-        credentials: 'include',
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      if (!response.ok) {
-        if (response.status === 401) {
-          window.location.href = '/login';
-          return;
-        }
-        throw new Error('Failed to fetch suppliers');
-      }
-      
-      const data = await response.json();
+      const response = await api.get(`/suppliers`);
+
+      const data = response.data;
       if (data.success) {
         setSuppliers(data.suppliers);
-        
+
         // Also fetch all items for these suppliers
         const allItems = [];
         data.suppliers.forEach(supplier => {
@@ -97,12 +98,16 @@ const SupplierDuplicatePage = () => {
           }
         });
         setItems(allItems);
-        
+
         // Group suppliers by name, company, address, phone
         groupSuppliers(data.suppliers);
       }
     } catch (err) {
-      setError(err.message);
+      if (err.response && err.response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      setError(err.response?.data?.error || err.message);
       console.error('Error fetching suppliers:', err);
     } finally {
       setLoading(false);
@@ -112,7 +117,7 @@ const SupplierDuplicatePage = () => {
   // Group suppliers by name, company, address, phone
   const groupSuppliers = (suppliersList) => {
     const groups = {};
-    
+
     suppliersList.forEach(supplier => {
       // Create a unique key based on name, company, address, phone
       // Using empty string for null/undefined values
@@ -120,9 +125,9 @@ const SupplierDuplicatePage = () => {
       const company = supplier.company || '';
       const address = supplier.address || '';
       const phone = supplier.phone || '';
-      
+
       const key = `${name}|${company}|${address}|${phone}`.toLowerCase();
-      
+
       if (!groups[key]) {
         groups[key] = {
           id: `group-${key}`,
@@ -135,15 +140,15 @@ const SupplierDuplicatePage = () => {
           totalItems: 0
         };
       }
-      
+
       groups[key].count++;
       groups[key].suppliers.push(supplier);
-      
+
       // Count total items for this supplier
       const supplierItems = items.filter(item => item.supplier_id === supplier.id);
       groups[key].totalItems += supplierItems.length;
     });
-    
+
     // Convert to array and sort by count (highest first)
     const groupedArray = Object.values(groups).sort((a, b) => b.count - a.count);
     setGroupedSuppliers(groupedArray);
@@ -209,7 +214,7 @@ const SupplierDuplicatePage = () => {
   const exportToExcel = () => {
     // Create CSV content with only Name, Company, Address, Phone
     let csvContent = "Name,Company,Address,Phone\n";
-    
+
     filteredGroups.forEach(group => {
       const row = [
         `"${group.name || ''}"`,
@@ -219,7 +224,7 @@ const SupplierDuplicatePage = () => {
       ].join(',');
       csvContent += row + '\n';
     });
-    
+
     // Create download link
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -237,7 +242,7 @@ const SupplierDuplicatePage = () => {
   const exportToPDF = () => {
     // Create a new window for printing
     const printWindow = window.open('', '_blank');
-    
+
     // Generate HTML content for PDF with only Name, Company, Address, Phone
     let htmlContent = `
       <!DOCTYPE html>
@@ -271,7 +276,7 @@ const SupplierDuplicatePage = () => {
           </thead>
           <tbody>
     `;
-    
+
     filteredGroups.forEach(group => {
       htmlContent += `
         <tr>
@@ -282,14 +287,14 @@ const SupplierDuplicatePage = () => {
         </tr>
       `;
     });
-    
+
     htmlContent += `
           </tbody>
         </table>
       </body>
       </html>
     `;
-    
+
     printWindow.document.write(htmlContent);
     printWindow.document.close();
     printWindow.focus();
@@ -682,20 +687,20 @@ const SupplierDuplicatePage = () => {
     return (
       <div style={styles.overlay} onClick={closePopup}>
         <div style={styles.popup} onClick={(e) => e.stopPropagation()}>
-          <button 
+          <button
             style={styles.closeButton}
             onClick={closePopup}
           >
             ✕
           </button>
-          
+
           <div style={styles.popupHeader}>
             <h2 style={styles.popupTitle}>Supplier Group Details</h2>
             <div style={styles.popupSubtitle}>
               Found {selectedGroup.count} suppliers with matching details
             </div>
           </div>
-          
+
           <div style={styles.infoGrid}>
             <div>
               <div style={styles.infoItem}>
@@ -718,9 +723,9 @@ const SupplierDuplicatePage = () => {
               </div>
             </div>
           </div>
-          
+
           <h3 style={{ color: '#fff', margin: '20px 0 15px', fontSize: '18px' }}>Individual Entries</h3>
-          
+
           <div style={styles.tableContainer}>
             <table style={styles.table}>
               <thead>
@@ -755,7 +760,7 @@ const SupplierDuplicatePage = () => {
           </div>
 
           <div style={styles.popupButtonGroup}>
-            <button 
+            <button
               onClick={closePopup}
               style={styles.submitButton}
             >
@@ -783,21 +788,21 @@ const SupplierDuplicatePage = () => {
           <div style={styles.subtitle}>View all suppliers</div>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button 
-            style={{...styles.exportButton, ...styles.excelButton}}
+          <button
+            style={{ ...styles.exportButton, ...styles.excelButton }}
             onClick={exportToExcel}
           >
             📊 Export Excel
           </button>
-          <button 
-            style={{...styles.exportButton, ...styles.pdfButton}}
+          <button
+            style={{ ...styles.exportButton, ...styles.pdfButton }}
             onClick={exportToPDF}
           >
             📄 Export PDF
           </button>
-          <button 
+          <button
             style={styles.refreshButton}
-            onClick={fetchSuppliers}
+            onClick={loadSuppliers}
           >
             🔄 Refresh Data
           </button>
@@ -859,7 +864,7 @@ const SupplierDuplicatePage = () => {
             </span>
           )}
         </div>
-        
+
         {loading && filteredGroups.length === 0 ? (
           <div style={styles.emptyState}>Loading suppliers...</div>
         ) : filteredGroups.length > 0 ? (
@@ -908,7 +913,7 @@ const SupplierDuplicatePage = () => {
                   >
                     ←
                   </button>
-                  
+
                   {[...Array(Math.min(5, totalPages))].map((_, i) => {
                     let pageNum;
                     if (totalPages <= 5) {
@@ -920,7 +925,7 @@ const SupplierDuplicatePage = () => {
                     } else {
                       pageNum = currentPage - 2 + i;
                     }
-                    
+
                     return (
                       <button
                         key={pageNum}
@@ -934,7 +939,7 @@ const SupplierDuplicatePage = () => {
                       </button>
                     );
                   })}
-                  
+
                   <button
                     style={{
                       ...styles.paginationButton,

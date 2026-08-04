@@ -24,6 +24,7 @@ const emptyProduct = {
   id: "",
   productCode: "",
   name: "",
+  category: "",
   tax: "",
   unit: "PCS",
   mrp: "",
@@ -70,7 +71,7 @@ const calculateProduct = (product) => {
   };
 };
 
-export default function Products() {
+export default function AdminProduct() {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const userType = localStorage.getItem("userType") || user.user_type || "";
   const isEmployee = false;
@@ -466,7 +467,7 @@ export default function Products() {
       <div style={styles.content}>
         <div style={styles.header}>
           <div style={styles.headerTitle}>
-            <h1 style={styles.title}>Products Inventory</h1>
+            <h1 style={styles.title}>Products Inventory (Admin)</h1>
             <button style={styles.iconButton} onClick={loadProducts} title="Refresh"><RefreshCw size={18} /></button>
           </div>
           <div style={styles.buttonGroup}>
@@ -475,9 +476,7 @@ export default function Products() {
               <Upload size={16} /> Import
               <input ref={fileInputRef} type="file" hidden accept=".xlsx,.xls,.csv" onChange={handleImport} />
             </label>
-            {!isEmployee && (
-              <button ref={addButtonRef} style={{ ...styles.button, ...styles.primaryButton }} onClick={handleAddNew} title="Add New (F4)"><Plus size={16} /> Add New</button>
-            )}
+            <button ref={addButtonRef} style={{ ...styles.button, ...styles.primaryButton }} onClick={handleAddNew} title="Add New (F4)"><Plus size={16} /> Add New</button>
           </div>
         </div>
 
@@ -506,33 +505,25 @@ export default function Products() {
               <tr>
                 <th style={{ ...styles.th, width: 50, textAlign: "center" }}>#</th>
                 <th style={{ ...styles.th, width: 110 }}>Product ID</th>
-                {!isEmployee && (
-                  <>
-                    <th style={{ ...styles.th, width: 220, textAlign: "left" }}>Description</th>
-                    <th style={{ ...styles.th, width: 60, textAlign: "center" }}>Tax</th>
-                  </>
-                )}
+                <th style={{ ...styles.th, width: 220, textAlign: "left" }}>Description</th>
+                <th style={{ ...styles.th, width: 60, textAlign: "center" }}>Tax</th>
                 <th style={{ ...styles.th, width: 60, textAlign: "center" }}>Unit</th>
-                {!isEmployee && (
-                  <>
-                    <th style={{ ...styles.th, width: 100, textAlign: "right" }}>MRP (₹)</th>
-                    <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Selling Price</th>
-                    <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Pur Rate</th>
-                    <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Classic Price</th>
-                    <th style={{ ...styles.th, width: 90, textAlign: "right" }}>N. Profit</th>
-                    <th style={{ ...styles.th, width: 90, textAlign: "right" }}>C. Profit</th>
-                    <th style={{ ...styles.th, width: 70, textAlign: "center" }}>Qty</th>
-                    <th style={{ ...styles.th, width: 110, textAlign: "right" }}>Total Value (₹)</th>
-                  </>
-                )}
+                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>MRP (₹)</th>
+                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Selling Price</th>
+                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Pur Rate</th>
+                <th style={{ ...styles.th, width: 100, textAlign: "right" }}>Classic Price</th>
+                <th style={{ ...styles.th, width: 90, textAlign: "right" }}>N. Profit</th>
+                <th style={{ ...styles.th, width: 90, textAlign: "right" }}>C. Profit</th>
+                <th style={{ ...styles.th, width: 70, textAlign: "center" }}>Qty</th>
+                <th style={{ ...styles.th, width: 110, textAlign: "right" }}>Total Value (₹)</th>
                 <th style={{ ...styles.th, width: 80, textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="13" style={styles.emptyState}>Loading products...</td></tr>
+                <tr><td colSpan="14" style={styles.emptyState}>Loading products...</td></tr>
               ) : filteredItems.length === 0 ? (
-                <tr><td colSpan="13" style={styles.emptyState}>No products found. Press F4 to add new product.</td></tr>
+                <tr><td colSpan="14" style={styles.emptyState}>No products found. Press F4 to add new product.</td></tr>
               ) : filteredItems.map((item, idx) => (
                 <tr
                   key={item.id}
@@ -549,27 +540,19 @@ export default function Products() {
                     {idx + 1}
                   </td>
                   <td style={{ ...styles.td, fontFamily: "monospace", color: "#a5b4fc", fontSize: 12 }}>{item.productCode || item.id}</td>
-                  {!isEmployee && (
-                    <>
-                      <td style={{ ...styles.td, fontWeight: 500 }}>{item.name || "-"}</td>
-                      <td style={{ ...styles.td, textAlign: "center", color: "#d1d5db" }}>{toNumber(item.tax).toFixed(1)}</td>
-                    </>
-                  )}
+                  <td style={{ ...styles.td, fontWeight: 500 }}>{item.name || "-"}</td>
+                  <td style={{ ...styles.td, textAlign: "center", color: "#d1d5db" }}>{toNumber(item.tax).toFixed(1)}</td>
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     <span style={styles.badge}>{item.unit || "PCS"}</span>
                   </td>
-                  {!isEmployee && (
-                    <>
-                      <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.mrp).toFixed(2)}</td>
-                      <td style={{ ...styles.td, textAlign: "right", color: "#f87171", fontWeight: 600 }}>{toNumber(item.discountAmount).toFixed(2)}</td>
-                      <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.purchaseRate).toFixed(2)}</td>
-                      <td style={{ ...styles.td, textAlign: "right", color: "#d1d5db" }}>{item.classicCustomer || "-"}</td>
-                      <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#10b981" }}>{toNumber(item.normalProfit).toFixed(2)}</td>
-                      <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#3b82f6" }}>{toNumber(item.classicProfit).toFixed(2)}</td>
-                      <td style={{ ...styles.td, textAlign: "center", color: toNumber(item.quantity) === 0 ? "#ef4444" : "#f9fafb" }}>{item.quantity || 0}</td>
-                      <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#a5b4fc" }}>{toNumber(item.amount).toFixed(2)}</td>
-                    </>
-                  )}
+                  <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.mrp).toFixed(2)}</td>
+                  <td style={{ ...styles.td, textAlign: "right", color: "#f87171", fontWeight: 600 }}>{toNumber(item.discountAmount).toFixed(2)}</td>
+                  <td style={{ ...styles.td, textAlign: "right", color: "#9ca3af" }}>{toNumber(item.purchaseRate).toFixed(2)}</td>
+                  <td style={{ ...styles.td, textAlign: "right", color: "#d1d5db" }}>{item.classicCustomer || "-"}</td>
+                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#10b981" }}>{toNumber(item.normalProfit).toFixed(2)}</td>
+                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#3b82f6" }}>{toNumber(item.classicProfit).toFixed(2)}</td>
+                  <td style={{ ...styles.td, textAlign: "center", color: toNumber(item.quantity) === 0 ? "#ef4444" : "#f9fafb" }}>{item.quantity || 0}</td>
+                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 600, color: "#a5b4fc" }}>{toNumber(item.amount).toFixed(2)}</td>
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     <div style={styles.actionButtons}>
                       <button style={styles.printButton} onClick={(e) => { e.stopPropagation(); printProductSticker(item); }} title="Print Sticker"><Printer size={15} /></button>
@@ -680,106 +663,6 @@ export default function Products() {
                   {saving ? "Saving..." : "Print"}
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        <button
-          style={styles.floatingShortcutBtn}
-          onClick={() => setShowShortcuts(true)}
-          title="Shortcut Guide (?)"
-        >
-          <Keyboard size={20} />
-          <span style={{ fontWeight: "600" }}>Shortcut Keys</span>
-        </button>
-
-        {showShortcuts && (
-          <div
-            style={{
-              position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-              backgroundColor: "rgba(0, 0, 0, 0.8)", backdropFilter: "blur(8px)",
-              zIndex: 9999, display: "flex", justifyContent: "center", alignItems: "center"
-            }}
-            onClick={() => setShowShortcuts(false)}
-          >
-            <div
-              style={{
-                backgroundColor: "rgba(18, 18, 18, 0.95)", backdropFilter: "blur(10px)",
-                borderRadius: "16px", padding: "24px", maxWidth: "800px", width: "90%",
-                maxHeight: "80vh", overflowY: "auto", border: "1px solid rgba(77, 166, 255, 0.3)",
-                boxShadow: "0 20px 60px rgba(0,0,0,0.5)"
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={styles.modalHeader}>
-                <div style={{ fontSize: "24px", fontWeight: "600", color: "#fff", display: "flex", alignItems: "center", gap: "12px" }}>
-                  <Keyboard size={24} color="#4da6ff" />
-                  Keyboard Shortcuts
-                </div>
-                <button style={styles.closeButton} onClick={() => setShowShortcuts(false)}><X size={24} /></button>
-              </div>
-
-              {[
-                {
-                  title: "Main Navigation",
-                  shortcuts: [{ keys: "D", description: "Dashboard" }]
-                },
-                {
-                  title: "Inventory Management",
-                  shortcuts: [
-                    { keys: "P", description: "Products" },
-                    { keys: "C", description: "Category" },
-                    { keys: "SI", description: "Stock In" },
-                    { keys: "SO", description: "Stock Out" },
-                    { keys: "L", description: "Low Stock" }
-                  ]
-                },
-                {
-                  title: "Billing",
-                  shortcuts: [
-                    { keys: "B", description: "Create Bill" },
-                    { keys: "BR", description: "Bill Reports" },
-                    { keys: "SV", description: "Service Bill" },
-                    { keys: "SB", description: "Service Bills" },
-                    { keys: "Q", description: "Quotations" },
-                    { keys: "DI", description: "Discount" }
-                  ]
-                },
-                {
-                  title: "Product Specific (F4 / Ctrl+D)",
-                  shortcuts: [
-                    { keys: "F4", description: "Add New Product" },
-                    { keys: "Ctrl+D", description: "Edit Selected" },
-                    { keys: "Ctrl+F", description: "Focus Search" },
-                    { keys: "Ctrl+E", description: "Export to Excel" },
-                    { keys: "Ctrl+I", description: "Import from Excel" },
-                    { keys: "Delete", description: "Delete Selected" }
-                  ]
-                },
-                {
-                  title: "General",
-                  shortcuts: [
-                    { keys: "?", description: "Show/Hide this menu" },
-                    { keys: "ESC", description: "Close this menu" }
-                  ]
-                }
-              ].map((category, idx) => (
-                <div key={idx} style={{ marginBottom: "20px" }}>
-                  <h3 style={{ color: "#4da6ff", fontSize: "16px", marginBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "6px" }}>
-                    {category.title}
-                  </h3>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "10px" }}>
-                    {category.shortcuts.map((sc, sIdx) => (
-                      <div key={sIdx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(255,255,255,0.05)", padding: "8px 12px", borderRadius: "6px" }}>
-                        <span style={{ color: "#aaa", fontSize: "13px" }}>{sc.description}</span>
-                        <kbd style={{ backgroundColor: "#333", color: "#fff", padding: "2px 6px", borderRadius: "4px", fontSize: "12px", fontFamily: "monospace" }}>
-                          {sc.keys}
-                        </kbd>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         )}
@@ -1060,21 +943,5 @@ const styles = {
     display: "flex",
     justifyContent: "flex-end",
     gap: "12px"
-  },
-  floatingShortcutBtn: {
-    position: "fixed",
-    bottom: "24px",
-    right: "24px",
-    backgroundColor: "#6366f1",
-    color: "#ffffff",
-    border: "none",
-    borderRadius: "30px",
-    padding: "12px 20px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    cursor: "pointer",
-    boxShadow: "0 10px 25px -5px rgba(99, 102, 241, 0.5)",
-    zIndex: 99
   }
 };

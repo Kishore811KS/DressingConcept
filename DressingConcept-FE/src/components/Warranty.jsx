@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
@@ -41,6 +40,20 @@ import {
   Zap
 } from 'lucide-react';
 
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 const Warranty = () => {
   const [billNumber, setBillNumber] = useState('');
   const [loading, setLoading] = useState(false);
@@ -67,16 +80,9 @@ const Warranty = () => {
   const [companies, setCompanies] = useState([]);
   const [showCompanySelector, setShowCompanySelector] = useState(false);
 
-  const API_BASE_URL = 'http://localhost:5000/api';
+
 
   // Create axios instance with credentials
-  const api = axios.create({
-    baseURL: API_BASE_URL,
-    withCredentials: true,
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
 
   // Auto-hide message after 3 seconds
   useEffect(() => {
@@ -522,7 +528,7 @@ const Warranty = () => {
         </head>
         <body>
           <div class="header">
-            <img src="/avva-logo.jpeg" alt="Avva Inventory Logo" style="max-width: 150px; margin-bottom: 10px;">
+            <img src="/Dressing_Concept.png" alt="Dressing Concept Logo" style="max-width: 150px; margin-bottom: 10px;">
             <h1>${companyDetails.name}</h1>
             <h2 style="color: #6b7280; font-size: 18px; margin-top: 0;">Warranty Report</h2>
           </div>

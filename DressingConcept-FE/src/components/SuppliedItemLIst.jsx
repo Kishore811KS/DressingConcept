@@ -1,5 +1,19 @@
 import React, { useState, useEffect } from 'react';
 
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 const ItemsListPage = () => {
   // State for items
   const [items, setItems] = useState([]);
@@ -27,7 +41,7 @@ const ItemsListPage = () => {
   const [exportLoading, setExportLoading] = useState(false);
   
   // Base URL for API
-  const BASE_URL = 'http://localhost:5000';
+
 
   // Get current date for defaults
   const currentDate = new Date();
@@ -64,14 +78,9 @@ const ItemsListPage = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${BASE_URL}/api/suppliers-with-items`, {
-        credentials: 'include',
-        mode: 'cors'
-      });
+      const response = await api.get(`/suppliers-with-items`);
       
-      if (!response.ok) throw new Error('Failed to fetch data');
-      
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         setSuppliers(data.suppliers);
         
@@ -93,7 +102,7 @@ const ItemsListPage = () => {
         setItems(allItems);
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.error || err.message);
       console.error('Error fetching data:', err);
     } finally {
       setLoading(false);

@@ -6,7 +6,21 @@ import {
   FaClock, FaCheckCircle, FaCheck,
 } from "react-icons/fa";
 
-const API = "http://localhost:5000/api";
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+
 
 const formatDate = (d) => {
   if (!d) return "—";
@@ -17,7 +31,7 @@ const formatDate = (d) => {
 const Header = ({ toggleSidebar }) => {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user"));
-  const loggedInUserName = user?.full_name || user?.username || user?.name || user?.email || "Admin";
+  const loggedInUserName = user?.username || user?.full_name || user?.name || user?.email || "Admin";
 
   const [notifications, setNotifications] = useState([]);
   const [showPanel, setShowPanel] = useState(false);
@@ -35,8 +49,8 @@ const Header = ({ toggleSidebar }) => {
   // Fetch pending enquiry notifications
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/enquiries/notifications`);
-      if (res.ok) setNotifications(await res.json());
+      const res = await api.get(`/enquiries/notifications`);
+      setNotifications(res.data);
     } catch (_) { }
   }, []);
 

@@ -1,6 +1,20 @@
 // EmployeeManager.js - Updated component with password field
 import React, { useState, useEffect } from 'react';
 
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 const EmployeeManager = () => {
   // State for employee list
   const [employees, setEmployees] = useState([]);
@@ -9,18 +23,18 @@ const EmployeeManager = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState(null);
-  
+
   // Modal states
   const [showFormModal, setShowFormModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState(null);
-  
+
   // Password visibility states
   const [showPassword, setShowPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     employee_id: '',
     full_name: '',
@@ -36,7 +50,7 @@ const EmployeeManager = () => {
     emergency_contact: '',
     basic_salary: ''
   });
-  
+
   // File upload state
   const [aadharFile, setAadharFile] = useState(null);
   const [panFile, setPanFile] = useState(null);
@@ -44,8 +58,6 @@ const EmployeeManager = () => {
     aadhar_attachment: null,
     pan_attachment: null
   });
-
-  const API_BASE_URL = 'http://localhost:5000/api';
 
   // Fetch all employees, user types, and companies on component mount
   useEffect(() => {
@@ -59,12 +71,8 @@ const EmployeeManager = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/employees`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch employees');
-      }
-      const data = await response.json();
-      setEmployees(data);
+      const response = await api.get(`/employees`);
+      setEmployees(response.data);
     } catch (err) {
       setError('Error fetching employees: ' + err.message);
       console.error('Fetch error:', err);
@@ -76,20 +84,16 @@ const EmployeeManager = () => {
   // Fetch user types from the User Type Manager API
   const fetchUserTypes = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/user-types`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch user types');
-      }
-      const data = await response.json();
+      const response = await api.get(`/user-types`);
+      const data = response.data;
       const userTypeNames = data.map(item => item.name);
-      
+
       if (userTypeNames.length > 0) {
         setUserTypes(userTypeNames);
         if (!formData.user_type) {
           setFormData(prev => ({ ...prev, user_type: userTypeNames[0] }));
         }
       } else {
-        // Fallback if API returns empty list
         const defaults = ['admin', 'employee', 'manager'];
         setUserTypes(defaults);
         if (!formData.user_type) {
@@ -100,9 +104,6 @@ const EmployeeManager = () => {
       console.error('Error fetching user types:', err);
       const defaults = ['admin', 'employee', 'manager'];
       setUserTypes(defaults);
-      if (!formData.user_type) {
-        setFormData(prev => ({ ...prev, user_type: 'employee' }));
-      }
     }
   };
 
@@ -110,16 +111,8 @@ const EmployeeManager = () => {
   const fetchCompanies = async () => {
     try {
       console.log('Fetching companies from:', `${API_BASE_URL}/companies/list`);
-      const response = await fetch(`${API_BASE_URL}/companies/list`);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Companies API error:', errorText);
-        throw new Error(`Failed to fetch companies: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Companies loaded:', data);
+      const response = await api.get(`/companies/list`);
+      const data = response.data;
       setCompanies(data);
     } catch (err) {
       console.error('Error fetching companies:', err);
@@ -181,12 +174,12 @@ const EmployeeManager = () => {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.full_name || !formData.email || !formData.user_type) {
       alert('Please fill in all required fields (Full Name, Email, and User Type)');
       return;
     }
-    
+
     // Only require password for new employees
     if (!editingId && !formData.password) {
       alert('Please enter a password for the new employee');
@@ -194,58 +187,67 @@ const EmployeeManager = () => {
     }
 
     setLoading(true);
-    
+
     try {
       const formDataToSend = new FormData();
-      
+
       Object.keys(formData).forEach(key => {
         if (formData[key] !== '' && formData[key] !== null && formData[key] !== undefined && key !== 'employee_id') {
           formDataToSend.append(key, formData[key]);
         }
       });
-      
+
+      if (formData.email && !formDataToSend.has('email')) {
+        formDataToSend.append('email', formData.email.trim());
+      }
+      if (formData.full_name && !formDataToSend.has('full_name')) {
+        formDataToSend.append('full_name', formData.full_name.trim());
+      }
+      if (formData.user_type && !formDataToSend.has('user_type')) {
+        formDataToSend.append('user_type', formData.user_type);
+      }
+
       if (aadharFile) {
         formDataToSend.append('aadhar_attachment', aadharFile);
       }
       if (panFile) {
         formDataToSend.append('pan_attachment', panFile);
       }
-      
-      let url = `${API_BASE_URL}/employees`;
-      let method = 'POST';
-      
+
+      let url = `/employees`;
+      let method = 'post';
+
       if (editingId) {
-        url = `${API_BASE_URL}/employees/${editingId}`;
-        method = 'PUT';
+        url = `/employees/${editingId}`;
+        method = 'put';
         if (formData.employee_id) {
           formDataToSend.append('employee_id', formData.employee_id);
         }
       }
-      
-      const response = await fetch(url, {
+
+      const response = await api({
         method: method,
-        body: formDataToSend
+        url: url,
+        data: formDataToSend,
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
       });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save employee');
-      }
-      
-      const savedEmployee = await response.json();
-      
+
+      const savedEmployee = response.data;
+
       if (editingId) {
         setEmployees(employees.map(emp => emp.id === editingId ? savedEmployee : emp));
       } else {
         setEmployees([savedEmployee, ...employees]);
       }
-      
+
       resetForm();
       setShowFormModal(false);
       alert(`Employee ${editingId ? 'updated' : 'added'} successfully!`);
-      
+
     } catch (err) {
-      alert('Error: ' + err.message);
+      alert('Error: ' + (err.response?.data?.error || err.message));
       console.error('Save error:', err);
     } finally {
       setLoading(false);
@@ -295,29 +297,22 @@ const EmployeeManager = () => {
   // Delete employee
   const deleteEmployee = async () => {
     if (!employeeToDelete) return;
-    
+
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/employees/${employeeToDelete}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete employee');
-      }
-      
+      await api.delete(`/employees/${employeeToDelete}`);
+
       setEmployees(employees.filter(emp => emp.id !== employeeToDelete));
       alert('Employee deleted successfully!');
-      
+
       if (editingId === employeeToDelete) {
         resetForm();
       }
-      
+
       setShowDeleteConfirm(false);
       setEmployeeToDelete(null);
     } catch (err) {
-      alert('Error: ' + err.message);
+      alert('Error: ' + (err.response?.data?.error || err.message));
       console.error('Delete error:', err);
     } finally {
       setLoading(false);
@@ -327,14 +322,13 @@ const EmployeeManager = () => {
   // Download attachment
   const downloadAttachment = async (filename, type) => {
     if (!filename) return;
-    
+
     try {
-      const response = await fetch(`${API_BASE_URL}/download/${filename}`);
-      if (!response.ok) {
-        throw new Error('File not found');
-      }
-      
-      const blob = await response.blob();
+      const response = await api.get(`/download/${filename}`, {
+        responseType: 'blob'
+      });
+
+      const blob = response.data;
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -343,7 +337,7 @@ const EmployeeManager = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
     } catch (err) {
       console.error('Download error:', err);
       alert(`Error downloading ${type} document: ${err.message}`);
@@ -381,14 +375,14 @@ const EmployeeManager = () => {
             + Add New Employee
           </button>
         </div>
-        
+
         {error && (
           <div style={styles.errorMessage}>
             {error}
             <button onClick={() => setError('')} style={styles.closeButton}>×</button>
           </div>
         )}
-        
+
         <div style={styles.tableContainer}>
           <h2 style={styles.subtitle}>Employee List</h2>
           {loading && employees.length === 0 ? (
@@ -405,6 +399,7 @@ const EmployeeManager = () => {
                     <th style={styles.tableHeader}>Email</th>
                     <th style={styles.tableHeader}>Department</th>
                     <th style={styles.tableHeader}>Designation</th>
+                    <th style={styles.tableHeader}>User Type</th>
                     <th style={styles.tableHeader}>Phone</th>
                     <th style={styles.tableHeader}>Salary</th>
                     <th style={styles.tableHeader}>DOJ</th>
@@ -422,6 +417,7 @@ const EmployeeManager = () => {
                       <td style={styles.tableCell}>{employee.email}</td>
                       <td style={styles.tableCell}>{employee.department || '-'}</td>
                       <td style={styles.tableCell}>{employee.designation || '-'}</td>
+                      <td style={{ ...styles.tableCell, textTransform: 'capitalize' }}>{employee.user_type || '-'}</td>
                       <td style={styles.tableCell}>{employee.phone_number || '-'}</td>
                       <td style={styles.tableCell}>₹{employee.basic_salary || '0'}</td>
                       <td style={styles.tableCell}>{formatDate(employee.date_of_joining)}</td>
@@ -448,19 +444,19 @@ const EmployeeManager = () => {
                         <div style={styles.actionButtons}>
                           <button
                             onClick={() => viewEmployee(employee)}
-                            style={{...styles.actionButton, ...styles.viewButton}}
+                            style={{ ...styles.actionButton, ...styles.viewButton }}
                           >
                             View
                           </button>
                           <button
                             onClick={() => editEmployee(employee)}
-                            style={{...styles.actionButton, ...styles.editButton}}
+                            style={{ ...styles.actionButton, ...styles.editButton }}
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => confirmDelete(employee.id)}
-                            style={{...styles.actionButton, ...styles.deleteButton}}
+                            style={{ ...styles.actionButton, ...styles.deleteButton }}
                           >
                             Delete
                           </button>
@@ -491,7 +487,7 @@ const EmployeeManager = () => {
                   {/* Personal Information */}
                   <div style={styles.formSection}>
                     <h3 style={styles.sectionTitle}>Personal Information</h3>
-                    
+
                     {editingId && (
                       <div style={styles.formGroup}>
                         <label style={styles.label}>Employee ID</label>
@@ -504,7 +500,7 @@ const EmployeeManager = () => {
                         />
                       </div>
                     )}
-                    
+
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Full Name *</label>
                       <input
@@ -517,7 +513,7 @@ const EmployeeManager = () => {
                         placeholder="John Doe"
                       />
                     </div>
-                    
+
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Email *</label>
                       <input
@@ -530,7 +526,7 @@ const EmployeeManager = () => {
                         placeholder="john.doe@company.com"
                       />
                     </div>
-                    
+
                     {/* Password Field with Eye Icon */}
                     <div style={styles.formGroup}>
                       <label style={styles.label}>
@@ -554,7 +550,7 @@ const EmployeeManager = () => {
                         </button>
                       </div>
                     </div>
-                    
+
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Phone Number</label>
                       <input
@@ -566,7 +562,7 @@ const EmployeeManager = () => {
                         placeholder="+91 9876543210"
                       />
                     </div>
-                    
+
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Date of Joining</label>
                       <input
@@ -578,11 +574,11 @@ const EmployeeManager = () => {
                       />
                     </div>
                   </div>
-                  
+
                   {/* Employment Details */}
                   <div style={styles.formSection}>
                     <h3 style={styles.sectionTitle}>Employment Details</h3>
-                    
+
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Department</label>
                       <input
@@ -594,7 +590,7 @@ const EmployeeManager = () => {
                         placeholder="Engineering, HR, Sales, etc."
                       />
                     </div>
-                    
+
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Designation</label>
                       <input
@@ -606,7 +602,23 @@ const EmployeeManager = () => {
                         placeholder="Software Engineer, Manager, etc."
                       />
                     </div>
-                    
+
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>User Type</label>
+                      <select
+                        name="user_type"
+                        value={formData.user_type}
+                        onChange={handleInputChange}
+                        style={styles.input}
+                      >
+                        {userTypes.map(type => (
+                          <option key={type} value={type}>
+                            {type.charAt(0).toUpperCase() + type.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Per Day Salary</label>
                       <input
@@ -618,7 +630,7 @@ const EmployeeManager = () => {
                         placeholder="0.00"
                       />
                     </div>
-                    
+
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Emergency Mobile Number</label>
                       <input
@@ -631,11 +643,11 @@ const EmployeeManager = () => {
                       />
                     </div>
                   </div>
-                  
+
                   {/* Document Details */}
                   <div style={styles.formSection}>
                     <h3 style={styles.sectionTitle}>Document Details</h3>
-                    
+
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Aadhar Card Number</label>
                       <input
@@ -647,7 +659,7 @@ const EmployeeManager = () => {
                         placeholder="XXXX-XXXX-XXXX"
                       />
                     </div>
-                    
+
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Aadhar Card Attachment</label>
                       <input
@@ -669,7 +681,7 @@ const EmployeeManager = () => {
                         </div>
                       )}
                     </div>
-                    
+
                     <div style={styles.formGroup}>
                       <label style={styles.label}>PAN Card Number</label>
                       <input
@@ -681,7 +693,7 @@ const EmployeeManager = () => {
                         placeholder="ABCDE1234F"
                       />
                     </div>
-                    
+
                     <div style={styles.formGroup}>
                       <label style={styles.label}>PAN Card Attachment</label>
                       <input
@@ -768,6 +780,10 @@ const EmployeeManager = () => {
                   <div style={styles.detailItem}>
                     <label style={styles.detailLabel}>Designation:</label>
                     <span style={styles.detailValue}>{selectedEmployee.designation || '-'}</span>
+                  </div>
+                  <div style={styles.detailItem}>
+                    <label style={styles.detailLabel}>User Type:</label>
+                    <span style={{ ...styles.detailValue, textTransform: 'capitalize' }}>{selectedEmployee.user_type || '-'}</span>
                   </div>
                   <div style={styles.detailItem}>
                     <label style={styles.detailLabel}>Per Day Salary:</label>

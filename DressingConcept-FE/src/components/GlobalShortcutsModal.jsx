@@ -2,6 +2,20 @@
 import React, { useState, useEffect } from 'react';
 import { FaKeyboard, FaTimes } from 'react-icons/fa';
 
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+    baseURL: `${BASE_URL}/api`,
+    withCredentials: true,
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
+
 const GlobalShortcutsModal = () => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -34,7 +48,8 @@ const GlobalShortcutsModal = () => {
         {
             title: "📦 Inventory Management",
             shortcuts: [
-                { keys: "P", description: "Products" },
+                { keys: "P", description: "Admin Products" },
+                { keys: "EP", description: "Employee Products" },
                 { keys: "C", description: "Category" },
                 { keys: "SI", description: "Stock In" },
                 { keys: "SO", description: "Stock Out" },
@@ -48,15 +63,35 @@ const GlobalShortcutsModal = () => {
             ]
         },
         {
-            title: "💰 Billing",
+            title: "💰 Billing Navigation",
             shortcuts: [
-                { keys: "B", description: "Create Bill" },
+                { keys: "B", description: "Create Bill Page" },
                 { keys: "BR", description: "Bill Reports" },
                 { keys: "SV", description: "Service Bill" },
                 { keys: "SB", description: "Service Bills" },
                 { keys: "SE", description: "Sales Bill (Employee)" },
                 { keys: "Q", description: "Quotations" },
                 { keys: "DI", description: "Discount" }
+            ]
+        },
+        {
+            title: "🧾 Bill Page Controls & Shortcuts",
+            shortcuts: [
+                { keys: "INSERT", description: "Quick Add Product" },
+                { keys: "F6", description: "Focus Cash Received" },
+                { keys: "F7", description: "Focus Member ID" },
+                { keys: "F8 / ALT+O", description: "Focus Online Payment Amount" },
+                { keys: "F9 / ALT+C", description: "Focus Card Payment Amount" },
+                { keys: "ALT+1", description: "Toggle Sale Return Mode" },
+                { keys: "ALT+3 / ALT+P", description: "Open Points Redemption Popup" },
+                { keys: "ALT+4", description: "Toggle Classic Mode" },
+                { keys: "ALT+U", description: "Focus UPI Amount" },
+                { keys: "ALT+D", description: "Focus Discount %" },
+                { keys: "ALT+A", description: "Focus Discount Amount" },
+                { keys: "CTRL+S", description: "Save Bill" },
+                { keys: "CTRL+P", description: "Print Bill" },
+                { keys: "CTRL+N", description: "Reset / New Bill" },
+                { keys: "DELETE", description: "Remove Last Added Item" }
             ]
         },
         {
@@ -83,8 +118,10 @@ const GlobalShortcutsModal = () => {
         {
             title: "⌨️ General",
             shortcuts: [
+                { keys: "ALT / ALT+ENTER", description: "Restore / Toggle Full-Screen" },
+                { keys: "F11", description: "Toggle Full-Screen" },
                 { keys: "?", description: "Show/Hide this menu" },
-                { keys: "ESC", description: "Close this menu" }
+                { keys: "ESC", description: "Close this menu / Exit Full-Screen" }
             ]
         }
     ];

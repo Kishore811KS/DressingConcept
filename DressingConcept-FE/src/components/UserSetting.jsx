@@ -1,30 +1,39 @@
 import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
-import { FaSave, FaSyncAlt, FaShieldAlt, FaUserCog, FaPlus, FaTrashAlt, FaEdit, FaTimes, FaSearch, FaUser, FaUsers } from "react-icons/fa";
+import { FaSave, FaSyncAlt, FaUserCog, FaPlus, FaTrashAlt, FaEdit, FaTimes, FaSearch, FaUser, FaUsers } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: { 'Content-Type': 'application/json' }
+});
 
 const ROLE_TEMPLATES = {
   admin: [
     "dashboard", "employee_dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
-    "warranty", "create_bill", "bill_reports", "profit_visibility", "date_filter_visibility", 
-    "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount", 
-    "add_supplier", "supplier_list", "payment_tracking", "employee", "user_type", "attendance", 
+    "warranty", "create_bill", "bill_reports", "bill_number_edit", "profit_visibility", "date_filter_visibility",
+    "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount",
+    "add_supplier", "supplier_list", "payment_tracking", "employee", "user_type", "attendance", "salary",
     "company", "enquiries", "customer_details", "usersettings"
   ],
   manager: [
     "dashboard", "employee_dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
-    "warranty", "create_bill", "bill_reports", "profit_visibility", "date_filter_visibility",
-    "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount", 
-    "add_supplier", "supplier_list", "payment_tracking", "employee", "attendance", "company", 
+    "warranty", "create_bill", "bill_reports", "bill_number_edit", "profit_visibility", "date_filter_visibility",
+    "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount",
+    "add_supplier", "supplier_list", "payment_tracking", "employee", "attendance", "salary", "company",
     "enquiries", "customer_details"
   ],
   staff: [
-    "employee_dashboard", "products", "stock_in", "stock_out", "create_bill", 
+    "employee_dashboard", "products", "stock_in", "stock_out", "create_bill",
     "service_bill", "service_bills", "sales_bills", "warranty"
   ],
   hr: [
-    "dashboard", "employee", "user_type", "attendance", "company"
+    "dashboard", "employee", "user_type", "attendance", "salary", "company"
   ],
   supplier: [
     "dashboard", "supplier_list", "payment_tracking"
@@ -44,22 +53,21 @@ const UserSetting = () => {
   const [employees, setEmployees] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const API_BASE = "http://localhost:5000/api";
-
   const fetchInitialData = async () => {
     setLoading(true);
     try {
       // 1. Fetch Module Structure
-      const moduleRes = await axios.get(`${API_BASE}/modules`);
+      const moduleRes = await api.get(`/modules`);
       const moduleData = moduleRes.data.modules || [];
       setModules(moduleData);
 
-      const utRes = await axios.get(`${API_BASE}/user-types`);
+      // 2. Fetch User Types
+      const utRes = await api.get(`/user-types`);
       const utData = Array.isArray(utRes.data) ? utRes.data : [];
       setUserTypes(utData);
 
       // 3. Fetch Employees
-      const empRes = await axios.get(`${API_BASE}/employees`);
+      const empRes = await api.get(`/employees`);
       const empData = Array.isArray(empRes.data) ? empRes.data : [];
       setEmployees(empData);
 
@@ -68,27 +76,26 @@ const UserSetting = () => {
       await Promise.all(
         utData.map(async (ut) => {
           try {
-            const permRes = await axios.get(`${API_BASE}/permissions?userType=${ut.name}`);
+            const permRes = await api.get(`/permissions?userType=${ut.name}`);
             const fetchedPerms = Array.isArray(permRes.data) ? permRes.data : [];
-            
             const rolePerms = {};
             const roleNameLower = ut.name.toLowerCase();
 
             if (fetchedPerms.length === 0 && ROLE_TEMPLATES[roleNameLower]) {
-               const template = ROLE_TEMPLATES[roleNameLower];
-               moduleData.forEach(mod => {
-                 mod.submodules.forEach(sub => {
-                   if (template.includes(sub.id.toLowerCase())) {
-                      rolePerms[`${mod.id}_${sub.id}`] = true;
-                   }
-                 });
-               });
+              const template = ROLE_TEMPLATES[roleNameLower];
+              moduleData.forEach(mod => {
+                mod.submodules.forEach(sub => {
+                  if (template.includes(sub.id.toLowerCase())) {
+                    rolePerms[`${mod.id}_${sub.id}`] = true;
+                  }
+                });
+              });
             } else {
-               fetchedPerms.forEach(p => {
-                 rolePerms[`${p.module_id}_${p.submodule_id}`] = p.view;
-               });
+              fetchedPerms.forEach(p => {
+                rolePerms[`${p.module_id}_${p.submodule_id}`] = p.view;
+              });
             }
-            
+
             updatedMatrix[`role-${ut.name}`] = rolePerms;
           } catch (err) {
             console.error(`Error fetching perms for ${ut.name}:`, err);
@@ -123,7 +130,6 @@ const UserSetting = () => {
   const handleCheckboxChange = (entityId, moduleId, submoduleId, roleName) => {
     const key = `${moduleId}_${submoduleId}`;
     setMatrix(prev => {
-      // If it's an employee and no specific entry exists, clone from role
       const currentEntry = prev[entityId] || prev[`role-${roleName}`] || {};
       return {
         ...prev,
@@ -139,13 +145,13 @@ const UserSetting = () => {
     setSaving(true);
     try {
       const bulkData = {};
-      
+
       // Save Roles
       userTypes.forEach(ut => {
         const identifier = `role-${ut.name}`;
         const roleMatrix = matrix[identifier] || {};
         const permissionsArray = [];
-        
+
         modules.forEach(mod => {
           mod.submodules.forEach(sub => {
             const isView = roleMatrix[`${mod.id}_${sub.id}`] || false;
@@ -154,7 +160,7 @@ const UserSetting = () => {
               module_id: mod.id,
               submodule_id: sub.id,
               view: isView,
-              add: isView, 
+              add: isView,
               edit: isView,
               delete: isView
             });
@@ -167,27 +173,27 @@ const UserSetting = () => {
       employees.forEach(emp => {
         const identifier = `emp-${emp.id}`;
         if (matrix[identifier]) {
-           const empMatrix = matrix[identifier];
-           const permissionsArray = [];
-           modules.forEach(mod => {
-             mod.submodules.forEach(sub => {
-               const isView = empMatrix[`${mod.id}_${sub.id}`] || false;
-               permissionsArray.push({
-                 module_id: mod.id,
-                 submodule_id: sub.id,
-                 view: isView
-               });
-             });
-           });
-           bulkData[identifier] = permissionsArray;
+          const empMatrix = matrix[identifier];
+          const permissionsArray = [];
+          modules.forEach(mod => {
+            mod.submodules.forEach(sub => {
+              const isView = empMatrix[`${mod.id}_${sub.id}`] || false;
+              permissionsArray.push({
+                module_id: mod.id,
+                submodule_id: sub.id,
+                view: isView
+              });
+            });
+          });
+          bulkData[identifier] = permissionsArray;
         }
       });
 
-      await axios.post(`${API_BASE}/bulk-save-permissions`, bulkData);
+      await api.post(`/bulk-save-permissions`, bulkData);
       toast.success("Security policies updated successfully!");
     } catch (error) {
-       console.error("Save error:", error);
-       toast.error("Failed to update security policies");
+      console.error("Save error:", error);
+      toast.error("Failed to update security policies");
     } finally {
       setSaving(false);
     }
@@ -196,7 +202,7 @@ const UserSetting = () => {
   const addUserType = async () => {
     if (!newName.trim()) return;
     try {
-      await axios.post(`${API_BASE}/user-types`, { name: newName.trim() });
+      await api.post(`/user-types`, { name: newName.trim() });
       toast.success("User type created!");
       setNewName("");
       setAddingUser(false);
@@ -213,11 +219,22 @@ const UserSetting = () => {
     }
     if (!window.confirm(`Delete role "${name}"? This will remove all associated permissions.`)) return;
     try {
-      await axios.delete(`${API_BASE}/user-types/${id}`);
+      await api.delete(`/user-types/${id}`);
       toast.success("User type deleted");
       fetchInitialData();
     } catch (err) {
       toast.error("Failed to delete user type");
+    }
+  };
+
+  const deleteEmployee = async (id, name) => {
+    if (!window.confirm(`Delete employee "${name}"? This action cannot be undone.`)) return;
+    try {
+      await api.delete(`/employees/${id}`);
+      toast.success(`Employee "${name}" deleted`);
+      fetchInitialData();
+    } catch (err) {
+      toast.error("Failed to delete employee: " + (err.response?.data?.error || err.message));
     }
   };
 
@@ -234,7 +251,7 @@ const UserSetting = () => {
   const updateUserType = async (id) => {
     if (!editName.trim()) return;
     try {
-      await axios.put(`${API_BASE}/user-types/${id}`, { name: editName.trim() });
+      await api.put(`/user-types/${id}`, { name: editName.trim() });
       toast.success("User type updated");
       setEditingId(null);
       fetchInitialData();
@@ -245,7 +262,7 @@ const UserSetting = () => {
 
   const filteredEntities = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
-    
+
     // Convert roles to a standard format
     const roles = userTypes.map(ut => ({
       id: `role-${ut.id}`,
@@ -270,7 +287,7 @@ const UserSetting = () => {
 
     if (!term) return combined;
 
-    return combined.filter(item => 
+    return combined.filter(item =>
       item.name.toLowerCase().includes(term) ||
       (item.userTypeName || "").toLowerCase().includes(term) ||
       (item.email || "").toLowerCase().includes(term) ||
@@ -355,7 +372,7 @@ const UserSetting = () => {
       borderBottom: "1px solid #e2e8f0",
       borderRight: "1px solid #f1f5f9",
       position: "sticky",
-      top: "43px", 
+      top: "43px",
       zIndex: 10,
       fontSize: "12px"
     },
@@ -366,7 +383,7 @@ const UserSetting = () => {
       zIndex: 20,
       borderRight: "2px solid #e2e8f0",
       padding: "16px 24px",
-      minWidth: "180px",
+      minWidth: "220px",
       fontWeight: "600",
       color: "#1e293b",
       display: "flex",
@@ -383,7 +400,8 @@ const UserSetting = () => {
       fontSize: "12px",
       fontWeight: "700",
       color: "#fff",
-      fontFamily: "monospace"
+      fontFamily: "monospace",
+      flexShrink: 0
     },
     stickyHeaderCol: {
       position: "sticky",
@@ -453,8 +471,8 @@ const UserSetting = () => {
       transition: "all 0.2s"
     },
     controls: {
-       display: "flex",
-       gap: "12px"
+      display: "flex",
+      gap: "12px"
     },
     actionBtn: {
       padding: "6px",
@@ -489,9 +507,9 @@ const UserSetting = () => {
   };
 
   const getAvatarColor = (name) => {
-     const colors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];
-     const charCode = name.charCodeAt(0);
-     return colors[charCode % colors.length];
+    const colors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];
+    const charCode = name.charCodeAt(0);
+    return colors[charCode % colors.length];
   };
 
   if (loading) {
@@ -519,19 +537,19 @@ const UserSetting = () => {
         <div style={styles.controls}>
           {addingUser ? (
             <div style={{ display: "flex", gap: "8px" }}>
-              <input 
-                value={newName} 
+              <input
+                value={newName}
                 onChange={e => setNewName(e.target.value)}
                 placeholder="New role name..."
                 style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}
               />
-              <button 
+              <button
                 style={{ ...styles.btnSave, padding: "8px 16px" }}
                 onClick={addUserType}
               >Add</button>
-              <button 
-                 style={{ ...styles.btnSecondary, padding: "8px 16px" }}
-                 onClick={() => setAddingUser(false)}
+              <button
+                style={{ ...styles.btnSecondary, padding: "8px 16px" }}
+                onClick={() => setAddingUser(false)}
               >Cancel</button>
             </div>
           ) : (
@@ -539,12 +557,12 @@ const UserSetting = () => {
               <FaPlus /> Add Role
             </button>
           )}
-          
+
           <button style={styles.btnRefresh} onClick={fetchInitialData}>
             <FaSyncAlt /> Sync
           </button>
-          <button 
-            style={{...styles.btnSave, opacity: saving ? 0.7 : 1}} 
+          <button
+            style={{ ...styles.btnSave, opacity: saving ? 0.7 : 1 }}
             onClick={handleSaveMatrix}
             disabled={saving}
           >
@@ -555,17 +573,17 @@ const UserSetting = () => {
 
       <div style={styles.searchContainer}>
         <FaSearch color="#94a3b8" />
-        <input 
+        <input
           style={styles.searchInput}
           placeholder="Search by Employee name, Role, Department or Email..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
         {searchTerm && (
-          <FaTimes 
-            color="#94a3b8" 
-            cursor="pointer" 
-            onClick={() => setSearchTerm("")} 
+          <FaTimes
+            color="#94a3b8"
+            cursor="pointer"
+            onClick={() => setSearchTerm("")}
           />
         )}
       </div>
@@ -576,9 +594,9 @@ const UserSetting = () => {
             <tr>
               <th style={styles.stickyHeaderCol} rowSpan={2}>Organization Roles</th>
               {modules.map(mod => (
-                <th 
-                  key={mod.id} 
-                  style={styles.thCategory} 
+                <th
+                  key={mod.id}
+                  style={styles.thCategory}
                   colSpan={mod.submodules.length}
                 >
                   {mod.name}
@@ -603,7 +621,7 @@ const UserSetting = () => {
                   <div style={{ flex: 1 }}>
                     {editingId === entity.originalId && entity.isRole ? (
                       <div style={{ display: "flex", gap: "4px" }}>
-                        <input 
+                        <input
                           value={editName}
                           onChange={e => setEditName(e.target.value)}
                           style={{ width: "80px", fontSize: "12px", padding: "2px" }}
@@ -631,12 +649,25 @@ const UserSetting = () => {
                             <span style={{ fontSize: "10px", color: "#10b981", fontWeight: "700" }}>SUPER ADMIN</span>
                           )}
                         </div>
+                        {/* Action buttons for Roles */}
                         {entity.isRole && entity.name.toLowerCase() !== "admin" && (
                           <div style={{ display: "flex", gap: "5px" }}>
                             <button style={styles.actionBtn} title="Edit Name" onClick={() => startEdit({ id: entity.originalId, name: entity.name })}>
                               <FaEdit color="#64748b" />
                             </button>
                             <button style={styles.actionBtn} title="Delete Role" onClick={() => deleteUserType(entity.originalId, entity.name)}>
+                              <FaTrashAlt color="#ef4444" />
+                            </button>
+                          </div>
+                        )}
+                        {/* Delete button for Employees */}
+                        {entity.isEmployee && (
+                          <div style={{ display: "flex", gap: "5px" }}>
+                            <button
+                              style={styles.actionBtn}
+                              title="Delete Employee"
+                              onClick={() => deleteEmployee(entity.originalId, entity.name)}
+                            >
                               <FaTrashAlt color="#ef4444" />
                             </button>
                           </div>
@@ -650,7 +681,7 @@ const UserSetting = () => {
                   const entityPerms = matrix[entity.id] || rolePerms;
                   const isChecked = entityPerms[`${sub.moduleId}_${sub.id}`] || false;
                   const isAdmin = entity.userTypeName?.toLowerCase() === "admin";
-                  
+
                   return (
                     <td key={`${entity.id}_${sub.moduleId}_${sub.id}`} style={styles.td}>
                       <input

@@ -1,5 +1,19 @@
 import React, { useState, useEffect } from 'react';
 
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 const PaymentTracking = () => {
   // State for suppliers data
   const [suppliers, setSuppliers] = useState([]);
@@ -25,7 +39,7 @@ const PaymentTracking = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   
-  const BASE_URL = 'http://localhost:5000';
+  
 
   // Check authentication
   useEffect(() => {
@@ -34,11 +48,10 @@ const PaymentTracking = () => {
 
   const checkAuth = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/check-session`, {
-        credentials: 'include',
-        mode: 'cors'
+      const response = await api.get(`/check-session`, {
+        withCredentials: true
       });
-      const data = await response.json();
+      const data = response.data;
       
       if (data.authenticated) {
         fetchSuppliers();
@@ -54,33 +67,20 @@ const PaymentTracking = () => {
   const fetchSuppliers = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${BASE_URL}/api/suppliers-with-items`, {
-        credentials: 'include',
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+      const response = await api.get(`/suppliers-with-items`, {
+        withCredentials: true,
       });
       
-      if (!response.ok) {
-        if (response.status === 401) {
-          window.location.href = '/login';
-          return;
-        }
-        throw new Error('Failed to fetch suppliers');
-      }
-      
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         // Calculate payment info for each supplier
         const suppliersWithPayments = await Promise.all(
           data.suppliers.map(async (supplier) => {
             try {
-              const paymentResponse = await fetch(`${BASE_URL}/api/suppliers/${supplier.id}/payments`, {
-                credentials: 'include',
-                mode: 'cors'
+              const paymentResponse = await api.get(`/suppliers/${supplier.id}/payments`, {
+                withCredentials: true
               });
-              const paymentData = await paymentResponse.json();
+              const paymentData = paymentResponse.data;
               
               // Calculate totals
               const totalPurchase = supplier.items.reduce((sum, item) => 
@@ -114,7 +114,11 @@ const PaymentTracking = () => {
         setSuppliers(suppliersWithPayments);
       }
     } catch (err) {
-      setError(err.message);
+      if (err.response?.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      setError(err.response?.data?.error || err.message);
       console.error('Error fetching suppliers:', err);
     } finally {
       setLoading(false);
@@ -140,27 +144,16 @@ const PaymentTracking = () => {
     
     try {
       setLoading(true);
-      const response = await fetch(`${BASE_URL}/api/suppliers/${selectedSupplier.id}/payments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        mode: 'cors',
-        body: JSON.stringify({
-          amount: parseFloat(paymentForm.amount),
-          payment_method: paymentForm.payment_method,
-          reference_number: paymentForm.reference_number || null,
-          notes: paymentForm.notes || null
-        })
+      const response = await api.post(`/suppliers/${selectedSupplier.id}/payments`, {
+        amount: parseFloat(paymentForm.amount),
+        payment_method: paymentForm.payment_method,
+        reference_number: paymentForm.reference_number || null,
+        notes: paymentForm.notes || null
+      }, {
+        withCredentials: true
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to record payment');
-      }
-      
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         await fetchSuppliers();
         setShowPaymentPopup(false);
@@ -173,8 +166,9 @@ const PaymentTracking = () => {
         alert('Payment recorded successfully!');
       }
     } catch (err) {
-      setError(err.message);
-      alert('Failed to record payment: ' + err.message);
+      const errorMessage = err.response?.data?.error || err.message;
+      setError(errorMessage);
+      alert('Failed to record payment: ' + errorMessage);
     } finally {
       setLoading(false);
     }
@@ -185,25 +179,19 @@ const PaymentTracking = () => {
     if (window.confirm('Are you sure you want to delete this payment record?')) {
       try {
         setLoading(true);
-        const response = await fetch(`${BASE_URL}/api/payments/${paymentId}`, {
-          method: 'DELETE',
-          credentials: 'include',
-          mode: 'cors'
+        const response = await api.delete(`/payments/${paymentId}`, {
+          withCredentials: true
         });
         
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to delete payment');
-        }
-        
-        const data = await response.json();
+        const data = response.data;
         if (data.success) {
           await fetchSuppliers();
           alert('Payment deleted successfully!');
         }
       } catch (err) {
-        setError(err.message);
-        alert('Failed to delete payment: ' + err.message);
+        const errorMessage = err.response?.data?.error || err.message;
+        setError(errorMessage);
+        alert('Failed to delete payment: ' + errorMessage);
       } finally {
         setLoading(false);
       }

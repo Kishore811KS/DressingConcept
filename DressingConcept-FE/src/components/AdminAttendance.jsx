@@ -1,16 +1,30 @@
 import React, { useState, useEffect } from "react";
+
 import { format } from "date-fns";
-import axios from "axios";
-import { 
-  FaCalendarAlt, 
-  FaUserCheck, 
-  FaUserTimes, 
-  FaClock, 
+import {
+  FaCalendarAlt,
+  FaUserCheck,
+  FaUserTimes,
+  FaClock,
   FaSave,
   FaCheckCircle,
   FaTimesCircle,
   FaUserClock
 } from "react-icons/fa";
+
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
 
 const AdminAttendance = () => {
   const [loading, setLoading] = useState(false);
@@ -21,12 +35,7 @@ const AdminAttendance = () => {
   const API_BASE_URL = "http://localhost:5000/api";
   const token = localStorage.getItem("token");
 
-  const api = axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-      Authorization: token ? `Bearer ${token}` : "",
-    },
-  });
+  
 
   useEffect(() => {
     fetchAttendance(selectedDate);
@@ -53,7 +62,7 @@ const AdminAttendance = () => {
   const updateStatus = async (attendanceId, newStatus) => {
     try {
       await api.put(`/attendance/update/${attendanceId}`, { status: newStatus });
-      setEmployeesAttendance(prev => 
+      setEmployeesAttendance(prev =>
         prev.map(item => item.id === attendanceId ? { ...item, status: newStatus } : item)
       );
       showToast("Status updated successfully");
@@ -180,9 +189,9 @@ const AdminAttendance = () => {
           <h1 style={styles.title}>Attendance Management</h1>
           <div style={styles.datePicker}>
             <FaCalendarAlt color="#4da6ff" />
-            <input 
-              type="date" 
-              style={styles.input} 
+            <input
+              type="date"
+              style={styles.input}
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
             />
@@ -217,7 +226,7 @@ const AdminAttendance = () => {
                         </span>
                       </td>
                       <td style={styles.td}>
-                        <select 
+                        <select
                           style={styles.select}
                           value={row.status}
                           onChange={(e) => updateStatus(row.id, e.target.value)}
@@ -237,7 +246,7 @@ const AdminAttendance = () => {
         </div>
       </div>
       {toast && (
-        <div style={{...styles.toast, background: toast.isError ? "#ef4444" : "#10b981"}}>
+        <div style={{ ...styles.toast, background: toast.isError ? "#ef4444" : "#10b981" }}>
           {toast.msg}
         </div>
       )}

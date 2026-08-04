@@ -50,10 +50,23 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import axios from 'axios';
-import * as XLSX from 'xlsx';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+import * as XLSX from 'xlsx';
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+
 
 const RecentBills = () => {
   const theme = useTheme();
@@ -96,13 +109,13 @@ const RecentBills = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const dateRange = getLast48HoursRange();
-      let url = `${API_BASE_URL}/api/billing/bills?page=${page}&per_page=${rowsPerPage}`;
-      
+      let url = `/billing/bills?page=${page}&per_page=${rowsPerPage}`;
+
       // Add date filters for last 48 hours
       url += `&start_date=${dateRange.start_date}&end_date=${dateRange.end_date}`;
-      
+
       // Add other filters
       if (searchTerm) {
         url += `&customer=${encodeURIComponent(searchTerm)}`;
@@ -123,8 +136,8 @@ const RecentBills = () => {
         url += `&end_date=${endDate.toISOString()}`;
       }
 
-      const response = await axios.get(url);
-      
+      const response = await api.get(url);
+
       if (response.data && response.data.bills) {
         setBills(response.data.bills);
         setTotalPages(response.data.pages || 1);
@@ -150,7 +163,7 @@ const RecentBills = () => {
     const billCount = billsData.length;
     const averageBill = billCount > 0 ? totalSales / billCount : 0;
     const uniqueCustomers = new Set(billsData.map(bill => bill.customerPhone).filter(phone => phone)).size;
-    
+
     setStats({
       totalSales,
       billCount,
@@ -162,7 +175,7 @@ const RecentBills = () => {
   // View bill details
   const viewBillDetails = async (billId) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/billing/bills/${billId}`);
+      const response = await api.get(`/billing/bills/${billId}`);
       if (response.data) {
         setSelectedBill(response.data);
         setDialogOpen(true);
@@ -262,7 +275,7 @@ const RecentBills = () => {
       'Date': new Date(bill.createdAt).toLocaleString(),
       'Created By': bill.createdByName || 'System'
     }));
-    
+
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Last 48 Hours Bills');
@@ -272,14 +285,14 @@ const RecentBills = () => {
   // Auto refresh every 30 seconds
   useEffect(() => {
     fetchBills();
-    
+
     let interval;
     if (autoRefresh) {
       interval = setInterval(() => {
         fetchBills();
       }, 30000); // Refresh every 30 seconds
     }
-    
+
     return () => {
       if (interval) clearInterval(interval);
     };
@@ -348,7 +361,7 @@ const RecentBills = () => {
               </CardContent>
             </Card>
           </Grid>
-          
+
           <Grid item xs={12} sm={6} md={3}>
             <Card>
               <CardContent>
@@ -366,7 +379,7 @@ const RecentBills = () => {
               </CardContent>
             </Card>
           </Grid>
-          
+
           <Grid item xs={12} sm={6} md={3}>
             <Card>
               <CardContent>
@@ -384,7 +397,7 @@ const RecentBills = () => {
               </CardContent>
             </Card>
           </Grid>
-          
+
           <Grid item xs={12} sm={6} md={3}>
             <Card>
               <CardContent>
@@ -423,7 +436,7 @@ const RecentBills = () => {
                 }}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={2}>
               <FormControl fullWidth size="small">
                 <InputLabel>Customer Type</InputLabel>
@@ -439,7 +452,7 @@ const RecentBills = () => {
                 </Select>
               </FormControl>
             </Grid>
-            
+
             <Grid item xs={12} md={2}>
               <FormControl fullWidth size="small">
                 <InputLabel>Payment Method</InputLabel>
@@ -456,7 +469,7 @@ const RecentBills = () => {
                 </Select>
               </FormControl>
             </Grid>
-            
+
             <Grid item xs={12} md={2}>
               <FormControl fullWidth size="small">
                 <InputLabel>Payment Status</InputLabel>
@@ -472,7 +485,7 @@ const RecentBills = () => {
                 </Select>
               </FormControl>
             </Grid>
-            
+
             <Grid item xs={12} md={3}>
               <Box display="flex" gap={1}>
                 <DatePicker
@@ -549,15 +562,15 @@ const RecentBills = () => {
                         ₹{bill.paidAmount.toLocaleString()}
                       </TableCell>
                       <TableCell>
-                        <Chip 
-                          label={bill.paymentMethod?.toUpperCase() || 'CASH'} 
+                        <Chip
+                          label={bill.paymentMethod?.toUpperCase() || 'CASH'}
                           size="small"
                           variant="outlined"
                         />
                       </TableCell>
                       <TableCell>
-                        <Chip 
-                          label={bill.paymentStatus?.toUpperCase() || 'PENDING'} 
+                        <Chip
+                          label={bill.paymentStatus?.toUpperCase() || 'PENDING'}
                           color={getPaymentStatusColor(bill.paymentStatus)}
                           size="small"
                         />
@@ -585,12 +598,12 @@ const RecentBills = () => {
               </TableBody>
             </Table>
           </TableContainer>
-          
+
           {totalPages > 1 && (
             <Box display="flex" justifyContent="center" p={2}>
-              <Pagination 
-                count={totalPages} 
-                page={page} 
+              <Pagination
+                count={totalPages}
+                page={page}
                 onChange={(e, value) => setPage(value)}
                 color="primary"
               />
@@ -626,7 +639,7 @@ const RecentBills = () => {
                     <Typography><strong>Bill Date:</strong> {new Date(selectedBill.createdAt).toLocaleString()}</Typography>
                     <Typography><strong>Created By:</strong> {selectedBill.createdByName}</Typography>
                   </Grid>
-                  
+
                   <Grid item xs={12}>
                     <Typography variant="subtitle2" color="textSecondary" gutterBottom>Items</Typography>
                     <TableContainer component={Paper} variant="outlined">
@@ -634,7 +647,7 @@ const RecentBills = () => {
                         <TableHead>
                           <TableRow>
                             <TableCell>Product</TableCell>
-                            <TableCell>Model</TableCell>
+                            <TableCell align="center">Tax %</TableCell>
                             <TableCell align="right">Qty</TableCell>
                             <TableCell align="right">Price</TableCell>
                             <TableCell align="right">Total</TableCell>
@@ -644,7 +657,7 @@ const RecentBills = () => {
                           {selectedBill.items?.map((item, idx) => (
                             <TableRow key={idx}>
                               <TableCell>{item.product_name}</TableCell>
-                              <TableCell>{item.product_model || '-'}</TableCell>
+                              <TableCell align="center">{item.tax ? `${item.tax}%` : '5%'}</TableCell>
                               <TableCell align="right">{item.quantity}</TableCell>
                               <TableCell align="right">₹{item.sell_price}</TableCell>
                               <TableCell align="right">₹{item.total}</TableCell>
@@ -654,7 +667,7 @@ const RecentBills = () => {
                       </Table>
                     </TableContainer>
                   </Grid>
-                  
+
                   <Grid item xs={12}>
                     <Box display="flex" justifyContent="flex-end" mt={2}>
                       <Box textAlign="right">

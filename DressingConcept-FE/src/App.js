@@ -10,9 +10,9 @@ import Login from "./Login";
 import Dashboard from "./components/Dashboard";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
-import Product from "./components/Product";
+import AdminProduct from "./components/AdminProduct";
+import EmployeeProduct from "./components/EmployeeProduct";
 import Bill from "./components/Bill";
-import DigitalBill from "./components/DigitalBill";
 import VisitBillPage from "./components/VisitPage";
 import SupplierPage from "./components/Supplier";
 import SupplierDuplicatePage from "./components/SupplierList";
@@ -48,8 +48,9 @@ const KeyboardShortcutsInitializer = () => {
 function Layout() {
   const location = useLocation();
 
-  // Hide layout on login page
-  const hideLayout = location.pathname === "/";
+  const isBillPage = location.pathname.toLowerCase() === "/bill";
+  // Hide layout on login page or bill page
+  const hideLayout = location.pathname === "/" || isBillPage;
 
   const [isOpen, setIsOpen] = useState(true);
 
@@ -61,14 +62,17 @@ function Layout() {
     marginLeft: hideLayout ? "0" : isOpen ? "220px" : "70px",
     padding: hideLayout ? "0" : "80px 20px 20px 20px",
     minHeight: "100vh",
-    background: "#0f172a",
+    height: isBillPage ? "100vh" : "auto",
+    width: isBillPage ? "100vw" : "auto",
+    background: isBillPage ? "#111" : "#0f172a",
     transition: "all 0.3s ease",
+    overflow: isBillPage ? "hidden" : "visible",
   };
 
   return (
     <>
       {/* Initialize keyboard shortcuts globally */}
-      {!hideLayout && <KeyboardShortcutsInitializer />}
+      {location.pathname !== "/" && <KeyboardShortcutsInitializer />}
 
       {!hideLayout && <Sidebar isOpen={isOpen} />}
 
@@ -83,9 +87,10 @@ function Layout() {
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/product" element={<Product />} />
+          <Route path="/admin-product" element={<AdminProduct />} />
+          <Route path="/employee-product" element={<EmployeeProduct />} />
+          <Route path="/bill" element={<Bill />} />
           <Route path="/Bill" element={<Bill />} />
-          <Route path="/digital-bill" element={<DigitalBill />} />
           <Route path="/billreport" element={<VisitBillPage />} />
           <Route path="/supplier" element={<SupplierPage />} />
           <Route path="/supplierList" element={<SupplierDuplicatePage />} />
@@ -113,7 +118,7 @@ function Layout() {
       </div>
 
       {/* Global Shortcuts Modal */}
-      {!hideLayout && <GlobalShortcutsModal />}
+      {location.pathname !== "/" && <GlobalShortcutsModal />}
     </>
   );
 }

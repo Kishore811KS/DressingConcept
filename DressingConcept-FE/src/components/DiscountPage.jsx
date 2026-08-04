@@ -1,5 +1,19 @@
 import React, { useState, useRef, useEffect } from "react";
 
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 const fmt = (n) => {
   if (n === null) return "∞";
   return "₹" + Number(n).toLocaleString("en-IN", {
@@ -19,7 +33,7 @@ const DiscountPage = () => {
   const inputRefs = useRef({});
 
   // API Base URL - change this to your backend URL
-  const API_BASE_URL = 'http://localhost:5000/api';
+  
 
   // Fetch ranges from backend on component mount
   useEffect(() => {
@@ -29,9 +43,8 @@ const DiscountPage = () => {
   const loadRanges = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/discounts`);
-      if (!response.ok) throw new Error('Failed to load ranges');
-      const data = await response.json();
+      const response = await api.get(`/discounts`);
+      const data = response.data;
       setRanges(data);
     } catch (error) {
       console.error('Error loading ranges:', error);
@@ -134,23 +147,14 @@ const DiscountPage = () => {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/discounts/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          min: mn,
-          max: mx,
-          discount: d,
-          isInfinite: isInfinite
-        })
+      const response = await api.put(`/discounts/${id}`, {
+        min: mn,
+        max: mx,
+        discount: d,
+        isInfinite: isInfinite
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to update range');
-      }
-
-      const result = await response.json();
+      const result = response.data;
       
       // Update local state
       setRanges((p) =>
@@ -163,7 +167,7 @@ const DiscountPage = () => {
       setEditId(null);
       notify("Range saved!");
     } catch (error) {
-      notify(error.message, "error");
+      notify(error.response?.data?.error || error.message || "Failed to update range", "error");
     }
   };
 
@@ -175,19 +179,12 @@ const DiscountPage = () => {
     }
     
     try {
-      const response = await fetch(`${API_BASE_URL}/discounts/${id}`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to delete range');
-      }
+      await api.delete(`/discounts/${id}`);
 
       setRanges((p) => p.filter((r) => r.id !== id));
       notify("Range deleted.", "warn");
     } catch (error) {
-      notify(error.message, "error");
+      notify(error.response?.data?.error || error.message || "Failed to delete range", "error");
     }
   };
 
@@ -204,18 +201,8 @@ const DiscountPage = () => {
     };
     
     try {
-      const response = await fetch(`${API_BASE_URL}/discounts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRow)
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create range');
-      }
-
-      const result = await response.json();
+      const response = await api.post(`/discounts`, newRow);
+      const result = response.data;
       const savedRow = result.range;
       
       const infinityIndex = ranges.findIndex(r => r.isInfinite);
@@ -230,7 +217,7 @@ const DiscountPage = () => {
       setTimeout(() => startEdit(savedRow), 0);
       notify("New range added!");
     } catch (error) {
-      notify(error.message, "error");
+      notify(error.response?.data?.error || error.message || "Failed to create range", "error");
     }
   };
 

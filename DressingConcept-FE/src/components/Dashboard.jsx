@@ -11,11 +11,24 @@ import {
   FaEye,
   FaKeyboard,
 } from "react-icons/fa";
-import axios from "axios";
+
 import { useNavigate } from "react-router-dom";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -75,7 +88,7 @@ const Dashboard = () => {
   const fetchPermissions = async () => {
     try {
       const employeeId = user.id || user.employee_id || "";
-      const response = await axios.get(`${API_BASE_URL}/api/permissions?userType=${userType}&employeeId=${employeeId}`);
+      const response = await api.get(`/permissions?userType=${userType}&employeeId=${employeeId}`);
       if (response.data) {
         setPermissions(response.data);
         // Update localStorage for sidebar and other components
@@ -109,16 +122,16 @@ const Dashboard = () => {
     setError(null);
 
     try {
-      const productStatsResponse = await axios.get(
-        `${API_BASE_URL}/api/products/statistics`
+      const productStatsResponse = await api.get(
+        `/products/statistics`
       );
 
-      const billingStatsResponse = await axios.get(
-        `${API_BASE_URL}/api/billing/statistics`
+      const billingStatsResponse = await api.get(
+        `/billing/statistics`
       );
 
-      const lowStockResponse = await axios.get(
-        `${API_BASE_URL}/api/products?per_page=100`
+      const lowStockResponse = await api.get(
+        `/products?per_page=100`
       );
 
       const productStats = productStatsResponse.data;
@@ -810,7 +823,7 @@ const Dashboard = () => {
               <thead>
                 <tr>
                   <th style={styles.th}>Product</th>
-                  <th style={styles.th}>Model</th>
+                  {!isEmployeeDashboard && <th style={styles.th}>Model</th>}
                   <th style={styles.th}>Stock</th>
                   <th style={styles.th}>Status</th>
                 </tr>
@@ -822,9 +835,11 @@ const Dashboard = () => {
                       <td style={styles.td}>
                         <div style={{ fontWeight: "500" }}>{product.name}</div>
                       </td>
-                      <td style={styles.td}>
-                        <span style={{ color: "#94a3b8" }}>{product.model || '-'}</span>
-                      </td>
+                      {!isEmployeeDashboard && (
+                        <td style={styles.td}>
+                          <span style={{ color: "#94a3b8" }}>{product.model || '-'}</span>
+                        </td>
+                      )}
                       <td style={styles.td}>
                         <span style={{
                           fontWeight: "600",
@@ -849,7 +864,7 @@ const Dashboard = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" style={{ ...styles.td, textAlign: "center", padding: "40px" }}>
+                    <td colSpan={isEmployeeDashboard ? 3 : 4} style={{ ...styles.td, textAlign: "center", padding: "40px" }}>
                       <FaBoxes size={32} style={{ opacity: 0.5, marginBottom: "12px" }} />
                       <div>All products are well stocked ✓</div>
                       <div style={{ fontSize: "13px", color: "#6b7280", marginTop: "8px" }}>
@@ -861,7 +876,7 @@ const Dashboard = () => {
 
                 {stats.lowStockProducts.length > 5 && (
                   <tr>
-                    <td colSpan="4" style={{ ...styles.td, textAlign: "center", backgroundColor: "rgba(0, 0, 0, 0.3)" }}>
+                    <td colSpan={isEmployeeDashboard ? 3 : 4} style={{ ...styles.td, textAlign: "center", backgroundColor: "rgba(0, 0, 0, 0.3)" }}>
                       <span
                         onClick={handleViewAllLowStock}
                         style={styles.viewAllText}

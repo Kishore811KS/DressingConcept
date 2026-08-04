@@ -38,16 +38,24 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format } from 'date-fns';
+
 import axios from 'axios';
 
-// Create axios instance with credentials
+const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: `${BASE_URL}/api`,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
   }
 });
+
+
+// Create axios instance with credentials
+
 
 const ServiceBills = () => {
   const [bills, setBills] = useState([]);
@@ -639,7 +647,7 @@ const ServiceBills = () => {
               <Button onClick={() => setOpenDialog(false)}>Close</Button>
               <Button
                 variant="contained"
-                onClick={() => window.open(`http://localhost:5000/api/service-bills/${selectedBill.bill?.id}/pdf`, '_blank')}
+                onClick={() => window.open(`${import.meta.env?.VITE_API_URL || "http://localhost:5000"}/api/service-bills/${selectedBill.bill?.id}/pdf`, '_blank')}
                 disabled={!selectedBill.bill?.id}
               >
                 Download PDF
