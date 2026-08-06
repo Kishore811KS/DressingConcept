@@ -2230,6 +2230,15 @@ const VisitBillPage = () => {
           >
             <FileJson size={16} /> PDF
           </button>
+          <button
+            style={{ ...styles.button, backgroundColor: '#dc2626', color: '#ffffff', fontWeight: 'bold' }}
+            onClick={() => window.location.href = '/salereturn'}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+            title="Open Sale Return Report (Shortcut: SR)"
+          >
+            🔄 Sale Returns
+          </button>
         </div>
       </div>
 

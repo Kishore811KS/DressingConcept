@@ -13,6 +13,7 @@ from app.models.enquiry import Enquiry
 from app.models.customer_rewards import CustomerRewards
 from app.models.salary import Salary
 from app.models.hr_config import HRConfig
+from app.models.sale_return import SaleReturn, SaleReturnItem
 
 __all__ = [
     'Attendance',
@@ -36,5 +37,8 @@ __all__ = [
     'Enquiry',
     'CustomerRewards',
     'Salary',
-    'HRConfig'
+    'HRConfig',
+    'SaleReturn',
+    'SaleReturnItem'
 ]
+

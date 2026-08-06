@@ -32,6 +32,7 @@ class Employee(db.Model):
     blood_group = db.Column(db.String(5))
     marital_status = db.Column(db.String(20))
     basic_salary = db.Column(db.Float, default=0.0)
+    monthly_salary = db.Column(db.Float, default=0.0)
     
     # Document attachments
     aadhar_attachment = db.Column(db.String(255))
@@ -72,6 +73,7 @@ class Employee(db.Model):
             'blood_group': self.blood_group,
             'marital_status': self.marital_status,
             'basic_salary': self.basic_salary,
+            'monthly_salary': self.monthly_salary,
             'aadhar_attachment': self.aadhar_attachment,
             'pan_attachment': self.pan_attachment,
             'permissions': json.loads(self.permissions) if self.permissions else None,

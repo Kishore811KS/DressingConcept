@@ -317,6 +317,125 @@ def add_new_customer():
         return jsonify({"error": str(e)}), 400
 
 
+# ------------------ UPDATE EXISTING CUSTOMER ------------------
+@billing_bp.route("/billing/customers/<path:phone>", methods=["PUT"])
+def update_customer(phone):
+    """Update an existing customer profile by phone number"""
+    try:
+        data = request.get_json() or {}
+        phone = str(phone).strip()
+        rewards = CustomerRewards.query.filter_by(phone=phone).first()
+
+        new_phone = str(data.get('phone') or data.get('customerPhone') or phone).strip()
+        name = data.get('name') or data.get('customerName') or (f"{data.get('firstName', '')} {data.get('lastName', '')}".strip()) or 'Walk-in Customer'
+
+        if not rewards:
+            rewards = CustomerRewards()
+            rewards.phone = new_phone
+            rewards.total_points_earned = 0.0
+            rewards.total_points_redeemed = 0.0
+            rewards.current_balance = 0.0
+            rewards.total_spend = 0.0
+            rewards.bill_count = 0
+            db.session.add(rewards)
+        elif new_phone != phone:
+            existing = CustomerRewards.query.filter_by(phone=new_phone).first()
+            if existing and existing != rewards:
+                return jsonify({"error": f"Customer with phone number {new_phone} already exists"}), 400
+            rewards.phone = new_phone
+
+        if name:
+            rewards.name = name
+        rewards.first_name = data.get('firstName') if 'firstName' in data else (data.get('first_name') if 'first_name' in data else rewards.first_name)
+        rewards.last_name = data.get('lastName') if 'lastName' in data else (data.get('last_name') if 'last_name' in data else rewards.last_name)
+        rewards.email = data.get('email') if 'email' in data else (data.get('customerEmail') if 'customerEmail' in data else rewards.email)
+        rewards.gst = data.get('gst') if 'gst' in data else (data.get('customerGST') if 'customerGST' in data else rewards.gst)
+        rewards.address = data.get('address') if 'address' in data else (data.get('customerAddress') if 'customerAddress' in data else rewards.address)
+        rewards.customer_type = data.get('type') if 'type' in data else (data.get('customerType') if 'customerType' in data else rewards.customer_type)
+        rewards.member_id = data.get('memberId') if 'memberId' in data else (data.get('member_id') if 'member_id' in data else rewards.member_id)
+        if 'isClassicCustomer' in data:
+            rewards.is_classic_customer = bool(data['isClassicCustomer'])
+        if 'isSupplier' in data:
+            rewards.is_supplier = bool(data['isSupplier'])
+        if 'supplierIGST' in data:
+            rewards.supplier_igst = float(data['supplierIGST'] or 0)
+
+        if 'rewardPoints' in data:
+            rewards.current_balance = float(data['rewardPoints'] or 0)
+
+        from datetime import date
+        def parse_date(val):
+            if not val: return None
+            try:
+                if 'T' in str(val):
+                    val = str(val).split('T')[0]
+                return date.fromisoformat(str(val))
+            except Exception:
+                return None
+
+        if 'dateOfBirth' in data:
+            rewards.date_of_birth = parse_date(data.get('dateOfBirth'))
+        if 'weddingAnniversary' in data:
+            rewards.wedding_anniversary = parse_date(data.get('weddingAnniversary'))
+        if 'celebrationDate' in data:
+            rewards.celebration_date = parse_date(data.get('celebrationDate'))
+
+        # Also update matching bills with new customer details if updated
+        matching_bills = Bill.query.filter_by(customer_phone=phone).all()
+        for b in matching_bills:
+            if new_phone != phone:
+                b.customer_phone = new_phone
+            if name:
+                b.customer_name = name
+            if rewards.email:
+                b.customer_email = rewards.email
+            if rewards.gst:
+                b.customer_gst = rewards.gst
+            if rewards.address:
+                b.customer_address = rewards.address
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Customer updated successfully",
+            "customer": rewards.to_dict()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Update customer error: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+
+
+# ------------------ DELETE CUSTOMER ------------------
+@billing_bp.route("/billing/customers/<path:phone>", methods=["DELETE"])
+def delete_customer(phone):
+    """Delete a customer record by phone number"""
+    try:
+        phone = str(phone).strip()
+        rewards = CustomerRewards.query.filter_by(phone=phone).first()
+        if rewards:
+            db.session.delete(rewards)
+            
+        # Also clear customer_phone from associated bills so the customer doesn't reappear in consolidated list
+        matching_bills = Bill.query.filter_by(customer_phone=phone).all()
+        for b in matching_bills:
+            b.customer_phone = ''
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Customer deleted successfully"
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Delete customer error: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+
+
 # ------------------ IMPORT CUSTOMERS (Excel / CSV) ------------------
 @billing_bp.route("/billing/customers/import", methods=["POST"])
 def import_customers():

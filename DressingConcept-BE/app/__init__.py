@@ -59,6 +59,7 @@ def create_app():
     from app.routes.Check_permissions_routes import check_permissions_bp
     from app.routes.restore_permissions_routes import restore_permissions_bp
     from app.routes.salary_routes import salary_bp
+    from app.routes.sale_return_routes import sale_return_bp
 
     app.register_blueprint(login_bp, url_prefix="/api")
     app.register_blueprint(product_bp, url_prefix="/api")
@@ -78,6 +79,11 @@ def create_app():
     app.register_blueprint(check_permissions_bp)
     app.register_blueprint(restore_permissions_bp)
     app.register_blueprint(salary_bp, url_prefix='/api/salary')
+    app.register_blueprint(sale_return_bp, url_prefix='/api')
+
+    # Ensure all tables are created
+    with app.app_context():
+        db.create_all()
 
     # Health Check Route
     @app.route('/api/health', methods=['GET'])
@@ -88,4 +94,4 @@ def create_app():
             "version": "1.0.1"
         }, 200
 
-    return app
+    return app

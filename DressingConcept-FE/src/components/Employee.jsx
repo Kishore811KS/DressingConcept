@@ -48,7 +48,8 @@ const EmployeeManager = () => {
     aadhar_card_number: '',
     pan_card_number: '',
     emergency_contact: '',
-    basic_salary: ''
+    basic_salary: '',
+    monthly_salary: ''
   });
 
   // File upload state
@@ -123,10 +124,20 @@ const EmployeeManager = () => {
   // Handle form input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    if (name === 'monthly_salary') {
+      const monthly = Number(value);
+      const perDay = (!isNaN(monthly) && monthly > 0) ? (monthly / 30).toFixed(2) : '';
+      setFormData(prev => ({
+        ...prev,
+        monthly_salary: value,
+        basic_salary: perDay
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   // Handle file changes
@@ -154,7 +165,8 @@ const EmployeeManager = () => {
       aadhar_card_number: '',
       pan_card_number: '',
       emergency_contact: '',
-      basic_salary: ''
+      basic_salary: '',
+      monthly_salary: ''
     });
     setAadharFile(null);
     setPanFile(null);
@@ -279,7 +291,8 @@ const EmployeeManager = () => {
       pan_card_number: employee.pan_card_number || '',
       address: '',
       emergency_contact: employee.emergency_contact || '',
-      basic_salary: employee.basic_salary || ''
+      basic_salary: employee.basic_salary || '',
+      monthly_salary: employee.monthly_salary || (employee.basic_salary ? (employee.basic_salary * 30).toFixed(2) : '')
     });
     setExistingFiles({
       aadhar_attachment: employee.aadhar_attachment,
@@ -632,14 +645,14 @@ const EmployeeManager = () => {
                     </div>
 
                     <div style={styles.formGroup}>
-                      <label style={styles.label}>Emergency Mobile Number</label>
+                      <label style={styles.label}>Monthly Salary</label>
                       <input
                         type="text"
-                        name="emergency_contact"
-                        value={formData.emergency_contact}
+                        name="monthly_salary"
+                        value={formData.monthly_salary || ''}
                         onChange={handleInputChange}
                         style={styles.input}
-                        placeholder="Enter mobile number"
+                        placeholder="0.00"
                       />
                     </div>
                   </div>
@@ -714,6 +727,18 @@ const EmployeeManager = () => {
                           </button>
                         </div>
                       )}
+                    </div>
+
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Emergency Mobile Number</label>
+                      <input
+                        type="text"
+                        name="emergency_contact"
+                        value={formData.emergency_contact}
+                        onChange={handleInputChange}
+                        style={styles.input}
+                        placeholder="Enter mobile number"
+                      />
                     </div>
                   </div>
                 </div>
@@ -790,8 +815,8 @@ const EmployeeManager = () => {
                     <span style={styles.detailValue}>₹{selectedEmployee.basic_salary || '0'}</span>
                   </div>
                   <div style={styles.detailItem}>
-                    <label style={styles.detailLabel}>Emergency Mobile Number:</label>
-                    <span style={styles.detailValue}>{selectedEmployee.emergency_contact || '-'}</span>
+                    <label style={styles.detailLabel}>Monthly Salary:</label>
+                    <span style={styles.detailValue}>₹{selectedEmployee.monthly_salary || (selectedEmployee.basic_salary ? (selectedEmployee.basic_salary * 30).toFixed(2) : '0')}</span>
                   </div>
                 </div>
               </div>
@@ -832,6 +857,10 @@ const EmployeeManager = () => {
                     ) : (
                       <span style={styles.detailValue}>-</span>
                     )}
+                  </div>
+                  <div style={styles.detailItem}>
+                    <label style={styles.detailLabel}>Emergency Mobile Number:</label>
+                    <span style={styles.detailValue}>{selectedEmployee.emergency_contact || '-'}</span>
                   </div>
                 </div>
               </div>

@@ -389,6 +389,7 @@ def create_employee():
             blood_group=_get_request_val('blood_group'),
             marital_status=_get_request_val('marital_status'),
             basic_salary=float(_get_request_val('basic_salary', 0) or 0),
+            monthly_salary=float(_get_request_val('monthly_salary', 0) or 0),
             aadhar_attachment=aadhar_filename,
             pan_attachment=pan_filename
         )
@@ -503,6 +504,11 @@ def update_employee(id):
         if _get_request_val('basic_salary') is not None:
             try:
                 employee.basic_salary = float(_get_request_val('basic_salary') or 0)
+            except:
+                pass
+        if _get_request_val('monthly_salary') is not None:
+            try:
+                employee.monthly_salary = float(_get_request_val('monthly_salary') or 0)
             except:
                 pass
         

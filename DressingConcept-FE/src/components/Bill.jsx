@@ -575,11 +575,15 @@ export default function Bill() {
         const bill = response.data;
 
         // 1. Customer Details
+        const custPhone = bill.customer?.phone || bill.customer_phone || bill.contact || bill.customerPhone || "";
+        const custName = bill.customer?.name || bill.customer_name || bill.customerName || "Walk-in Customer";
+        const custAddr = bill.customer?.address || bill.customer_address || bill.customerAddress || "";
+
         setBillNo(bill.billNumber || formatted);
-        setCustomerName(bill.customer?.name || bill.customer_name || "Walk-in Customer");
-        setMobileNumber(bill.customer?.phone || bill.customer_phone || "");
-        setContactNumber(bill.customer?.phone || bill.customer_phone || "");
-        setAddress(bill.customer?.address || bill.customer_address || "");
+        setCustomerName(custName);
+        setMobileNumber(custPhone);
+        setContactNumber(custPhone);
+        setAddress(custAddr);
         setSalesPerson(bill.createdByName || bill.created_by_name || "");
 
         // 2. Items / Products Details
@@ -646,6 +650,13 @@ export default function Bill() {
     fetchBillForReprint(billNumber);
   };
 
+  const handleCloseSaleReturnModal = () => {
+    setShowSaleReturnModal(false);
+    if (!isSaleReturnMode) {
+      setSaleReturn(false);
+    }
+  };
+
   const handleOpenSaleReturnModal = () => {
     setSaleReturn(true);
     setSaleReturnBillInput("");
@@ -654,93 +665,182 @@ export default function Bill() {
   };
 
   const printSaleReturnReceipt = (r) => {
-    const printWindow = window.open('', '_blank', 'width=600,height=700');
+    const printWindow = window.open('', '_blank', 'width=450,height=600');
     if (!printWindow) {
-      alert("Please allow popups to print Sale Return receipts.");
+      setTimeout(() => {
+        window.print();
+      }, 100);
       return;
     }
 
-    const itemsRows = (r.items || []).map((item, idx) => `
-      <tr>
-        <td style="padding: 6px; border-bottom: 1px solid #eee; text-align: center;">${idx + 1}</td>
-        <td style="padding: 6px; border-bottom: 1px solid #eee;">
-          <strong>${item.productName}</strong><br/>
-          <span style="font-size: 10px; color: #666;">Code: ${item.productCode || '-'}</span>
-        </td>
-        <td style="padding: 6px; border-bottom: 1px solid #eee; text-align: center;">${item.returnedQuantity} ${item.unit || 'PCS'}</td>
-        <td style="padding: 6px; border-bottom: 1px solid #eee; text-align: right;">₹${Number(item.sellPrice).toFixed(2)}</td>
-        <td style="padding: 6px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;">₹${Number(item.totalAmount).toFixed(2)}</td>
-      </tr>
-    `).join('');
+    const itemsRows = (r.items || []).map((item) => {
+      const qty = Number(item.returnedQuantity || item.quantity) || 1;
+      const rate = Number(item.sellPrice) || 0;
+      const amt = Number(item.totalAmount || (rate * qty)) || 0;
+      const taxPct = Number(item.tax) || 5;
+      return `
+        <tr>
+          <td class="r-desc">${String(item.productName || item.description || "").toUpperCase()}</td>
+          <td class="r-num">${taxPct}%</td>
+          <td class="r-num">${qty.toFixed(2)}</td>
+          <td class="r-num">${rate.toFixed(2)}</td>
+          <td class="r-num">${amt.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const totalQty = (r.items || []).reduce((sum, item) => sum + (Number(item.returnedQuantity || item.quantity) || 0), 0);
 
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Sale Return Receipt - ${r.returnNumber}</title>
+          <title>Sale Return - ${r.returnNumber}</title>
           <style>
-            @page { size: auto; margin: 10mm; }
-            body { font-family: 'Segoe UI', Arial, sans-serif; color: #111; margin: 0; padding: 12px; }
-            .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 12px; }
-            .company-name { font-size: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-            .receipt-title { font-size: 14px; font-weight: 700; color: #dc2626; margin-top: 4px; text-transform: uppercase; }
-            .meta-grid { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 12px; }
-            .meta-column { line-height: 1.5; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 12px; }
-            th { background: #f1f5f9; padding: 6px; border-bottom: 2px solid #cbd5e1; text-align: left; font-size: 11px; text-transform: uppercase; }
-            .totals { margin-left: auto; width: 250px; font-size: 12px; line-height: 1.6; }
-            .totals-row { display: flex; justify-content: space-between; padding: 3px 0; }
-            .totals-row.grand { font-size: 15px; font-weight: 800; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; margin-top: 4px; color: #dc2626; }
-            .footer { text-align: center; margin-top: 20px; font-size: 11px; color: #666; border-top: 1px dashed #ccc; padding-top: 8px; }
+            @page { size: 80mm auto; margin: 0; }
+            body {
+              margin: 0;
+              padding: 0;
+              background: #fff;
+              font-family: 'Courier New', Courier, monospace, monospace;
+              font-size: 11px;
+              line-height: 1.35;
+              color: #000;
+            }
+            .receipt-container {
+              width: 76mm;
+              padding: 4mm 3mm 6mm;
+              margin: 0 auto;
+            }
+            .receipt-header { text-align: center; margin-bottom: 4px; }
+            .receipt-logo { text-align: center; margin-bottom: 4px; }
+            .receipt-logo-img { width: 120px; height: auto; object-fit: contain; display: inline-block; }
+            .receipt-shop { font-size: 15px; font-weight: 900; letter-spacing: 0.5px; text-align: center; margin-bottom: 2px; text-transform: uppercase; }
+            .receipt-title { font-size: 13px; font-weight: 900; text-align: center; margin: 4px 0; text-transform: uppercase; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 2px 0; }
+            .receipt-addr { font-size: 11px; font-weight: 700; text-align: center; line-height: 1.25; }
+            .receipt-info-left { text-align: left; font-size: 11px; font-weight: 700; margin-top: 6px; }
+
+            .receipt-meta { margin: 6px 0; font-size: 11px; font-weight: 700; }
+            .receipt-meta-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+
+            .receipt-line { border-top: 1px solid #000; margin: 5px 0; }
+            .receipt-line-dashed { border-top: 1px dashed #000; margin: 5px 0; }
+
+            .receipt-table { width: 100%; border-collapse: collapse; margin: 4px 0; }
+            .receipt-table th { font-weight: 800; font-size: 11px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 0; text-align: left; }
+            .receipt-table td { padding: 4px 0; font-size: 11px; font-weight: 600; vertical-align: top; }
+            .r-desc { text-align: left; width: 45%; }
+            .r-num { text-align: right; }
+
+            .receipt-pay-amount {
+              text-align: center;
+              font-size: 15px;
+              font-weight: 900;
+              padding: 5px 0;
+              border-top: 1px solid #000;
+              border-bottom: 1px solid #000;
+              margin: 5px 0;
+            }
+
+            .receipt-summary-block { margin: 4px 0; font-size: 11px; font-weight: 700; }
+            .receipt-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+
+            .receipt-customer { margin: 4px 0; }
+            .receipt-cust-title { font-weight: 800; text-decoration: underline; margin-bottom: 2px; font-size: 11px; }
+            .receipt-cust-name { font-weight: 800; font-size: 11px; text-transform: uppercase; }
+            .receipt-cust-phone { font-weight: 700; font-size: 11px; }
+
+            .receipt-qr { display: flex; justify-content: space-around; align-items: flex-end; margin: 8px 0 4px 0; }
+            .receipt-qr-item { text-align: center; }
+            .receipt-qr-lbl { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 3px; }
+            .receipt-qr-img { width: 56px; height: 56px; object-fit: contain; display: block; margin: 0 auto; }
+
+            .receipt-footer-msg { text-align: center; margin-top: 6px; }
+            .receipt-visit { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+            .receipt-thankyou { font-size: 13px; font-weight: 800; margin-top: 2px; }
           </style>
         </head>
         <body>
-          <div class="header">
-            <div class="company-name">DRESSING CONCEPT</div>
-            <div class="receipt-title">🔄 SALE RETURN RECEIPT</div>
-          </div>
-
-          <div class="meta-grid">
-            <div class="meta-column">
-              <strong>Return No:</strong> ${r.returnNumber}<br/>
-              <strong>Original Bill No:</strong> ${r.originalBillNumber}<br/>
-              <strong>Return Date & Time:</strong> ${r.returnDate} ${r.returnTime}
+          <div class="receipt-container">
+            <div class="receipt-header">
+              <div class="receipt-logo">
+                <img src="/Dressing_Concept.png" alt="Dressing Concepts" class="receipt-logo-img" />
+              </div>
+              <div class="receipt-shop">DRESSING CONCEPTS</div>
+              <div class="receipt-addr">NO.88/70 S.R.P KOVIL STREET,</div>
+              <div class="receipt-addr">AGARAM,PERAMBUR,</div>
+              <div class="receipt-addr">CHENNAI-600 082.</div>
+              <div class="receipt-info-left">
+                <div>PH: 9840669687</div>
+                <div>GSTIN:</div>
+              </div>
             </div>
-            <div class="meta-column" style="text-align: right;">
-              <strong>Customer:</strong> ${r.customerName}<br/>
-              <strong>Phone:</strong> ${r.customerPhone || 'N/A'}<br/>
-              <strong>Processed By:</strong> ${r.processedByName || 'Admin'}
-            </div>
-          </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 30px; text-align: center;">#</th>
-                <th>Item Description</th>
-                <th style="text-align: center;">Qty</th>
-                <th style="text-align: right;">Price (₹)</th>
-                <th style="text-align: right;">Return Amount (₹)</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsRows}
-            </tbody>
-          </table>
+            <div class="receipt-title">*** SALE RETURN ***</div>
 
-          <div class="totals">
-            <div class="totals-row grand">
-              <span>Total Refund Amount:</span>
-              <span>₹${Number(r.totalReturnAmount).toFixed(2)}</span>
+            <div class="receipt-meta">
+              <div class="receipt-meta-row">
+                <span>Return No:${r.returnNumber}</span>
+                <span>${r.returnDate || ''} ${r.returnTime || ''}</span>
+              </div>
+              <div class="receipt-meta-row">
+                <span>Orig Bill: #${r.originalBillNumber}</span>
+                <span>User: ${r.createdByName || r.processedByName || 'Admin'}</span>
+              </div>
             </div>
-            <div class="totals-row" style="color: #dc2626; font-weight: bold; margin-top: 4px;">
-              <span>Points Deducted:</span>
-              <span>-${r.rewardPointsDeducted} pts</span>
-            </div>
-          </div>
 
-          <div class="footer">
-            <p>This is an official Sale Return voucher. Thank you for shopping with Dressing Concept!</p>
+            <div class="receipt-line"></div>
+
+            <table class="receipt-table">
+              <thead>
+                <tr>
+                  <th class="r-desc">Description</th>
+                  <th class="r-num">Tax %</th>
+                  <th class="r-num">Qty</th>
+                  <th class="r-num">Rate</th>
+                  <th class="r-num">Amt</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsRows}
+              </tbody>
+            </table>
+
+            <div class="receipt-pay-amount">
+              Refund Amount: ${Math.round(r.totalReturnAmount)}/-
+            </div>
+
+            <div class="receipt-summary-block">
+              <div class="receipt-row"><span>Total Pieces: ${totalQty}</span></div>
+              <div class="receipt-row"><span>MRP Total: ${Math.round(r.subtotal || r.totalReturnAmount)}</span></div>
+            </div>
+
+            <div class="receipt-line"></div>
+
+            <div class="receipt-customer">
+              <div class="receipt-cust-title">Customer Details:</div>
+              <div class="receipt-cust-name">${String(r.customerName || (r.customer && r.customer.name) || "Walk-in Customer").toUpperCase()}</div>
+              ${(r.customerPhone || r.contact || r.phone || (r.customer && r.customer.phone)) ? `<div class="receipt-cust-phone">PH: ${r.customerPhone || r.contact || r.phone || (r.customer && r.customer.phone)}</div>` : ''}
+              ${(r.customerAddress || (r.customer && r.customer.address)) ? `<div class="receipt-cust-phone">ADDR: ${r.customerAddress || (r.customer && r.customer.address)}</div>` : ''}
+            </div>
+
+            <div class="receipt-line-dashed"></div>
+
+            <div class="receipt-qr">
+              <div class="receipt-qr-item">
+                <div class="receipt-qr-lbl">JOIN US</div>
+                <img src="/whatsapp-qr.png" alt="WhatsApp QR" class="receipt-qr-img" />
+              </div>
+              <div class="receipt-qr-item">
+                <div class="receipt-qr-lbl">VISIT US</div>
+                <img src="/instagram.png" alt="Instagram QR" class="receipt-qr-img" />
+              </div>
+            </div>
+
+            <div class="receipt-footer-msg">
+              <div class="receipt-visit">Visit Again</div>
+              <div class="receipt-thankyou">Thank You &hearts;</div>
+            </div>
           </div>
 
           <script>
@@ -769,10 +869,14 @@ export default function Bill() {
       if (response.data) {
         const bill = response.data;
 
-        setCustomerName(bill.customer?.name || bill.customer_name || "Walk-in Customer");
-        setMobileNumber(bill.customer?.phone || bill.customer_phone || "");
-        setContactNumber(bill.customer?.phone || bill.customer_phone || "");
-        setAddress(bill.customer?.address || bill.customer_address || "");
+        const custPhone = bill.customer?.phone || bill.customer_phone || bill.contact || bill.customerPhone || "";
+        const custName = bill.customer?.name || bill.customer_name || bill.customerName || "Walk-in Customer";
+        const custAddr = bill.customer?.address || bill.customer_address || bill.customerAddress || "";
+
+        setCustomerName(custName);
+        setMobileNumber(custPhone);
+        setContactNumber(custPhone);
+        setAddress(custAddr);
 
         if (Array.isArray(bill.items) && bill.items.length > 0) {
           const loadedRows = bill.items.map((item) => {
@@ -788,6 +892,7 @@ export default function Bill() {
               mrp: sellPrice,
               discountPercent: disc,
               netPrice: sellPrice,
+              originalQuantity: qty,
               quantity: qty,
               salesPerson: bill.createdByName || bill.created_by_name || "",
             };
@@ -803,13 +908,18 @@ export default function Bill() {
       }
     } catch (err) {
       console.log("Sale Return bill fetch error", err);
-      setError(`Bill Number #${formatted} not found.`);
+      setError(`Bill Number #${formatted} not found. Sale Return mode cancelled.`);
+      setSaleReturn(false);
+      setIsSaleReturnMode(false);
+      setOriginalBillNumber("");
     } finally {
       setLoading(false);
     }
   };
 
   const saveSaleReturn = async () => {
+    if (loading) return null;
+
     const validItems = rows.filter(r => r.productId && (Number(r.quantity) || 0) > 0);
     if (validItems.length === 0) {
       setError("Add or adjust at least one returned item.");
@@ -832,8 +942,8 @@ export default function Bill() {
       const payload = {
         originalBillNumber: originalBillNumber || billNo,
         customerName: customerName || "Walk-in Customer",
-        customerPhone: mobileNumber,
-        customerAddress: address,
+        customerPhone: mobileNumber || contactNumber || memberId || "",
+        customerAddress: address || "",
         subtotal: totals.mrpTotal,
         discount: totals.totalDiscount,
         tax: totals.taxTotal,
@@ -849,6 +959,7 @@ export default function Bill() {
           tax: row.tax,
           mrp: row.mrp,
           sellPrice: row.netPrice,
+          originalQuantity: row.originalQuantity || Number(row.quantity) || 1,
           returnedQuantity: Number(row.quantity) || 1,
           salesPerson: row.salesPerson
         })),
@@ -860,14 +971,13 @@ export default function Bill() {
       });
 
       const savedReturn = response.data?.saleReturn;
+      if (savedReturn?.returnNumber) {
+        setBillNo(savedReturn.returnNumber);
+      }
       setMessage(`Sale Return ${savedReturn?.returnNumber || ''} processed successfully!`);
       localStorage.removeItem("bill_draft");
       await loadProducts();
 
-      if (savedReturn) {
-        printSaleReturnReceipt(savedReturn);
-      }
-      performClear();
       return savedReturn;
     } catch (err) {
       const backendMessage = err.response?.data?.error || err.response?.data?.errors?.join(", ");
@@ -913,19 +1023,36 @@ export default function Bill() {
   };
 
   const normalizeProduct = (product) => {
-    let mrp = money(product.mrp || product.sellPrice || product.sell_price || 0);
-    const rawDiscAmount = product.discountAmount ?? product.discount_amount ?? product.discountAmt;
-    let unitSellingPrice = (rawDiscAmount !== undefined && rawDiscAmount !== null && rawDiscAmount !== "" && Number(rawDiscAmount) > 0)
-      ? money(rawDiscAmount)
-      : money(product.netPrice || product.sellPrice || product.sell_price || mrp);
+    const mrp = money(product.mrp || 0);
 
-    let finalDiscountPercent = 0;
+    // In Product page schema, Selling Price is stored in discountAmount / discount_amount / sellPrice / sell_price
+    const getSellingPrice = () => {
+      const candidates = [
+        product.discountAmount,
+        product.discount_amount,
+        product.discountAmt,
+        product.sellPrice,
+        product.sell_price,
+        product.sellingPrice,
+        product.selling_price,
+        product.netPrice,
+        product.net_price
+      ];
+      for (const c of candidates) {
+        if (c !== undefined && c !== null && c !== "" && !isNaN(Number(c)) && Number(c) > 0) {
+          return money(Number(c));
+        }
+      }
+      return mrp > 0 ? mrp : 0;
+    };
+
+    let sellingPrice = getSellingPrice();
 
     if (classicCustomer && product.classicCustomer) {
       const cp = money(product.classicCustomer);
-      mrp = cp;
-      unitSellingPrice = cp;
-      finalDiscountPercent = 0;
+      if (cp > 0) {
+        sellingPrice = cp;
+      }
     }
 
     return {
@@ -935,8 +1062,10 @@ export default function Bill() {
       tax: Number(product.tax || product.watts || TAX_PERCENT),
       unit: product.unit || product.type || DEFAULT_UNIT,
       mrp,
-      discountPercent: finalDiscountPercent,
-      netPrice: unitSellingPrice,
+      sellPrice: sellingPrice,
+      baseNetPrice: sellingPrice,
+      discountPercent: 0,
+      netPrice: sellingPrice,
       quantity: 1,
       salesPerson: product.salesPerson || salesPerson || loggedInUserName,
       stock: Number(product.quantity || 0),
@@ -1152,7 +1281,7 @@ export default function Bill() {
   };
 
   const updateRow = (index, field, value) => {
-    const numericFields = ["mrp", "discountPercent", "netPrice", "quantity", "tax"];
+    const numericFields = ["mrp", "sellPrice", "baseNetPrice", "discountPercent", "netPrice", "quantity", "tax"];
 
     if (field === "productId") {
       setRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, productId: value } : row)));
@@ -1163,13 +1292,33 @@ export default function Bill() {
       const newRows = current.map((row, rowIndex) => {
         if (rowIndex !== index) return row;
 
-        const updated = { ...row, [field]: numericFields.includes(field) ? Number(value) || 0 : value };
+        let numVal = numericFields.includes(field) ? Number(value) || 0 : value;
 
-        if (field === "discountPercent") {
-          const m = Number(updated.mrp) || 0;
+        if (field === "quantity" && isSaleReturnMode) {
+          const maxAllowed = row.originalQuantity !== undefined ? Number(row.originalQuantity) : Number(row.quantity);
+          if (numVal > maxAllowed) {
+            numVal = maxAllowed;
+            showTempMessage("error", `Returned quantity cannot exceed original sold quantity (${maxAllowed})`);
+          }
+        }
+
+        const updated = { ...row, [field]: numVal };
+
+        if (field === "discountPercent" || field === "sellPrice") {
+          const base = Number(updated.sellPrice || updated.baseNetPrice || updated.netPrice || updated.mrp) || 0;
+          const d = Number(updated.discountPercent) || 0;
+          if (d >= 0) {
+            updated.baseNetPrice = base;
+            updated.netPrice = money(base - (base * d / 100));
+          }
+        } else if (field === "netPrice") {
+          const n = Number(updated.netPrice) || 0;
           const d = Number(updated.discountPercent) || 0;
           if (d > 0) {
-            updated.netPrice = money(m - (m * d / 100));
+            updated.baseNetPrice = money(n / (1 - d / 100));
+          } else {
+            updated.baseNetPrice = n;
+            updated.sellPrice = n;
           }
         }
 
@@ -1278,8 +1427,14 @@ export default function Bill() {
       return sum + (taxPercent > 0 ? (lineTotal * taxPercent / (100 + taxPercent)) : 0);
     }, 0);
     const pointsDiscount = money((Number(redeemedPoints) || 0) * 2);
-    const manualPercentDiscount = netBeforeDiscount * ((Number(discountPercent) || 0) / 100);
-    const manualDiscount = money(manualPercentDiscount + (Number(discountAmount) || 0));
+    let manualDiscount = 0;
+    const discAmtNum = Number(discountAmount);
+    const discPctNum = Number(discountPercent);
+    if (discountAmount !== "" && !isNaN(discAmtNum) && discAmtNum > 0) {
+      manualDiscount = money(discAmtNum);
+    } else if (discountPercent !== "" && !isNaN(discPctNum) && discPctNum > 0) {
+      manualDiscount = money((netBeforeDiscount * discPctNum) / 100);
+    }
     // Billed amount matches entered product price (inclusive of tax) minus manual discount and points discount
     const netAfterDiscount = Math.max(0, netBeforeDiscount - manualDiscount - pointsDiscount);
     const billValue = Math.round(netAfterDiscount);
@@ -1352,8 +1507,8 @@ export default function Bill() {
       const payload = {
         billNumber: formatBillNo(billNo),
         customerName: customerName || "Walk-in Customer",
-        customerPhone: mobileNumber,
-        customerAddress: address,
+        customerPhone: mobileNumber || contactNumber || memberId || "",
+        customerAddress: address || "",
         customerType: "external",
         subtotal: totals.mrpTotal,
         discount: totals.totalDiscount,
@@ -1371,7 +1526,7 @@ export default function Bill() {
         onlinePhone,
         onlineRef,
         paidBefore: paymentTotals.previous,
-        contact: mobileNumber || contactNumber,
+        contact: mobileNumber || contactNumber || memberId || "",
         createdByName: [salesPerson, ...new Set(rows.filter(r => r.salesPerson && r.productId).map(r => r.salesPerson))].filter(Boolean).join(", ") || counter,
         rewardPointsEarned: Math.floor(totals.billValue / 100),
         rewardPointsRedeemed: Number(redeemedPoints) || 0,
@@ -1446,7 +1601,11 @@ export default function Bill() {
 
   const printBill = async () => {
     if (isSaleReturnMode) {
-      await saveSaleReturn();
+      const saved = await saveSaleReturn();
+      if (saved) {
+        printSaleReturnReceipt(saved);
+        performClear();
+      }
       return;
     }
 
@@ -1765,9 +1924,6 @@ export default function Bill() {
             boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
           }}>
             <span>🔄 SALE RETURN MODE — Original Bill: #{originalBillNumber}</span>
-            <span style={{ fontSize: '13px', backgroundColor: 'rgba(0,0,0,0.2)', padding: '4px 10px', borderRadius: '6px' }}>
-              Reward Points to Deduct: <strong style={{ color: '#fef08a' }}>-{Math.floor(totals.billValue / 100)} pts</strong> (1 pt per ₹100 return)
-            </span>
             <button
               type="button"
               style={{
@@ -1965,7 +2121,9 @@ export default function Bill() {
             </thead>
             <tbody>
               {rows.map((row, index) => {
-                const netPrice = money(row.netPrice || (Number(row.mrp) - Number(row.mrp) * ((Number(row.discountPercent) || 0) / 100)));
+                const basePrice = Number(row.sellPrice ?? row.baseNetPrice ?? row.netPrice ?? 0);
+                const discPct = Number(row.discountPercent) || 0;
+                const netPrice = money(row.netPrice !== "" && row.netPrice !== undefined ? row.netPrice : (basePrice - (basePrice * discPct / 100)));
                 const amount = money(netPrice * (Number(row.quantity) || 0));
                 return (
                   <tr key={`row-${index}-${row._dbId || 'empty'}`}>
@@ -2149,7 +2307,20 @@ export default function Bill() {
               <input
                 ref={discountPercentRef}
                 value={discountPercent}
-                onChange={(event) => setDiscountPercent(event.target.value)}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  setDiscountPercent(val);
+                  if (val === "") {
+                    setDiscountAmount("");
+                  } else {
+                    const p = Number(val);
+                    if (!isNaN(p) && p > 0 && totals.netBeforeDiscount > 0) {
+                      setDiscountAmount(money((totals.netBeforeDiscount * p) / 100).toString());
+                    } else if (p === 0) {
+                      setDiscountAmount("0");
+                    }
+                  }
+                }}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); discountAmountRef.current?.focus(); discountAmountRef.current?.select(); } }}
               />
             </div>
@@ -2158,7 +2329,20 @@ export default function Bill() {
               <input
                 ref={discountAmountRef}
                 value={discountAmount}
-                onChange={(event) => setDiscountAmount(event.target.value)}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  setDiscountAmount(val);
+                  if (val === "") {
+                    setDiscountPercent("");
+                  } else {
+                    const a = Number(val);
+                    if (!isNaN(a) && a > 0 && totals.netBeforeDiscount > 0) {
+                      setDiscountPercent(((a / totals.netBeforeDiscount) * 100).toFixed(2));
+                    } else if (a === 0) {
+                      setDiscountPercent("0");
+                    }
+                  }
+                }}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); cashReceivedRef.current?.focus(); cashReceivedRef.current?.select(); } }}
               />
             </div>
@@ -2340,15 +2524,28 @@ export default function Bill() {
           </div>
         </div>
 
+        {isSaleReturnMode && (
+          <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px', borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '4px 0', padding: '2px 0' }}>
+            *** SALE RETURN ***
+          </div>
+        )}
+
         <div className="receipt-meta">
           <div className="receipt-meta-row">
-            <span>Bill No:{formatBillNo(billNo)}</span>
+            <span>{isSaleReturnMode ? `Return No: ${billNo}` : `Bill No:${formatBillNo(billNo)}`}</span>
             <span>{formatDateTime(now)}</span>
           </div>
-          <div className="receipt-meta-row">
-            <span>{counter}</span>
-            <span>User: {loggedInUserName}</span>
-          </div>
+          {isSaleReturnMode ? (
+            <div className="receipt-meta-row">
+              <span>Orig Bill: #{originalBillNumber}</span>
+              <span>User: {loggedInUserName}</span>
+            </div>
+          ) : (
+            <div className="receipt-meta-row">
+              <span>{counter}</span>
+              <span>User: {loggedInUserName}</span>
+            </div>
+          )}
         </div>
 
         <div className="receipt-line" />
@@ -2364,7 +2561,7 @@ export default function Bill() {
             </tr>
           </thead>
           <tbody>
-            {rows.filter(r => r.productId && r._dbId).map((row, index) => {
+            {rows.filter(r => r.productId && (Number(r.quantity) || 0) > 0).map((row, index) => {
               const qty = Number(row.quantity) || 0;
               const rate = Number(row.netPrice) || Number(row.mrp) || 0;
               const amt = money(rate * qty);
@@ -2383,7 +2580,7 @@ export default function Bill() {
         </table>
 
         <div className="receipt-pay-amount">
-          Pay Amount: {Math.round(totals.billValue)}/-
+          {isSaleReturnMode ? `Refund Amount: ${Math.round(totals.billValue)}/-` : `Pay Amount: ${Math.round(totals.billValue)}/-`}
         </div>
 
         <div className="receipt-summary-block">
@@ -2391,28 +2588,42 @@ export default function Bill() {
           <div className="receipt-row"><span>MRP Total: {Math.round(totals.mrpTotal)}</span></div>
         </div>
 
-        <div className="receipt-summary-block">
-          {paymentTotals.card > 0 && <div className="receipt-row"><span>Card Amt: {Math.round(paymentTotals.card)}</span></div>}
-          {paymentTotals.cash > 0 && <div className="receipt-row"><span>Cash Amt: {Math.round(paymentTotals.cash)}</span></div>}
-          {paymentTotals.upi > 0 && <div className="receipt-row"><span>UPI Amt: {Math.round(paymentTotals.upi)}</span></div>}
-          {paymentTotals.online > 0 && <div className="receipt-row"><span>Online Amt: {Math.round(paymentTotals.online)}</span></div>}
-          {paymentTotals.previous > 0 && <div className="receipt-row"><span>Paid Before: {Math.round(paymentTotals.previous)}</span></div>}
-        </div>
+        {!isSaleReturnMode && (
+          <div className="receipt-summary-block">
+            {paymentTotals.card > 0 && <div className="receipt-row"><span>Card Amt: {Math.round(paymentTotals.card)}</span></div>}
+            {paymentTotals.cash > 0 && <div className="receipt-row"><span>Cash Amt: {Math.round(paymentTotals.cash)}</span></div>}
+            {paymentTotals.upi > 0 && <div className="receipt-row"><span>UPI Amt: {Math.round(paymentTotals.upi)}</span></div>}
+            {paymentTotals.online > 0 && <div className="receipt-row"><span>Online Amt: {Math.round(paymentTotals.online)}</span></div>}
+            {paymentTotals.previous > 0 && <div className="receipt-row"><span>Paid Before: {Math.round(paymentTotals.previous)}</span></div>}
+          </div>
+        )}
 
         <div className="receipt-line" />
 
         <div className="receipt-customer">
           <div className="receipt-cust-title">Customer Details:</div>
           <div className="receipt-cust-name">{String(customerName || "Walk-in Customer").toUpperCase()}</div>
-          {mobileNumber && <div className="receipt-cust-phone">{mobileNumber}</div>}
+          {(mobileNumber || contactNumber || memberId) && (
+            <div className="receipt-cust-phone">
+              PH: {mobileNumber || contactNumber || memberId}
+            </div>
+          )}
+          {address && (
+            <div className="receipt-cust-phone">
+              ADDR: {address}
+            </div>
+          )}
         </div>
 
-        <div className="receipt-line" />
-
-        <div className="receipt-summary-block">
-          <div className="receipt-row"><span>Points Used: {redeemedPoints}</span></div>
-          <div className="receipt-row"><span>Points Available: {availablePoints ? Number(availablePoints).toFixed(2) : "0.00"}</span></div>
-        </div>
+        {!isSaleReturnMode && (
+          <>
+            <div className="receipt-line" />
+            <div className="receipt-summary-block">
+              <div className="receipt-row"><span>Points Used: {redeemedPoints}</span></div>
+              <div className="receipt-row"><span>Points Available: {availablePoints ? Number(availablePoints).toFixed(2) : "0.00"}</span></div>
+            </div>
+          </>
+        )}
 
         <div className="receipt-line-dashed" />
 
@@ -2677,7 +2888,7 @@ export default function Bill() {
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)',
           zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center'
-        }} onClick={() => setShowSaleReturnModal(false)}>
+        }} onClick={handleCloseSaleReturnModal}>
           <div style={{
             backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '16px',
             padding: '24px', maxWidth: '440px', width: '90%', color: '#fff', boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
@@ -2688,7 +2899,7 @@ export default function Bill() {
               </h3>
               <button
                 style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '18px' }}
-                onClick={() => setShowSaleReturnModal(false)}
+                onClick={handleCloseSaleReturnModal}
               >
                 ✕
               </button>
@@ -2725,7 +2936,7 @@ export default function Bill() {
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <button
                 type="button"
-                onClick={() => setShowSaleReturnModal(false)}
+                onClick={handleCloseSaleReturnModal}
                 style={{
                   padding: '8px 16px', borderRadius: '8px', background: '#334155',
                   color: '#fff', border: 'none', cursor: 'pointer', fontWeight: '600'

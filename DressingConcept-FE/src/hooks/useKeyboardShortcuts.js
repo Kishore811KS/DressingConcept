@@ -22,6 +22,7 @@ const useKeyboardShortcuts = () => {
         'a': '/attendance',
 
         'r': '/billreport',
+        'sr': '/salereturn',
         'i': '/discount',
         's': '/supplier',
         't': '/paymenttracking',

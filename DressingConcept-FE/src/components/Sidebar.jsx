@@ -277,12 +277,12 @@ const Sidebar = ({ isOpen }) => {
           )} */}
 
           {/* Billing Section */}
-          {isSectionVisible(["create_bill", "bill_reports", "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount"]) && (
+          {isSectionVisible(["create_bill", "bill_reports", "sale_return", "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount"]) && (
             <>
               <div style={styles.sectionTitle}>Billing</div>
               {hasPermission("create_bill") && renderLink("/bill", <FaReceipt style={styles.icon} />, "Create Bill")}
               {hasPermission("bill_reports") && renderLink("/billreport", <FaChartLine style={styles.icon} />, "Bill Reports")}
-              {hasPermission("bill_reports") && renderLink("/salereturn", <FaUndo style={styles.icon} />, "Sale Return")}
+              {(hasPermission("bill_reports") || hasPermission("sale_return")) && renderLink("/salereturn", <FaUndo style={styles.icon} />, "Sale Return")}
               {hasPermission("service_bill") && renderLink("/service", <FaShoppingCart style={styles.icon} />, "Service Bill")}
               {hasPermission("service_bills") && renderLink("/serviceBillView", <FaFileContract style={styles.icon} />, "Service Bills")}
               {/* {hasPermission("sales_bills") && renderLink("/employeebill", <FaUserCircle style={styles.icon} />, "SalesBill(emp)")} */}

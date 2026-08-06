@@ -260,6 +260,26 @@ const CustomerDetailsPage = () => {
   });
   const [savingCustomer, setSavingCustomer] = useState(false);
 
+  // ── Edit Customer modal state ──
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editCustomer, setEditCustomer] = useState({
+    originalPhone: '',
+    firstName: '',
+    lastName: '',
+    customerPhone: '',
+    customerEmail: '',
+    customerAddress: '',
+    dateOfBirth: '',
+    memberId: '',
+    weddingAnniversary: '',
+    celebrationDate: '',
+    isClassicCustomer: false,
+    isSupplier: false,
+    supplierIGST: 0,
+    rewardPoints: 0
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
   // ── Bill detail modal ──
   const [showBillModal, setShowBillModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -423,6 +443,73 @@ const CustomerDetailsPage = () => {
       fetchAllCustomers();
     } catch (err) { alert(err.response?.data?.error || 'Failed to save customer'); }
     finally { setSavingCustomer(false); }
+  };
+
+  /* ── Edit customer ── */
+  const handleEditCustomerClick = (customer) => {
+    setEditCustomer({
+      originalPhone: customer.customerPhone || '',
+      firstName: customer.firstName && customer.firstName !== '—' ? customer.firstName : '',
+      lastName: customer.lastName && customer.lastName !== '—' ? customer.lastName : '',
+      customerPhone: customer.customerPhone || '',
+      customerEmail: customer.customerEmail || '',
+      customerAddress: customer.customerAddress || '',
+      dateOfBirth: customer.dateOfBirth ? (typeof customer.dateOfBirth === 'string' && customer.dateOfBirth.includes('T') ? customer.dateOfBirth.split('T')[0] : customer.dateOfBirth) : '',
+      memberId: customer.memberId || '',
+      weddingAnniversary: customer.weddingAnniversary ? (typeof customer.weddingAnniversary === 'string' && customer.weddingAnniversary.includes('T') ? customer.weddingAnniversary.split('T')[0] : customer.weddingAnniversary) : '',
+      celebrationDate: customer.celebrationDate ? (typeof customer.celebrationDate === 'string' && customer.celebrationDate.includes('T') ? customer.celebrationDate.split('T')[0] : customer.celebrationDate) : '',
+      isClassicCustomer: Boolean(customer.isClassicCustomer),
+      isSupplier: Boolean(customer.isSupplier),
+      supplierIGST: customer.supplierIGST || 0,
+      rewardPoints: customer.rewardPoints || 0
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditCustomerSubmit = async (e) => {
+    e.preventDefault();
+    if (!editCustomer.customerPhone) { alert('Phone number is required'); return; }
+    setSavingEdit(true);
+    try {
+      const fullName = `${editCustomer.firstName} ${editCustomer.lastName}`.trim() || 'Walk-in Customer';
+      await api.put(`/billing/customers/${encodeURIComponent(editCustomer.originalPhone)}`, {
+        name: fullName,
+        firstName: editCustomer.firstName,
+        lastName: editCustomer.lastName,
+        phone: editCustomer.customerPhone,
+        email: editCustomer.customerEmail,
+        address: editCustomer.customerAddress,
+        dateOfBirth: editCustomer.dateOfBirth,
+        memberId: editCustomer.memberId,
+        weddingAnniversary: editCustomer.weddingAnniversary,
+        celebrationDate: editCustomer.celebrationDate,
+        isClassicCustomer: editCustomer.isClassicCustomer,
+        isSupplier: editCustomer.isSupplier,
+        supplierIGST: parseFloat(editCustomer.supplierIGST || 0),
+        rewardPoints: parseFloat(editCustomer.rewardPoints || 0),
+        type: editCustomer.isClassicCustomer ? 'classic' : 'regular'
+      });
+      setShowEditModal(false);
+      fetchAllCustomers();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to update customer');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  /* ── Delete customer ── */
+  const handleDeleteCustomer = async (customer) => {
+    const custName = customer.customerName || `${customer.firstName} ${customer.lastName}`.trim() || customer.customerPhone;
+    if (!window.confirm(`Are you sure you want to delete customer "${custName}" (Phone: ${customer.customerPhone})?`)) {
+      return;
+    }
+    try {
+      await api.delete(`/billing/customers/${encodeURIComponent(customer.customerPhone)}`);
+      fetchAllCustomers();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete customer');
+    }
   };
 
   /* ── View Bills modal ── */
@@ -808,11 +895,26 @@ const CustomerDetailsPage = () => {
 
                       {/* 14. Action */}
                       <td className="tbl-cell" style={{ textAlign: 'center' }}>
-                        <button onClick={() => handleViewCustomerBills(c)} style={{ background: 'linear-gradient(135deg,rgba(59,130,246,.8),rgba(59,130,246,.6))', border: 'none', cursor: 'pointer', fontSize: 12, padding: '7px 14px', borderRadius: 9, color: '#fff', fontWeight: 500 }}
-                          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(59,130,246,.4)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}>
-                          📋 View Bills
-                        </button>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center' }}>
+                          <button onClick={() => handleViewCustomerBills(c)} style={{ background: 'linear-gradient(135deg,rgba(59,130,246,.8),rgba(59,130,246,.6))', border: 'none', cursor: 'pointer', fontSize: 12, padding: '6px 11px', borderRadius: 8, color: '#fff', fontWeight: 500 }}
+                            title="View Customer Bills"
+                            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(59,130,246,.4)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}>
+                            📋 Bills
+                          </button>
+                          <button onClick={() => handleEditCustomerClick(c)} style={{ background: 'linear-gradient(135deg,rgba(99,102,241,.8),rgba(139,92,246,.8))', border: 'none', cursor: 'pointer', fontSize: 12, padding: '6px 11px', borderRadius: 8, color: '#fff', fontWeight: 500 }}
+                            title="Edit Customer Details"
+                            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(99,102,241,.4)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}>
+                            ✏️ Edit
+                          </button>
+                          <button onClick={() => handleDeleteCustomer(c)} style={{ background: 'linear-gradient(135deg,rgba(239,68,68,.8),rgba(220,38,38,.8))', border: 'none', cursor: 'pointer', fontSize: 12, padding: '6px 11px', borderRadius: 8, color: '#fff', fontWeight: 500 }}
+                            title="Delete Customer"
+                            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(239,68,68,.4)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}>
+                            🗑️ Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -973,6 +1075,102 @@ const CustomerDetailsPage = () => {
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
                   <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #d1d5db', background: '#f3f4f6', color: '#374151', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
                   <button type="submit" disabled={savingCustomer} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>{savingCustomer ? 'Saving…' : 'Save Customer'}</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Customer Modal ── */}
+      {showEditModal && (
+        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+          <div className="modal-content" style={{ maxWidth: 640, padding: 28, color: '#111827' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 'bold', color: '#111' }}>Edit Customer Details</h2>
+              <button onClick={() => setShowEditModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>✕</button>
+            </div>
+            <form onSubmit={handleEditCustomerSubmit}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* First Name & Last Name */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>First Name</label>
+                    <input type="text" value={editCustomer.firstName} onChange={e => setEditCustomer({ ...editCustomer, firstName: e.target.value })} style={modalInputStyle} placeholder="First Name" />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Last Name</label>
+                    <input type="text" value={editCustomer.lastName} onChange={e => setEditCustomer({ ...editCustomer, lastName: e.target.value })} style={modalInputStyle} placeholder="Last Name" />
+                  </div>
+                </div>
+
+                {/* Mobile Number & Email */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Mobile Number *</label>
+                    <input type="text" required value={editCustomer.customerPhone} onChange={e => setEditCustomer({ ...editCustomer, customerPhone: e.target.value })} style={modalInputStyle} placeholder="Mobile Number" />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Email ID</label>
+                    <input type="email" value={editCustomer.customerEmail} onChange={e => setEditCustomer({ ...editCustomer, customerEmail: e.target.value })} style={modalInputStyle} placeholder="Email Address" />
+                  </div>
+                </div>
+
+                {/* Date of Birth & Member ID */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Date of Birth</label>
+                    <input type="date" value={editCustomer.dateOfBirth} onChange={e => setEditCustomer({ ...editCustomer, dateOfBirth: e.target.value })} style={modalInputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Member ID</label>
+                    <input type="text" value={editCustomer.memberId} onChange={e => setEditCustomer({ ...editCustomer, memberId: e.target.value })} style={modalInputStyle} placeholder="Member ID" />
+                  </div>
+                </div>
+
+                {/* Wedding Anniversary & Celebration Date */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Wedding Anniversary</label>
+                    <input type="date" value={editCustomer.weddingAnniversary} onChange={e => setEditCustomer({ ...editCustomer, weddingAnniversary: e.target.value })} style={modalInputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Celebration Date</label>
+                    <input type="date" value={editCustomer.celebrationDate} onChange={e => setEditCustomer({ ...editCustomer, celebrationDate: e.target.value })} style={modalInputStyle} />
+                  </div>
+                </div>
+
+                {/* Reward Points */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Reward Points ⭐</label>
+                  <input type="number" step="0.01" value={editCustomer.rewardPoints} onChange={e => setEditCustomer({ ...editCustomer, rewardPoints: e.target.value })} style={modalInputStyle} placeholder="Reward Points" />
+                </div>
+
+                {/* Address */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Address</label>
+                  <textarea rows={2} value={editCustomer.customerAddress} onChange={e => setEditCustomer({ ...editCustomer, customerAddress: e.target.value })} style={modalInputStyle} placeholder="Customer Address" />
+                </div>
+
+                {/* Classic Customer, Supplier, Supplier IGST */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, alignItems: 'center', background: '#f9fafb', padding: 12, borderRadius: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={editCustomer.isClassicCustomer} onChange={e => setEditCustomer({ ...editCustomer, isClassicCustomer: e.target.checked })} />
+                    Classic Customer
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={editCustomer.isSupplier} onChange={e => setEditCustomer({ ...editCustomer, isSupplier: e.target.checked })} />
+                    Supplier
+                  </label>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 2, color: '#374151' }}>Supplier IGST (%)</label>
+                    <input type="number" step="0.01" value={editCustomer.supplierIGST} onChange={e => setEditCustomer({ ...editCustomer, supplierIGST: e.target.value })} style={modalInputStyle} placeholder="0.00" />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                  <button type="button" onClick={() => setShowEditModal(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #d1d5db', background: '#f3f4f6', color: '#374151', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                  <button type="submit" disabled={savingEdit} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#6366f1', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>{savingEdit ? 'Updating…' : 'Update Customer'}</button>
                 </div>
               </div>
             </form>
