@@ -103,6 +103,7 @@ const Header = ({ toggleSidebar }) => {
 
   const handleLogout = () => {
     localStorage.removeItem("user");
+    localStorage.removeItem("bill_draft");
     navigate("/");
   };
 

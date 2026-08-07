@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 import axios from 'axios';
 
@@ -335,46 +335,69 @@ const QuotationPage = () => {
         doc.text(`Search: "${searchTerm}"`, 14, filterY);
         filterY += 5;
       }
-      if (dateRange.start && dateRange.end) {
+      if (dateRange?.start && dateRange?.end) {
         doc.text(`Date Range: ${dateRange.start} to ${dateRange.end}`, 14, filterY);
         filterY += 5;
       }
 
-      const totalAmount = filteredQuotations.reduce((sum, q) => sum + (q.total || 0), 0);
+      const totalAmount = (filteredQuotations || []).reduce((sum, q) => sum + (Number(q?.total) || 0), 0);
 
       doc.setFontSize(11);
       doc.setTextColor(0, 0, 0);
-      doc.text(`Total Quotations: ${filteredQuotations.length}`, 14, filterY + 5);
-      doc.text(`Total Amount: ₹${totalAmount.toFixed(2)}`, 14, filterY + 12);
+      doc.text(`Total Quotations: ${(filteredQuotations || []).length}`, 14, filterY + 5);
+      doc.text(`Total Amount: Rs. ${totalAmount.toFixed(2)}`, 14, filterY + 12);
 
       const tableColumn = [
-        'Quotation #', 'Date', 'Customer', 'Phone', 'Valid Until', 'Total (₹)'
+        'Quotation #', 'Date', 'Customer', 'Phone', 'Valid Until', 'Total (Rs)'
       ];
 
-      const tableRows = filteredQuotations.map(q => [
-        q.quotationNumber || '',
-        new Date(q.quotationDate).toLocaleDateString(),
-        (q.customerName || '').substring(0, 20),
-        q.customerPhone || '',
-        new Date(q.validUntil).toLocaleDateString(),
-        (q.total || 0).toFixed(2)
-      ]);
+      const tableRows = (filteredQuotations || []).map(q => {
+        let qDateStr = '';
+        if (q?.quotationDate) {
+          try {
+            const d = new Date(q.quotationDate);
+            qDateStr = isNaN(d.getTime()) ? String(q.quotationDate) : d.toLocaleDateString();
+          } catch (e) {
+            qDateStr = String(q.quotationDate);
+          }
+        }
+        let validUntilStr = '';
+        if (q?.validUntil) {
+          try {
+            const d = new Date(q.validUntil);
+            validUntilStr = isNaN(d.getTime()) ? String(q.validUntil) : d.toLocaleDateString();
+          } catch (e) {
+            validUntilStr = String(q.validUntil);
+          }
+        }
+        return [
+          q?.quotationNumber || '',
+          qDateStr,
+          String(q?.customerName || '').substring(0, 20),
+          q?.customerPhone || '',
+          validUntilStr,
+          (Number(q?.total) || 0).toFixed(2)
+        ];
+      });
 
       const startY = filterY + 22;
 
-      doc.autoTable({
-        head: [tableColumn],
-        body: tableRows,
-        startY: startY,
-        styles: { fontSize: 8, cellPadding: 3 },
-        headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255] },
-        alternateRowStyles: { fillColor: [240, 240, 240] },
-      });
+      const autoTableFn = typeof autoTable === 'function' ? autoTable : (doc.autoTable ? doc.autoTable.bind(doc) : null);
+      if (autoTableFn) {
+        autoTableFn(doc, {
+          head: [tableColumn],
+          body: tableRows,
+          startY: startY,
+          styles: { fontSize: 8, cellPadding: 3 },
+          headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255] },
+          alternateRowStyles: { fillColor: [240, 240, 240] },
+        });
+      }
 
       const date = new Date().toISOString().split('T')[0];
       doc.save(`Quotations_Report_${date}.pdf`);
 
-      setSuccess(`✅ Exported ${filteredQuotations.length} quotations to PDF`);
+      setSuccess(`✅ Exported ${(filteredQuotations || []).length} quotations to PDF`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       console.error("PDF export error:", err);

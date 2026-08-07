@@ -48,8 +48,7 @@ const blankRows = Array.from({ length: 8 }, (_, index) => index);
 export default function Bill() {
   const navigate = useNavigate();
 
-  // Fullscreen mode auto-trigger on entering Bill page
-  useEffect(() => {
+  const requestFullScreen = () => {
     const elem = document.documentElement;
     if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
       if (elem.requestFullscreen) {
@@ -60,24 +59,21 @@ export default function Bill() {
         elem.msRequestFullscreen();
       }
     }
+  };
 
-    const handleFullscreenChange = () => {
-      const isFS = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
-      if (!isFS) {
-        navigate("/dashboard");
+  // Fullscreen mode auto-trigger and auto-restore on entering Bill page
+  useEffect(() => {
+    requestFullScreen();
+
+    const handleGlobalClick = () => {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+        requestFullScreen();
       }
     };
 
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
-    document.addEventListener("msfullscreenchange", handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
-      document.removeEventListener("msfullscreenchange", handleFullscreenChange);
-    };
-  }, [navigate]);
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
 
   const loggedInUserName = useMemo(() => {
     try {
@@ -158,6 +154,9 @@ export default function Bill() {
   const [products, setProducts] = useState([]);
   const [totalStockInStore, setTotalStockInStore] = useState(0);
   const [customers, setCustomers] = useState([]);
+  const [memberIdSuggestions, setMemberIdSuggestions] = useState([]);
+  const [showMemberIdSuggestions, setShowMemberIdSuggestions] = useState(false);
+  const [highlightedMemberIdIndex, setHighlightedMemberIdIndex] = useState(-1);
   const [availablePoints, setAvailablePoints] = useState(0);
   const [billNumberSuggestions, setBillNumberSuggestions] = useState([]);
   const [showBillNumberSuggestions, setShowBillNumberSuggestions] = useState(false);
@@ -222,7 +221,77 @@ export default function Bill() {
     return () => clearInterval(timer);
   }, []);
 
+  const filterMemberIdSuggestions = (query) => {
+    const q = String(query || "").trim().toLowerCase();
+    if (!q || q.length < 1) {
+      setMemberIdSuggestions([]);
+      setShowMemberIdSuggestions(false);
+      setHighlightedMemberIdIndex(-1);
+      return;
+    }
+    const matches = (customers || []).filter((c) => {
+      const phoneStr = String(c.phone || c.contact || c.mobile || "");
+      const idStr = String(c.member_id || c.id || "");
+      const nameStr = String(c.name || c.full_name || "").toLowerCase();
+      return phoneStr.includes(q) || idStr.includes(q) || nameStr.includes(q);
+    }).slice(0, 8);
+
+    setMemberIdSuggestions(matches);
+    setShowMemberIdSuggestions(matches.length > 0);
+    setHighlightedMemberIdIndex(matches.length > 0 ? 0 : -1);
+  };
+
+  const selectMemberIdSuggestion = (customer) => {
+    const phone = customer.phone || customer.contact || customer.mobile || "";
+    const name = customer.name || customer.full_name || customer.customer_name || "Walk-in Customer";
+    const addr = customer.address || "";
+    const points = customer.reward_points || customer.rewardPoints || 0;
+    const id = customer.member_id || customer.id || phone;
+
+    setMemberId(String(id));
+    if (name !== 'Walk-in Customer') setCustomerName(name);
+    if (phone) setMobileNumber(phone);
+    if (phone) setContactNumber(phone);
+    if (addr) setAddress(addr);
+    setAvailablePoints(points);
+
+    setSelectedMember({
+      memberId: String(id),
+      name,
+      phone,
+      address: addr,
+      points,
+      isFound: true
+    });
+    setShowMemberIdSuggestions(false);
+    setShowMemberModal(true);
+  };
+
   const handleMemberIdKeyDown = async (e) => {
+    if (showMemberIdSuggestions && memberIdSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHighlightedMemberIdIndex((prev) => (prev + 1) % memberIdSuggestions.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlightedMemberIdIndex((prev) => (prev - 1 + memberIdSuggestions.length) % memberIdSuggestions.length);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (highlightedMemberIdIndex >= 0 && highlightedMemberIdIndex < memberIdSuggestions.length) {
+          selectMemberIdSuggestion(memberIdSuggestions[highlightedMemberIdIndex]);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        setShowMemberIdSuggestions(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter') {
       e.preventDefault();
       const query = memberId.trim();
@@ -230,6 +299,7 @@ export default function Bill() {
         showTempMessage("error", "Please enter a Member ID");
         return;
       }
+      setShowMemberIdSuggestions(false);
       setLoading(true);
       try {
         let memberData = null;
@@ -357,8 +427,23 @@ export default function Bill() {
     }
   };
 
+  const fetchNextBillNumber = async () => {
+    try {
+      const response = await api.get('/billing/next-bill-number');
+      if (response.data?.nextBillNumber) {
+        setBillNo(response.data.nextBillNumber);
+        return response.data.nextBillNumber;
+      }
+    } catch (err) {
+      console.error("Error fetching next bill number:", err);
+    }
+    const fallback = String(Math.floor(1000 + Math.random() * 8999)).padStart(4, "0");
+    setBillNo(fallback);
+    return fallback;
+  };
+
   useEffect(() => {
-    if (!billNo) setBillNo(String(Math.floor(1 + Math.random() * 9999)).padStart(4, "0"));
+    fetchNextBillNumber();
     loadProducts();
     loadCustomers();
     loadEmployees();
@@ -1087,7 +1172,7 @@ export default function Bill() {
       );
 
       if (existingIndex !== -1) {
-        const updatedRows = currentRows.map((row, idx) => {
+        let updatedRows = currentRows.map((row, idx) => {
           if (idx === existingIndex) {
             const newQuantity = (Number(row.quantity) || 0) + 1;
             return { ...row, quantity: newQuantity };
@@ -1095,12 +1180,34 @@ export default function Bill() {
           return row;
         });
 
+        // Remove draft row if targetRowIndex is passed and different from existingIndex
+        if (targetRowIndex !== null && targetRowIndex !== existingIndex && targetRowIndex < updatedRows.length) {
+          if (!updatedRows[targetRowIndex]._dbId) {
+            updatedRows.splice(targetRowIndex, 1);
+          }
+        }
+
+        const lastRow = updatedRows[updatedRows.length - 1];
+        if (!lastRow || (lastRow.productId && lastRow.productId !== "")) {
+          updatedRows.push({
+            productId: "",
+            description: "",
+            tax: "",
+            unit: "",
+            mrp: "",
+            discountPercent: "",
+            netPrice: "",
+            quantity: "",
+            salesPerson: "",
+          });
+        }
+
         showTempMessage("success", `✅ Quantity increased for ${normalized.description}`);
 
         setTimeout(() => {
-          if (rowInputRefs.current[existingIndex]) {
-            rowInputRefs.current[existingIndex].focus();
-            rowInputRefs.current[existingIndex].select();
+          if (qtyInputRefs.current[existingIndex]) {
+            qtyInputRefs.current[existingIndex].focus();
+            qtyInputRefs.current[existingIndex].select();
           }
         }, 100);
 
@@ -1211,7 +1318,7 @@ export default function Bill() {
         if (existingIndex !== -1) {
           showTempMessage("success", `✅ Quantity increased for ${normalized.description}`);
 
-          const nextRows = current.map((row, rowIndex) => {
+          let nextRows = current.map((row, rowIndex) => {
             if (rowIndex === existingIndex) {
               const newQuantity = (Number(row.quantity) || 0) + 1;
               return { ...row, quantity: newQuantity };
@@ -1219,14 +1326,31 @@ export default function Bill() {
             return row;
           });
 
-          if (index < current.length && !current[index].productId) {
+          // Always splice out the duplicate attempt row `index`
+          if (index !== existingIndex && index < nextRows.length) {
             nextRows.splice(index, 1);
           }
 
+          // Ensure trailing empty row exists if last row is filled
+          const lastRow = nextRows[nextRows.length - 1];
+          if (!lastRow || (lastRow.productId && lastRow.productId !== "")) {
+            nextRows.push({
+              productId: "",
+              description: "",
+              tax: "",
+              unit: "",
+              mrp: "",
+              discountPercent: "",
+              netPrice: "",
+              quantity: "",
+              salesPerson: "",
+            });
+          }
+
           setTimeout(() => {
-            if (rowInputRefs.current[existingIndex]) {
-              rowInputRefs.current[existingIndex].focus();
-              rowInputRefs.current[existingIndex].select();
+            if (qtyInputRefs.current[existingIndex]) {
+              qtyInputRefs.current[existingIndex].focus();
+              qtyInputRefs.current[existingIndex].select();
             }
           }, 100);
 
@@ -1558,6 +1682,14 @@ export default function Bill() {
     }
   };
 
+  const handleSaveBillAndReset = async () => {
+    const savedNum = await saveBill();
+    if (savedNum) {
+      performClear();
+      setMessage(`Bill #${savedNum} saved successfully! Ready for next bill.`);
+    }
+  };
+
   const performClear = () => {
     setRows([{
       productId: "",
@@ -1573,6 +1705,7 @@ export default function Bill() {
     setCustomerName("");
     setMemberId("");
     setMobileNumber("");
+    setContactNumber("");
     setSalesPerson("");
     setAddress("");
     setCashReceived("");
@@ -1588,6 +1721,7 @@ export default function Bill() {
     setSaleReturn(false);
     setRedeemedPoints(0);
     setPointsInput("");
+    setAvailablePoints(0);
     setClassicCustomer(false);
     setQuickProductQuery("");
     setMobileSuggestions([]);
@@ -1595,8 +1729,16 @@ export default function Bill() {
     setIsReprintMode(false);
     setIsSaleReturnMode(false);
     setOriginalBillNumber("");
-    setBillNo(String(Math.floor(1 + Math.random() * 9999)).padStart(4, "0"));
+    fetchNextBillNumber();
     localStorage.removeItem("bill_draft");
+    loadProducts();
+    setTimeout(() => {
+      if (quickAddInputRef.current) {
+        quickAddInputRef.current.focus();
+      } else if (rowInputRefs.current[0]) {
+        rowInputRefs.current[0].focus();
+      }
+    }, 150);
   };
 
   const printBill = async () => {
@@ -1605,18 +1747,24 @@ export default function Bill() {
       if (saved) {
         printSaleReturnReceipt(saved);
         performClear();
+        setMessage("Sale return processed successfully! Ready for next bill.");
       }
       return;
     }
 
     if (isReprintMode) {
-      // Register auto-reset AFTER the print dialog is fully closed
-      const onAfterReprintClose = () => {
-        performClear();
-        setMessage("Bill reprinted successfully! Ready for next bill.");
-        window.removeEventListener('afterprint', onAfterReprintClose);
+      let resetDone = false;
+      const doReset = () => {
+        if (!resetDone) {
+          resetDone = true;
+          performClear();
+          setMessage("Bill reprinted! Form reset and ready for next bill.");
+          window.removeEventListener('afterprint', doReset);
+          setTimeout(requestFullScreen, 300);
+        }
       };
-      window.addEventListener('afterprint', onAfterReprintClose);
+      window.addEventListener('afterprint', doReset);
+      setTimeout(doReset, 1500);
       setTimeout(() => {
         window.print();
       }, 100);
@@ -1636,11 +1784,18 @@ export default function Bill() {
 
     const saved = await saveBill();
     if (saved) {
-      const onAfterPrintClose = () => {
-        performClear();
-        window.removeEventListener('afterprint', onAfterPrintClose);
+      let resetDone = false;
+      const doReset = () => {
+        if (!resetDone) {
+          resetDone = true;
+          performClear();
+          setMessage("Bill saved & printed successfully! Form reset for next bill.");
+          window.removeEventListener('afterprint', doReset);
+          setTimeout(requestFullScreen, 300);
+        }
       };
-      window.addEventListener('afterprint', onAfterPrintClose);
+      window.addEventListener('afterprint', doReset);
+      setTimeout(doReset, 1500);
       setTimeout(() => {
         window.print();
       }, 100);
@@ -1732,6 +1887,40 @@ export default function Bill() {
         event.preventDefault();
         salesPersonRef.current?.focus();
         showTempMessage("success", "⌨️ Sales person focused");
+        return;
+      }
+
+      if (event.key === 'F2') {
+        event.preventDefault();
+        const activeIdx = activeRowIndex >= 0 ? activeRowIndex : 0;
+        const nextIdx = activeIdx + 1;
+
+        setRows((prevRows) => {
+          let updated = [...prevRows];
+          if (nextIdx >= updated.length) {
+            updated.push({
+              productId: "",
+              description: "",
+              tax: "",
+              unit: "",
+              mrp: "",
+              discountPercent: "",
+              netPrice: "",
+              quantity: "",
+              salesPerson: "",
+            });
+          }
+          return updated;
+        });
+
+        setTimeout(() => {
+          setActiveRowIndex(nextIdx);
+          if (rowInputRefs.current[nextIdx]) {
+            rowInputRefs.current[nextIdx].focus();
+            rowInputRefs.current[nextIdx].select();
+          }
+        }, 100);
+        showTempMessage("success", `⌨️ F2: Moved to product row ${nextIdx + 1}`);
         return;
       }
 
@@ -1858,6 +2047,14 @@ export default function Bill() {
           showTempMessage("success", "⌨️ Last product removed");
         }
         return;
+      }
+
+      if (showMemberModal && selectedMember?.isFound) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          setShowMemberModal(false);
+          return;
+        }
       }
 
       if (event.key === 'Escape') {
@@ -2042,18 +2239,22 @@ export default function Bill() {
             </div>
           </div>
 
-          <div className="header-middle" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 20px' }}>
-            <div className="field-group" style={{ width: '100%', maxWidth: '400px' }}>
+          <div className="header-middle" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 20px', gap: '16px' }}>
+            <div className="field-group" style={{ width: '100%', maxWidth: '380px', position: 'relative' }}>
               <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#4da6ff', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Member ID <span className="shortcut-hint">F7</span></span>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'normal' }}>Press Enter to view details</span>
+                <span>Member ID / Phone <span className="shortcut-hint">F7</span></span>
+                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'normal' }}>Type or press Enter</span>
               </label>
               <input
                 ref={memberIdRef}
                 value={memberId}
-                onChange={(event) => setMemberId(event.target.value)}
+                onChange={(event) => {
+                  setMemberId(event.target.value);
+                  filterMemberIdSuggestions(event.target.value);
+                }}
                 onKeyDown={handleMemberIdKeyDown}
-                placeholder="Enter Member ID and press Enter..."
+                onBlur={() => setTimeout(() => setShowMemberIdSuggestions(false), 200)}
+                placeholder="Enter Member ID or Phone..."
                 style={{
                   padding: '10px 14px',
                   fontSize: '15px',
@@ -2066,7 +2267,84 @@ export default function Bill() {
                   boxShadow: '0 0 12px rgba(77, 166, 255, 0.2)'
                 }}
               />
+              {showMemberIdSuggestions && memberIdSuggestions.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  zIndex: 2500,
+                  backgroundColor: '#1e293b',
+                  border: '1px solid #38bdf8',
+                  borderRadius: '8px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                  marginTop: '4px',
+                  overflow: 'hidden'
+                }}>
+                  {memberIdSuggestions.map((cust, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '10px 14px',
+                        cursor: 'pointer',
+                        backgroundColor: idx === highlightedMemberIdIndex ? '#0284c7' : 'transparent',
+                        color: idx === highlightedMemberIdIndex ? '#ffffff' : '#e2e8f0',
+                        borderBottom: '1px solid #334155',
+                        fontSize: '13px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectMemberIdSuggestion(cust);
+                      }}
+                    >
+                      <div>
+                        <strong style={{ color: idx === highlightedMemberIdIndex ? '#fff' : '#38bdf8' }}>
+                          {cust.name || cust.full_name || 'Customer'}
+                        </strong>
+                        <div style={{ fontSize: '11px', color: idx === highlightedMemberIdIndex ? '#e0f2fe' : '#94a3b8', marginTop: '2px' }}>
+                          ID: {cust.member_id || cust.id || 'N/A'} | PH: {cust.phone || cust.contact || 'N/A'}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: 'bold', color: idx === highlightedMemberIdIndex ? '#fff' : '#4ade80' }}>
+                        💎 {cust.reward_points || cust.rewardPoints || 0} Pts
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+
+            {(() => {
+              const remainingPts = Math.max(0, (availablePoints || 0) - (redeemedPoints || 0));
+              return (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(56, 189, 248, 0.15))',
+                  border: '1px solid #38bdf8',
+                  borderRadius: '10px',
+                  padding: '8px 14px',
+                  minWidth: '180px'
+                }}>
+                  <span style={{ fontSize: '24px' }}>🎁</span>
+                  <div>
+                    <div style={{ fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.5px', fontWeight: '600' }}>Points Available</div>
+                    <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#38bdf8' }}>
+                      {remainingPts.toFixed(2)} Pts <span style={{ fontSize: '12px', color: '#4ade80' }}>(₹{(remainingPts * 2).toFixed(2)})</span>
+                    </div>
+                    {redeemedPoints > 0 && (
+                      <div style={{ fontSize: '10px', color: '#4ade80' }}>
+                        Points Used: {redeemedPoints} Pts
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="header-right">
@@ -2093,7 +2371,7 @@ export default function Bill() {
             <span className="shortcut-hint">Press Enter to add → automatically moves to next line</span>
           </div>
           <div>
-            <button type="button" onClick={saveBill} disabled={loading || !totals.canSave}>
+            <button type="button" onClick={handleSaveBillAndReset} disabled={loading || !totals.canSave}>
               {loading ? "Saving..." : "Save Bill"}
             </button>
             <button ref={printButtonRef} type="button" className="printer" onClick={printBill} disabled={loading || !totals.canSave}>
@@ -2219,10 +2497,11 @@ export default function Bill() {
                         onKeyDown={(event) => {
                           if (event.key === 'Enter') {
                             event.preventDefault();
-                            // Commit qty (already tracked via onChange) and move forward
-                            moveToNextRow(index);
+                            const currentQty = Number(row.quantity) || 0;
+                            const nextQty = currentQty + 1;
+                            updateRow(index, "quantity", nextQty);
+                            showTempMessage("success", `✅ ${row.description || 'Product'} quantity increased to ${nextQty}`);
                           }
-                          // Allow '+' from qty field too — jump to next row's product input
                           if (event.key === '+') {
                             event.preventDefault();
                             moveToNextRow(index);
@@ -2463,16 +2742,23 @@ export default function Bill() {
               <span>Card No</span>
               <input value={cardNumber} onChange={(event) => setCardNumber(event.target.value)} placeholder="Card Number" />
             </div>
-            <div className="info-row">
-              <span>Pts Available</span>
-              <input value={`${availablePoints} (₹${availablePoints * 2})`} readOnly style={{ fontWeight: 'bold', color: '#38bdf8' }} />
-            </div>
-            {redeemedPoints > 0 && (
-              <div className="info-row">
-                <span style={{ color: '#4ade80' }}>Pts Redeemed</span>
-                <input value={`${redeemedPoints} (₹${redeemedPoints * 2})`} readOnly style={{ fontWeight: 'bold', color: '#4ade80' }} />
-              </div>
-            )}
+            {(() => {
+              const remainingPts = Math.max(0, (availablePoints || 0) - (redeemedPoints || 0));
+              return (
+                <>
+                  <div className="info-row">
+                    <span style={{ color: '#38bdf8' }}>Points Available</span>
+                    <input value={`${remainingPts.toFixed(2)} (₹${(remainingPts * 2).toFixed(2)})`} readOnly style={{ fontWeight: 'bold', color: '#38bdf8' }} />
+                  </div>
+                  {redeemedPoints > 0 && (
+                    <div className="info-row">
+                      <span style={{ color: '#4ade80' }}>Points Used</span>
+                      <input value={`${redeemedPoints} (₹${redeemedPoints * 2})`} readOnly style={{ fontWeight: 'bold', color: '#4ade80' }} />
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           {/* ── Col 5: Pay Board Summary ── */}
@@ -2615,15 +2901,18 @@ export default function Bill() {
           )}
         </div>
 
-        {!isSaleReturnMode && (
-          <>
-            <div className="receipt-line" />
-            <div className="receipt-summary-block">
-              <div className="receipt-row"><span>Points Used: {redeemedPoints}</span></div>
-              <div className="receipt-row"><span>Points Available: {availablePoints ? Number(availablePoints).toFixed(2) : "0.00"}</span></div>
-            </div>
-          </>
-        )}
+        {!isSaleReturnMode && (() => {
+          const remainingPts = Math.max(0, (availablePoints || 0) - (redeemedPoints || 0));
+          return (
+            <>
+              <div className="receipt-line" />
+              <div className="receipt-summary-block">
+                <div className="receipt-row" style={{ fontWeight: 'bold' }}><span>Points Available:</span><span>{remainingPts.toFixed(2)} Pts</span></div>
+                {redeemedPoints > 0 && <div className="receipt-row"><span>Points Used:</span><span>{redeemedPoints} Pts</span></div>}
+              </div>
+            </>
+          );
+        })()}
 
         <div className="receipt-line-dashed" />
 
@@ -2873,7 +3162,17 @@ export default function Bill() {
 
             {selectedMember.isFound && (
               <div className="member-modal-footer">
-                <button className="member-modal-ok-btn" onClick={() => setShowMemberModal(false)}>
+                <button
+                  className="member-modal-ok-btn"
+                  autoFocus
+                  onClick={() => setShowMemberModal(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      setShowMemberModal(false);
+                    }
+                  }}
+                >
                   OK / Continue
                 </button>
               </div>
@@ -4177,21 +4476,43 @@ const saleStyles = `
 
   @media print {
     @page { size: 80mm auto; margin: 0; }
-    body * { visibility: hidden; }
-    .print-only, .print-only * { visibility: visible; }
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+    }
+    header, nav, .sidebar, .sale-titlebar, .sale-header, .quick-add, .grid-wrap, .footer-panel, .notice, .sp-suggestions, .modal-backdrop {
+      display: none !important;
+    }
+    .sale-page, .sale-window {
+      display: block !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+      box-shadow: none !important;
+      border: none !important;
+      height: auto !important;
+      min-height: 0 !important;
+    }
     .print-only {
-      display: block;
-      position: absolute;
-      left: 0; top: 0;
-      width: 76mm;
-      padding: 4mm 3mm 6mm;
-      margin: 0;
+      display: block !important;
+      visibility: visible !important;
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 76mm !important;
+      padding: 3mm 2mm 5mm !important;
+      margin: 0 auto !important;
       font-family: 'Courier New', Courier, monospace, monospace;
       font-size: 11px;
-      line-height: 1.35;
+      line-height: 1.3;
       color: #000;
       background: #fff;
+      page-break-after: avoid !important;
+      page-break-before: avoid !important;
+      page-break-inside: avoid !important;
     }
+    .print-only * { visibility: visible !important; color: #000 !important; }
     .receipt-header { text-align: center; margin-bottom: 4px; }
     .receipt-logo { text-align: center; margin-bottom: 4px; }
     .receipt-logo-img { width: 120px; height: auto; object-fit: contain; display: inline-block; }
