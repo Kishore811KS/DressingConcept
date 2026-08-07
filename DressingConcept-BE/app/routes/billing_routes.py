@@ -1288,6 +1288,8 @@ def get_all_bills():
                 'paymentMethod': bill.payment_method,
                 'paymentStatus': bill.payment_status,
                 'itemCount': len(bill.items),
+                'totalQuantity': sum(int(item.quantity or 1) for item in bill.items) if bill.items else max(1, len(bill.items)),
+                'items': [item.to_dict() for item in bill.items],
                 'pendingItems': pending_count,
                 'createdAt': bill.created_at.isoformat() if bill.created_at else None,
                 'createdBy': bill.created_by,
