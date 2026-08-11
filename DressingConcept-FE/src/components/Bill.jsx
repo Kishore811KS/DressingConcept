@@ -20,13 +20,18 @@ const DEFAULT_UNIT = "PCS";
 
 const pad = (value) => String(value).padStart(2, "0");
 
-const formatBillNo = (val) => {
-  if (val === null || val === undefined || val === "") return "0000";
+const formatBillNo = (val, type = "N") => {
+  if (val === null || val === undefined || val === "") return `0001${type}`;
   const str = String(val).trim();
-  if (/^\d+$/.test(str)) {
-    return str.padStart(4, "0");
+  if (/^\d+[NRnr]$/.test(str)) {
+    const digits = str.slice(0, -1).padStart(4, "0");
+    const letter = str.slice(-1).toUpperCase();
+    return `${digits}${letter}`;
   }
-  return str;
+  if (/^\d+$/.test(str)) {
+    return `${str.padStart(4, "0")}${type}`;
+  }
+  return str.toUpperCase();
 };
 
 const formatDate = (date) => {
@@ -427,9 +432,10 @@ export default function Bill() {
     }
   };
 
-  const fetchNextBillNumber = async () => {
+  const fetchNextBillNumber = async (type) => {
     try {
-      const response = await api.get('/billing/next-bill-number');
+      const billType = type || (isSaleReturnMode ? 'R' : 'N');
+      const response = await api.get(`/billing/next-bill-number?type=${billType}`);
       if (response.data?.nextBillNumber) {
         setBillNo(response.data.nextBillNumber);
         return response.data.nextBillNumber;
@@ -437,7 +443,7 @@ export default function Bill() {
     } catch (err) {
       console.error("Error fetching next bill number:", err);
     }
-    const fallback = String(Math.floor(1000 + Math.random() * 8999)).padStart(4, "0");
+    const fallback = `0001${type || (isSaleReturnMode ? 'R' : 'N')}`;
     setBillNo(fallback);
     return fallback;
   };
@@ -944,42 +950,51 @@ export default function Bill() {
 
   const fetchBillForSaleReturn = async (inputBillNo) => {
     if (!inputBillNo || String(inputBillNo).trim().length === 0) return;
-    const formatted = formatBillNo(String(inputBillNo).trim());
+    const searchNo = String(inputBillNo).trim();
     setError("");
     setMessage("");
     setLoading(true);
 
     try {
-      const response = await api.get(`/billing/bills/number/${formatted}`);
-      if (response.data) {
-        const bill = response.data;
-
-        const custPhone = bill.customer?.phone || bill.customer_phone || bill.contact || bill.customerPhone || "";
-        const custName = bill.customer?.name || bill.customer_name || bill.customerName || "Walk-in Customer";
-        const custAddr = bill.customer?.address || bill.customer_address || bill.customerAddress || "";
+      const response = await api.get(`/billing/bills/return-details/${encodeURIComponent(searchNo)}`);
+      if (response.data?.success) {
+        const data = response.data;
+        const custPhone = data.customerPhone || "";
+        const custName = data.customerName || "Walk-in Customer";
+        const custAddr = data.customerAddress || "";
 
         setCustomerName(custName);
         setMobileNumber(custPhone);
         setContactNumber(custPhone);
         setAddress(custAddr);
 
-        if (Array.isArray(bill.items) && bill.items.length > 0) {
-          const loadedRows = bill.items.map((item) => {
-            const sellPrice = item.sellPrice || item.sell_price || item.mrp || 0;
-            const qty = item.quantity || 1;
-            const disc = item.discountPercent || item.discount_percent || 0;
+        if (Array.isArray(data.items) && data.items.length > 0) {
+          const availableForReturn = data.items.filter(item => (item.remainingQuantity || 0) > 0);
+          if (availableForReturn.length === 0) {
+            setError(`All products from Bill #${data.billNumber} have already been fully returned.`);
+            setIsSaleReturnMode(false);
+            setOriginalBillNumber("");
+            setLoading(false);
+            return;
+          }
+
+          const loadedRows = availableForReturn.map((item) => {
+            const sellPrice = item.sellPrice || item.mrp || 0;
+            const remQty = item.remainingQuantity || 1;
             return {
-              productId: item.productCode || item.product_code || String(item.productId || item.product_id || ""),
-              _dbId: item.productId || item.product_id,
-              description: item.productName || item.product_name || "",
-              tax: item.tax || 0,
+              productId: item.productCode || String(item.productId || ""),
+              _dbId: item.productId,
+              description: item.productName || "",
+              tax: item.tax || 5.0,
               unit: item.unit || "PCS",
               mrp: sellPrice,
-              discountPercent: disc,
+              discountPercent: 0,
               netPrice: sellPrice,
-              originalQuantity: qty,
-              quantity: qty,
-              salesPerson: bill.createdByName || bill.created_by_name || "",
+              originalQuantity: item.originalQuantity,
+              alreadyReturnedQuantity: item.alreadyReturnedQuantity,
+              remainingQuantity: remQty,
+              quantity: remQty,
+              salesPerson: data.createdByName || "",
             };
           });
           setRows(loadedRows);
@@ -987,13 +1002,15 @@ export default function Bill() {
 
         setSaleReturn(true);
         setIsSaleReturnMode(true);
-        setOriginalBillNumber(formatted);
+        setOriginalBillNumber(data.billNumber);
         setShowSaleReturnModal(false);
-        setMessage(`🔄 Loaded Bill #${formatted} into Sale Return mode! Adjust returned quantities and print.`);
+        fetchNextBillNumber('R');
+        setMessage(`🔄 Loaded Bill #${data.billNumber} for Sale Return. Set returned quantities.`);
       }
     } catch (err) {
       console.log("Sale Return bill fetch error", err);
-      setError(`Bill Number #${formatted} not found. Sale Return mode cancelled.`);
+      const errMsg = err.response?.data?.error || `Bill Number #${searchNo} not found.`;
+      setError(errMsg);
       setSaleReturn(false);
       setIsSaleReturnMode(false);
       setOriginalBillNumber("");
@@ -1025,6 +1042,7 @@ export default function Bill() {
       const pointsDeducted = Math.floor(totalReturnAmount / 100);
 
       const payload = {
+        returnNumber: formatBillNo(billNo, 'R'),
         originalBillNumber: originalBillNumber || billNo,
         customerName: customerName || "Walk-in Customer",
         customerPhone: mobileNumber || contactNumber || memberId || "",
@@ -1059,7 +1077,10 @@ export default function Bill() {
       if (savedReturn?.returnNumber) {
         setBillNo(savedReturn.returnNumber);
       }
-      setMessage(`Sale Return ${savedReturn?.returnNumber || ''} processed successfully!`);
+      if (pointsDeducted > 0 && availablePoints > 0) {
+        setAvailablePoints(prev => Math.max(0, prev - pointsDeducted));
+      }
+      setMessage(`Sale Return ${savedReturn?.returnNumber || ''} processed successfully! Deducted ${pointsDeducted} pts.`);
       localStorage.removeItem("bill_draft");
       await loadProducts();
 
@@ -2192,23 +2213,59 @@ export default function Bill() {
                 style={isReprintMode ? { backgroundColor: '#fffbeb', borderColor: '#f59e0b', fontWeight: 'bold' } : (!canEditBillNo ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed', opacity: 0.85 } : {})}
               />
             </div>
+            <div className="billing-mode-selector" style={{ display: 'flex', gap: '4px', background: '#1e293b', padding: '3px', borderRadius: '8px', border: '1px solid #334155', height: '32px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSaleReturnMode) {
+                    performClear();
+                    setIsSaleReturnMode(false);
+                    fetchNextBillNumber('N');
+                  }
+                }}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  fontWeight: 'bold',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  backgroundColor: !isSaleReturnMode ? '#0284c7' : 'transparent',
+                  color: !isSaleReturnMode ? '#ffffff' : '#94a3b8',
+                  transition: 'all 0.2s ease',
+                  height: '26px'
+                }}
+              >
+                📄 Normal Bill (N)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isSaleReturnMode) {
+                    setIsSaleReturnMode(true);
+                    fetchNextBillNumber('R');
+                    handleOpenSaleReturnModal();
+                  } else {
+                    handleOpenSaleReturnModal();
+                  }
+                }}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  fontWeight: 'bold',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  backgroundColor: isSaleReturnMode ? '#dc2626' : 'transparent',
+                  color: isSaleReturnMode ? '#ffffff' : '#94a3b8',
+                  transition: 'all 0.2s ease',
+                  height: '26px'
+                }}
+              >
+                🔄 Sales Return (R) <span className="shortcut-hint" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '9px' }}>Alt+1</span>
+              </button>
+            </div>
             <div className="check-group">
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={isSaleReturnMode || saleReturn}
-                  onChange={(event) => {
-                    const checked = event.target.checked;
-                    setSaleReturn(checked);
-                    if (checked) {
-                      handleOpenSaleReturnModal();
-                    } else {
-                      performClear();
-                    }
-                  }}
-                />
-                SALE RETURN <span className="shortcut-hint">Alt+1</span>
-              </label>
               <button
                 type="button"
                 className="points-header-btn"

@@ -13,21 +13,142 @@ from dateutil.relativedelta import relativedelta  # Add this import for warranty
 
 billing_bp = Blueprint("billing_bp", __name__)
 
-def generate_unique_bill_number():
-    """Generate a unique 4-digit bill number (e.g. 0001, 0025, 1234)"""
-    last_bill = Bill.query.order_by(Bill.id.desc()).first()
-    if last_bill and last_bill.bill_number and last_bill.bill_number.isdigit():
-        next_num = int(last_bill.bill_number) + 1
-        bill_number = str(next_num).zfill(4)
-    else:
-        count = Bill.query.count() + 1
-        bill_number = str(count).zfill(4)
+def generate_unique_bill_number(bill_type='N'):
+    """
+    Generate a unique bill number ending with suffix 'N' or 'R'.
+    Normal bills: 0001N, 0002N, 0003N...
+    Sales Return bills: 0001R, 0002R, 0003R...
+    """
+    bill_type = str(bill_type).strip().upper()
+    if bill_type not in ['N', 'R']:
+        bill_type = 'N'
     
-    while Bill.query.filter_by(bill_number=bill_number).first():
-        num = int(bill_number) + 1 if bill_number.isdigit() else random.randint(1, 9999)
-        bill_number = str(num).zfill(4)
-        
-    return bill_number
+    import re
+    from app.models.sale_return import SaleReturn
+    
+    max_seq = 0
+    if bill_type == 'N':
+        bills = Bill.query.all()
+        for b in bills:
+            if not b.bill_number:
+                continue
+            digits = re.findall(r'\d+', str(b.bill_number))
+            if digits:
+                num = int(digits[-1])
+                if num > max_seq:
+                    max_seq = num
+    else:
+        returns = SaleReturn.query.all()
+        for r in returns:
+            if not r.return_number:
+                continue
+            digits = re.findall(r'\d+', str(r.return_number))
+            if digits:
+                num = int(digits[-1])
+                if num > max_seq:
+                    max_seq = num
+
+    next_num = max_seq + 1
+    candidate = f"{str(next_num).zfill(4)}{bill_type}"
+
+    if bill_type == 'N':
+        while Bill.query.filter_by(bill_number=candidate).first():
+            next_num += 1
+            candidate = f"{str(next_num).zfill(4)}{bill_type}"
+    else:
+        while SaleReturn.query.filter_by(return_number=candidate).first():
+            next_num += 1
+            candidate = f"{str(next_num).zfill(4)}{bill_type}"
+
+    return candidate
+
+
+@billing_bp.route("/billing/next-bill-number", methods=["GET"])
+def get_next_bill_number_route():
+    """Get the next sequential bill number for N (normal) or R (return) mode."""
+    try:
+        bill_type = request.args.get('type', 'N').strip().upper()
+        if bill_type not in ['N', 'R']:
+            bill_type = 'N'
+        next_num = generate_unique_bill_number(bill_type)
+        return jsonify({"nextBillNumber": next_num, "type": bill_type}), 200
+    except Exception as e:
+        print(f"Error generating next bill number: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+
+
+@billing_bp.route("/billing/bills/return-details/<string:bill_number>", methods=["GET"])
+def get_bill_return_details(bill_number):
+    """
+    Get bill details along with cumulative prior return quantities for Sales Return mode.
+    Only products with remaining quantity > 0 are returnable.
+    """
+    try:
+        from app.models.sale_return import SaleReturn
+        clean_no = str(bill_number).strip()
+        bill = Bill.query.filter_by(bill_number=clean_no).first()
+        if not bill:
+            alt_no = clean_no.rstrip('N').rstrip('R')
+            possible = [clean_no, alt_no, alt_no.zfill(4), f"{alt_no.zfill(4)}N"]
+            bill = Bill.query.filter(Bill.bill_number.in_(possible)).first()
+            
+        if not bill:
+            return jsonify({"error": f"Bill #{bill_number} not found"}), 404
+
+        prior_returns = SaleReturn.query.filter_by(original_bill_number=bill.bill_number).all()
+        already_returned = {}
+        for pr in prior_returns:
+            for item in pr.items:
+                k_code = str(item.product_code or '').strip().lower()
+                k_name = str(item.product_name or '').strip().lower()
+                qty = item.returned_quantity or 0
+                if k_code:
+                    already_returned[k_code] = already_returned.get(k_code, 0) + qty
+                if k_name:
+                    already_returned[k_name] = already_returned.get(k_name, 0) + qty
+
+        items_details = []
+        for item in bill.items:
+            k_code = str(item.product_code or '').strip().lower()
+            k_name = str(item.product_name or '').strip().lower()
+            prev_ret = max(already_returned.get(k_code, 0), already_returned.get(k_name, 0))
+            orig_qty = item.quantity or 1
+            rem_qty = max(0, orig_qty - prev_ret)
+
+            items_details.append({
+                'id': item.id,
+                'productId': item.product_id,
+                'productCode': item.product_code or '',
+                'productName': item.product_name or '',
+                'productModel': item.product_model or '',
+                'productType': item.product_type or '',
+                'tax': item.tax or 5.0,
+                'unit': 'PCS',
+                'sellPrice': item.sell_price or 0,
+                'mrp': item.sell_price or 0,
+                'originalQuantity': orig_qty,
+                'alreadyReturnedQuantity': prev_ret,
+                'remainingQuantity': rem_qty,
+                'total': item.total or 0
+            })
+
+        return jsonify({
+            'success': True,
+            'billNumber': bill.bill_number,
+            'customerName': bill.customer_name,
+            'customerPhone': bill.customer_phone,
+            'customerAddress': bill.customer_address,
+            'customerEmail': bill.customer_email,
+            'createdByName': bill.created_by_name,
+            'createdAt': bill.created_at.isoformat() if bill.created_at else None,
+            'items': items_details
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching return details: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 400
+
 
 
 # ------------------ SEARCH PRODUCTS FOR BILLING ------------------
@@ -696,12 +817,15 @@ def create_bill():
         # Create new bill instance with unique number
         bill = Bill()
         req_bill_no = str(data.get('billNumber', '')).strip()
-        if req_bill_no and req_bill_no.isdigit():
-            bill.bill_number = req_bill_no.zfill(4)
-        elif req_bill_no:
-            bill.bill_number = req_bill_no
+        if req_bill_no:
+            if req_bill_no.isdigit():
+                bill.bill_number = f"{req_bill_no.zfill(4)}N"
+            elif not (req_bill_no.endswith('N') or req_bill_no.endswith('R') or req_bill_no.endswith('n') or req_bill_no.endswith('r')):
+                bill.bill_number = f"{req_bill_no}N"
+            else:
+                bill.bill_number = req_bill_no.upper()
         else:
-            bill.bill_number = generate_unique_bill_number()
+            bill.bill_number = generate_unique_bill_number('N')
         
         # Customer Information
         bill.customer_name = data.get('customerName', 'Walk-in Customer')

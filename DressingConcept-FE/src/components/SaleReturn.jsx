@@ -250,6 +250,25 @@ export default function SaleReturn() {
             View, audit, and reprint all Sale Return transactions linked to original bills.
           </p>
         </div>
+        <button
+          onClick={() => window.location.href = '/bill'}
+          style={{
+            backgroundColor: '#ef4444',
+            color: '#fff',
+            border: 'none',
+            padding: '10px 18px',
+            borderRadius: '8px',
+            fontWeight: 'bold',
+            fontSize: '14px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
+          }}
+        >
+          <FaUndo /> Process New Sale Return
+        </button>
       </div>
 
       {/* Summary Cards */}

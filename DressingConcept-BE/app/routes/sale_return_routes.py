@@ -14,19 +14,9 @@ import re
 sale_return_bp = Blueprint('sale_return_bp', __name__)
 
 def generate_return_number():
-    """Generate a unique Sale Return Number e.g. SR-0001"""
-    last_return = SaleReturn.query.order_by(SaleReturn.id.desc()).first()
-    if not last_return or not last_return.return_number:
-        return "SR-0001"
-    
-    # Extract numeric part if format is SR-XXXX
-    ret_str = str(last_return.return_number).strip()
-    digits = re.findall(r'\d+', ret_str)
-    if digits:
-        next_num = int(digits[-1]) + 1
-        return f"SR-{str(next_num).zfill(4)}"
-    
-    return f"SR-{str(last_return.id + 1).zfill(4)}"
+    """Generate a unique Sale Return Number e.g. 0001R, 0002R"""
+    from app.routes.billing_routes import generate_unique_bill_number
+    return generate_unique_bill_number('R')
 
 
 @sale_return_bp.route('/sale-returns', methods=['POST'])
@@ -151,7 +141,16 @@ def create_sale_return():
         # Calculate reward points deduction: 1 Point for every ₹100 of Sale Return Amount
         reward_points_deducted = math.floor(total_return_amount / 100.0)
 
-        return_number = generate_return_number()
+        req_ret_no = str(data.get('returnNumber', '')).strip()
+        if req_ret_no:
+            if req_ret_no.isdigit():
+                return_number = f"{req_ret_no.zfill(4)}R"
+            elif not (req_ret_no.endswith('R') or req_ret_no.endswith('r')):
+                return_number = f"{req_ret_no}R"
+            else:
+                return_number = req_ret_no.upper()
+        else:
+            return_number = generate_return_number()
 
         customer_phone = str(data.get('customerPhone', '') or data.get('contact', '')).strip()
 
