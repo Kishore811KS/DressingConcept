@@ -499,12 +499,9 @@ def get_attendance_config():
         month = request.args.get('month', datetime.now().month, type=int)
         year = request.args.get('year', datetime.now().year, type=int)
         
-        config = HRConfig.query.filter_by(month=month, year=year).first()
-        if not config:
-            # Default to 22
-            return jsonify({'month': month, 'year': year, 'working_days': 22}), 200
-            
-        return jsonify(config.to_dict()), 200
+        import calendar
+        _, num_days = calendar.monthrange(year, month)
+        return jsonify({'month': month, 'year': year, 'working_days': num_days}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

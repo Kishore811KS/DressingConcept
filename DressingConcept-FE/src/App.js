@@ -37,6 +37,7 @@ import CustomerPage from "./components/Customer";
 import EmployeeBill from "./components/EmployeeBill";
 import Warranty from "./components/Warranty";
 import PaymentTracking from "./components/PaymentTracking";
+import LedgerBook from "./components/LedgerBook";
 import GlobalShortcutsModal from "./components/GlobalShortcutsModal";
 import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
 
@@ -116,6 +117,8 @@ function Layout() {
           <Route path="/serviceBillView" element={<ServiceBillView />} />
           <Route path="/warranty" element={<Warranty />} />
           <Route path="/paymenttracking" element={<PaymentTracking />} />
+          <Route path="/ledger-book" element={<LedgerBook />} />
+          <Route path="/ledgerbook" element={<LedgerBook />} />
         </Routes>
       </div>
 

@@ -16,14 +16,14 @@ const api = axios.create({
 const ROLE_TEMPLATES = {
   admin: [
     "dashboard", "employee_dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
-    "warranty", "create_bill", "bill_reports", "bill_number_edit", "profit_visibility", "date_filter_visibility",
+    "warranty", "create_bill", "bill_reports", "ledger_book", "bill_number_edit", "profit_visibility", "date_filter_visibility",
     "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount",
     "add_supplier", "supplier_list", "payment_tracking", "employee", "user_type", "attendance", "salary",
     "company", "enquiries", "customer_details", "usersettings"
   ],
   manager: [
     "dashboard", "employee_dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
-    "warranty", "create_bill", "bill_reports", "bill_number_edit", "profit_visibility", "date_filter_visibility",
+    "warranty", "create_bill", "bill_reports", "ledger_book", "bill_number_edit", "profit_visibility", "date_filter_visibility",
     "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount",
     "add_supplier", "supplier_list", "payment_tracking", "employee", "attendance", "salary", "company",
     "enquiries", "customer_details"

@@ -3,6 +3,7 @@ from app.models.billing import Bill, BillItem, Payment
 from app.models.product import Product
 from app.models.current_company import Company
 from app.models.customer_rewards import CustomerRewards
+from app.models.sale_return import SaleReturn
 from app import db
 from sqlalchemy import or_, and_, func, text
 from datetime import datetime, timedelta
@@ -13,52 +14,122 @@ from dateutil.relativedelta import relativedelta  # Add this import for warranty
 
 billing_bp = Blueprint("billing_bp", __name__)
 
-def generate_unique_bill_number(bill_type='N'):
+def get_fy_letter(dt=None):
     """
-    Generate a unique bill number ending with suffix 'N' or 'R'.
-    Normal bills: 0001N, 0002N, 0003N...
-    Sales Return bills: 0001R, 0002R, 0003R...
+    Returns letter prefix for financial year.
+    FY 2026-2027 (April 1, 2026 to March 31, 2027) -> 'A'
+    FY 2027-2028 (April 1, 2027 to March 31, 2028) -> 'B'
+    FY 2028-2029 (April 1, 2028 to March 31, 2029) -> 'C'
+    and so on.
+    """
+    if dt is None:
+        dt = datetime.now()
+    year = dt.year
+    if dt.month >= 4:
+        start_yr = year
+    else:
+        start_yr = year - 1
+    
+    base_year = 2026
+    offset = start_yr - base_year
+    if offset < 0:
+        offset = 0
+    
+    if offset < 26:
+        return chr(65 + offset)
+    else:
+        first = chr(65 + (offset // 26) - 1)
+        second = chr(65 + (offset % 26))
+        return f"{first}{second}"
+
+
+def get_current_financial_year(dt=None):
+    """
+    Returns financial year string e.g. '26-27' for April 1, 2026 to March 31, 2027.
+    Budget year runs from April to March.
+    """
+    if dt is None:
+        dt = datetime.now()
+    year = dt.year
+    if dt.month >= 4:
+        start_yr = year % 100
+        end_yr = (year + 1) % 100
+    else:
+        start_yr = (year - 1) % 100
+        end_yr = year % 100
+    return f"{start_yr:02d}-{end_yr:02d}"
+
+
+def generate_unique_bill_number(bill_type='N', dt=None):
+    """
+    Generate unique bill number with letter prefix per FY and 4-digit sequence.
+    Format: A0001N, A0002N... for original bills
+            A0001R, A0002R... for sales returns
+    Next FY (B): B0001N, B0001R...
     """
     bill_type = str(bill_type).strip().upper()
     if bill_type not in ['N', 'R']:
         bill_type = 'N'
     
+    fy_letter = get_fy_letter(dt)
     import re
     from app.models.sale_return import SaleReturn
     
     max_seq = 0
+    pattern = re.compile(rf'^{fy_letter}(\d+){bill_type}$', re.IGNORECASE)
+    
     if bill_type == 'N':
         bills = Bill.query.all()
         for b in bills:
             if not b.bill_number:
                 continue
-            digits = re.findall(r'\d+', str(b.bill_number))
-            if digits:
-                num = int(digits[-1])
+            b_str = str(b.bill_number).strip().upper()
+            m = pattern.match(b_str)
+            if m:
+                num = int(m.group(1))
                 if num > max_seq:
                     max_seq = num
+            else:
+                fy_prefix = get_current_financial_year(dt)
+                if b_str.startswith(f"{fy_prefix}/"):
+                    seq_part = b_str.split('/', 1)[1]
+                    digits = re.findall(r'\d+', seq_part)
+                    if digits:
+                        num = int(digits[0])
+                        if num > max_seq:
+                            max_seq = num
     else:
         returns = SaleReturn.query.all()
         for r in returns:
             if not r.return_number:
                 continue
-            digits = re.findall(r'\d+', str(r.return_number))
-            if digits:
-                num = int(digits[-1])
+            r_str = str(r.return_number).strip().upper()
+            m = pattern.match(r_str)
+            if m:
+                num = int(m.group(1))
                 if num > max_seq:
                     max_seq = num
+            else:
+                fy_prefix = get_current_financial_year(dt)
+                if r_str.startswith(f"{fy_prefix}/"):
+                    seq_part = r_str.split('/', 1)[1]
+                    digits = re.findall(r'\d+', seq_part)
+                    if digits:
+                        num = int(digits[0])
+                        if num > max_seq:
+                            max_seq = num
 
     next_num = max_seq + 1
-    candidate = f"{str(next_num).zfill(4)}{bill_type}"
+    candidate = f"{fy_letter}{next_num:04d}{bill_type}"
 
     if bill_type == 'N':
         while Bill.query.filter_by(bill_number=candidate).first():
             next_num += 1
-            candidate = f"{str(next_num).zfill(4)}{bill_type}"
+            candidate = f"{fy_letter}{next_num:04d}{bill_type}"
     else:
         while SaleReturn.query.filter_by(return_number=candidate).first():
             next_num += 1
-            candidate = f"{str(next_num).zfill(4)}{bill_type}"
+            candidate = f"{fy_letter}{next_num:04d}{bill_type}"
 
     return candidate
 
@@ -71,13 +142,15 @@ def get_next_bill_number_route():
         if bill_type not in ['N', 'R']:
             bill_type = 'N'
         next_num = generate_unique_bill_number(bill_type)
-        return jsonify({"nextBillNumber": next_num, "type": bill_type}), 200
+        # Short display bill number for POS receipt e.g. "1N" or "1R"
+        display_num = next_num.split('/')[-1] if '/' in next_num else next_num
+        return jsonify({"nextBillNumber": display_num, "fullBillNumber": next_num, "displayBillNumber": display_num, "type": bill_type}), 200
     except Exception as e:
         print(f"Error generating next bill number: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
-@billing_bp.route("/billing/bills/return-details/<string:bill_number>", methods=["GET"])
+@billing_bp.route("/billing/bills/return-details/<path:bill_number>", methods=["GET"])
 def get_bill_return_details(bill_number):
     """
     Get bill details along with cumulative prior return quantities for Sales Return mode.
@@ -88,9 +161,19 @@ def get_bill_return_details(bill_number):
         clean_no = str(bill_number).strip()
         bill = Bill.query.filter_by(bill_number=clean_no).first()
         if not bill:
-            alt_no = clean_no.rstrip('N').rstrip('R')
-            possible = [clean_no, alt_no, alt_no.zfill(4), f"{alt_no.zfill(4)}N"]
-            bill = Bill.query.filter(Bill.bill_number.in_(possible)).first()
+            fy_prefix = get_current_financial_year()
+            raw_seq = clean_no.split('/')[-1].rstrip('N').rstrip('n').rstrip('R').rstrip('r')
+            if raw_seq.isdigit():
+                num = int(raw_seq)
+                possible = [
+                    f"{fy_prefix}/{num}N",
+                    f"{fy_prefix}/{num}R",
+                    f"{fy_prefix}/{raw_seq.zfill(4)}N",
+                    f"{num}N",
+                    f"{raw_seq.zfill(4)}N",
+                    clean_no
+                ]
+                bill = Bill.query.filter(Bill.bill_number.in_(possible)).first()
             
         if not bill:
             return jsonify({"error": f"Bill #{bill_number} not found"}), 404
@@ -287,6 +370,27 @@ def get_all_customers():
     """Get unique customers consolidated from CustomerRewards and bill history"""
     try:
         rewards = CustomerRewards.query.all()
+        from app.models.sale_return import SaleReturn
+        returns_query = db.session.query(
+            SaleReturn.customer_phone,
+            func.sum(SaleReturn.total_return_amount).label('total_return')
+        ).filter(SaleReturn.customer_phone.isnot(None), SaleReturn.customer_phone != '')\
+         .group_by(SaleReturn.customer_phone).all()
+        returns_map = {r[0]: float(r[1] or 0.0) for r in returns_query if r[0]}
+
+        used_query = db.session.query(
+            Bill.customer_phone,
+            func.sum(getattr(Bill, 'sales_return_amount', 0)).label('total_used')
+        ).filter(Bill.customer_phone.isnot(None), Bill.customer_phone != '')\
+         .group_by(Bill.customer_phone).all()
+        used_map = {u[0]: float(u[1] or 0.0) for u in used_query if u[0]}
+
+        all_phones = set(list(returns_map.keys()) + list(used_map.keys()))
+        returns_dict = {
+            p: max(0.0, round(returns_map.get(p, 0.0) - used_map.get(p, 0.0), 2))
+            for p in all_phones
+        }
+
         customers_dict = {}
 
         for r in rewards:
@@ -310,6 +414,7 @@ def get_all_customers():
                     'billCount': r.bill_count or 0,
                     'rewardPoints': r.current_balance or 0,
                     'totalSpent': r.total_spend or 0,
+                    'salesReturnAmount': returns_dict.get(r.phone, 0.0),
                     'lastVisit': r.updated_at.isoformat() if r.updated_at else (r.created_at.isoformat() if r.created_at else None)
                 }
 
@@ -339,6 +444,7 @@ def get_all_customers():
                     if c[5]: cust['type'] = c[5]
                     if c[6]: cust['billCount'] = c[6]
                     if c[7]: cust['lastVisit'] = c[7].isoformat()
+                    if phone in returns_dict: cust['salesReturnAmount'] = returns_dict[phone]
                 else:
                     customers_dict[phone] = {
                         'name': c[0] or 'Walk-in Customer',
@@ -359,6 +465,7 @@ def get_all_customers():
                         'billCount': c[6] or 0,
                         'rewardPoints': 0,
                         'totalSpent': 0,
+                        'salesReturnAmount': returns_dict.get(phone, 0.0),
                         'lastVisit': c[7].isoformat() if c[7] else None
                     }
 
@@ -482,7 +589,11 @@ def update_customer(phone):
             rewards.supplier_igst = float(data['supplierIGST'] or 0)
 
         if 'rewardPoints' in data:
-            rewards.current_balance = float(data['rewardPoints'] or 0)
+            val = float(data['rewardPoints'] or 0)
+            rewards.current_balance = val
+            if val == 0:
+                rewards.total_points_earned = 0.0
+                rewards.total_points_redeemed = 0.0
 
         from datetime import date
         def parse_date(val):
@@ -795,7 +906,61 @@ def export_customers_excel():
         )
     except Exception as e:
         print(f"Export customers error: {str(e)}")
-        return jsonify({"error": f"Failed to export customers: {str(e)}"}), 500
+# ------------------ RESET ALL CUSTOMER POINTS ------------------
+@billing_bp.route("/billing/customers/reset-all-points", methods=["POST"])
+def reset_all_customer_points():
+    """Reset reward points for all customers in the database to 0"""
+    try:
+        updated_count = CustomerRewards.query.update({
+            CustomerRewards.current_balance: 0.0,
+            CustomerRewards.total_points_earned: 0.0,
+            CustomerRewards.total_points_redeemed: 0.0
+        })
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "message": f"Successfully reset reward points to 0 for {updated_count} customers."
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to reset customer points: {str(e)}"}), 500
+
+
+# ------------------ RESET SINGLE CUSTOMER POINTS ------------------
+@billing_bp.route("/billing/customers/<path:phone>/reset-points", methods=["POST"])
+def reset_single_customer_points(phone):
+    """Reset reward points for a specific customer in the database to 0"""
+    try:
+        phone = str(phone).strip()
+        clean_p = ''.join(filter(str.isdigit, phone))
+        
+        rewards = CustomerRewards.query.filter_by(phone=phone).first()
+        if not rewards and phone:
+            rewards = CustomerRewards.query.filter(
+                (CustomerRewards.phone == phone) |
+                (CustomerRewards.member_id == phone)
+            ).first()
+        if not rewards and clean_p:
+            rewards = CustomerRewards.query.filter(
+                (CustomerRewards.phone == clean_p) |
+                (CustomerRewards.member_id == clean_p)
+            ).first()
+
+        if rewards:
+            rewards.current_balance = 0.0
+            rewards.total_points_earned = 0.0
+            rewards.total_points_redeemed = 0.0
+            db.session.commit()
+            return jsonify({
+                "success": True,
+                "message": f"Successfully reset reward points to 0 for customer ({rewards.phone or phone})."
+            }), 200
+        else:
+            return jsonify({"success": True, "message": "Customer record not found in DB; local points reset to 0."}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to reset customer points: {str(e)}"}), 500
+
 
 
 
@@ -818,12 +983,20 @@ def create_bill():
         bill = Bill()
         req_bill_no = str(data.get('billNumber', '')).strip()
         if req_bill_no:
-            if req_bill_no.isdigit():
-                bill.bill_number = f"{req_bill_no.zfill(4)}N"
-            elif not (req_bill_no.endswith('N') or req_bill_no.endswith('R') or req_bill_no.endswith('n') or req_bill_no.endswith('r')):
-                bill.bill_number = f"{req_bill_no}N"
-            else:
+            if re.match(r'^[A-Z]+\d+[NR]$', req_bill_no.upper()):
                 bill.bill_number = req_bill_no.upper()
+            elif '/' in req_bill_no:
+                bill.bill_number = req_bill_no.split('/')[-1].upper()
+            else:
+                fy_letter = get_fy_letter()
+                clean_no = req_bill_no.rstrip('N').rstrip('n').rstrip('R').rstrip('r')
+                clean_digits = re.sub(r'\D', '', clean_no)
+                suffix = 'R' if req_bill_no.upper().endswith('R') else 'N'
+                if clean_digits:
+                    num = int(clean_digits)
+                    bill.bill_number = f"{fy_letter}{num:04d}{suffix}"
+                else:
+                    bill.bill_number = req_bill_no.upper()
         else:
             bill.bill_number = generate_unique_bill_number('N')
         
@@ -887,6 +1060,8 @@ def create_bill():
         bill.payment_cheque_number = data.get('chequeNumber', '')
         bill.payment_online_phone = data.get('onlinePhone', '')
         bill.payment_online_ref = data.get('onlineRef', '')
+        if hasattr(bill, 'sales_return_amount'):
+            bill.sales_return_amount = float(data.get('salesReturnAmount', 0))
         
         # Add items and update stock
         items_added = []
@@ -955,6 +1130,9 @@ def create_bill():
         bill.calculate_totals(is_tax_inclusive=True)
         if data.get('total') is not None:
             bill.total = float(data['total'])
+        if hasattr(bill, 'sales_return_amount'):
+            req_sr = float(data.get('salesReturnAmount', 0))
+            bill.sales_return_amount = min(req_sr, bill.total)
         
         # Update or Create CustomerRewards
         cust_phone = bill.customer_phone or data.get('contact') or data.get('phone') or data.get('customerPhone')
@@ -1009,7 +1187,7 @@ def create_bill():
         return jsonify({
             'success': True,
             'message': 'Bill created successfully',
-            'billNumber': bill.bill_number,
+            'billNumber': bill.bill_number.split('/', 1)[-1] if '/' in bill.bill_number else bill.bill_number,
             'billId': bill.id,
             'total': round(bill.total, 2),
             'changeAmount': round(bill.change_amount, 2),
@@ -1093,7 +1271,7 @@ def get_bills_with_pending_items():
             
             result.append({
                 'id': bill.id,
-                'billNumber': bill.bill_number,
+                'billNumber': bill.bill_number.split('/', 1)[-1] if (bill.bill_number and '/' in bill.bill_number) else bill.bill_number,
                 'customerName': bill.customer_name,
                 'customerPhone': bill.customer_phone,
                 'customerType': bill.customer_type,
@@ -1231,6 +1409,10 @@ def get_customer_bills_by_phone_date():
         date_str = request.args.get('date', '').strip()
 
         query = Bill.query
+        
+        include_returns = request.args.get('include_returns', 'false').strip().lower() == 'true'
+        if not include_returns:
+            query = query.filter(~or_(Bill.bill_number.endswith('R'), Bill.bill_number.endswith('r')))
 
         term = search or phone
         if term:
@@ -1288,7 +1470,7 @@ def get_customer_bills_by_phone_date():
                 })
             return {
                 "id": bill.id,
-                "billNumber": bill.bill_number,
+                "billNumber": bill.bill_number.split('/', 1)[-1] if (bill.bill_number and '/' in bill.bill_number) else bill.bill_number,
                 "billDate": bill.created_at.strftime('%d-%m-%Y') if bill.created_at else "",
                 "billTime": bill.created_at.strftime('%I:%M %p') if bill.created_at else "",
                 "billDateRaw": bill.created_at.isoformat() if bill.created_at else "",
@@ -1358,6 +1540,16 @@ def get_all_bills():
         # Build query
         query = Bill.query
         
+        # Exclude Sales Return bills from normal bill lists unless type='R' or include_returns='true'
+        bill_type_filter = request.args.get('type', 'N').strip().upper()
+        include_returns = request.args.get('include_returns', 'false').strip().lower() == 'true'
+
+        if not include_returns:
+            if bill_type_filter == 'R':
+                query = query.filter(or_(Bill.bill_number.endswith('R'), Bill.bill_number.endswith('r')))
+            else:
+                query = query.filter(~or_(Bill.bill_number.endswith('R'), Bill.bill_number.endswith('r')))
+        
         if start_date:
             query = query.filter(Bill.created_at >= datetime.fromisoformat(start_date))
         if end_date:
@@ -1392,7 +1584,7 @@ def get_all_bills():
             
             bills.append({
                 'id': bill.id,
-                'billNumber': bill.bill_number,
+                'billNumber': bill.bill_number.split('/', 1)[-1] if (bill.bill_number and '/' in bill.bill_number) else bill.bill_number,
                 'customerName': bill.customer_name,
                 'customerPhone': bill.customer_phone,
                 'customerType': bill.customer_type,
@@ -1491,11 +1683,28 @@ def get_bill_by_id(bill_id):
 
 
 # ------------------ GET BILL BY NUMBER ------------------
-@billing_bp.route("/billing/bills/number/<string:bill_number>", methods=["GET"])
+@billing_bp.route("/billing/bills/number/<path:bill_number>", methods=["GET"])
 def get_bill_by_number(bill_number):
-    """Get bill by bill number"""
+    """Get bill by bill number (supports path with / like 26-27/1N or simple number 1N)"""
     try:
-        bill = Bill.query.filter_by(bill_number=bill_number).first_or_404()
+        clean_no = str(bill_number).strip()
+        bill = Bill.query.filter_by(bill_number=clean_no).first()
+        if not bill:
+            fy_prefix = get_current_financial_year()
+            raw_seq = clean_no.split('/')[-1].rstrip('N').rstrip('n').rstrip('R').rstrip('r')
+            if raw_seq.isdigit():
+                num = int(raw_seq)
+                possible = [
+                    f"{fy_prefix}/{num}N",
+                    f"{fy_prefix}/{num}R",
+                    f"{fy_prefix}/{raw_seq.zfill(4)}N",
+                    f"{num}N",
+                    f"{raw_seq.zfill(4)}N",
+                    clean_no
+                ]
+                bill = Bill.query.filter(Bill.bill_number.in_(possible)).first()
+        if not bill:
+            return jsonify({"error": "Bill not found"}), 404
         
         # Get all items with their status
         items = [item.to_dict() for item in bill.items]
@@ -1633,6 +1842,39 @@ def cancel_bill(bill_id):
         return jsonify({"error": str(e)}), 400
 
 
+# ------------------ DELETE BILL PERMANENTLY ------------------
+@billing_bp.route("/billing/bills/<int:bill_id>", methods=["DELETE"])
+def delete_bill(bill_id):
+    """Permanently delete a bill from the database"""
+    try:
+        bill = Bill.query.get(bill_id)
+        if not bill:
+            return jsonify({"error": "Bill not found"}), 404
+        
+        # Delete related payments if any
+        if hasattr(bill, 'payments') and bill.payments:
+            for payment in list(bill.payments):
+                db.session.delete(payment)
+        
+        # Delete related bill items
+        if hasattr(bill, 'items') and bill.items:
+            for item in list(bill.items):
+                db.session.delete(item)
+                
+        db.session.delete(bill)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Bill #{bill.bill_number} permanently deleted from database'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Delete bill error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
 # ------------------ GET BILLING STATISTICS ------------------
 @billing_bp.route("/billing/statistics", methods=["GET"])
 def get_billing_statistics():
@@ -1648,24 +1890,26 @@ def get_billing_statistics():
         
         start_of_month = datetime(today.year, today.month, 1, 0, 0, 0)
         
+        not_return_clause = ~or_(Bill.bill_number.endswith('R'), Bill.bill_number.endswith('r'))
+
         # Today's stats
         today_stats = db.session.query(
             func.count(Bill.id).label('bill_count'),
             func.sum(Bill.total).label('total_sales'),
             func.avg(Bill.total).label('avg_bill_value')
-        ).filter(Bill.created_at.between(start_of_day, end_of_day)).first()
+        ).filter(not_return_clause, Bill.created_at.between(start_of_day, end_of_day)).first()
         
         # Week's stats
         week_stats = db.session.query(
             func.count(Bill.id).label('bill_count'),
             func.sum(Bill.total).label('total_sales')
-        ).filter(Bill.created_at >= start_of_week).first()
+        ).filter(not_return_clause, Bill.created_at >= start_of_week).first()
         
         # Month's stats
         month_stats = db.session.query(
             func.count(Bill.id).label('bill_count'),
             func.sum(Bill.total).label('total_sales')
-        ).filter(Bill.created_at >= start_of_month).first()
+        ).filter(not_return_clause, Bill.created_at >= start_of_month).first()
         
         # Pending items count
         pending_items_count = BillItem.query.filter_by(item_status='pending').count()
@@ -1675,17 +1919,17 @@ def get_billing_statistics():
             Bill.payment_method,
             func.count(Bill.id).label('count'),
             func.sum(Bill.total).label('total')
-        ).group_by(Bill.payment_method).all()
+        ).filter(not_return_clause).group_by(Bill.payment_method).all()
         
         # Customer type distribution
         customer_types = db.session.query(
             Bill.customer_type,
             func.count(Bill.id).label('count'),
             func.sum(Bill.total).label('total')
-        ).group_by(Bill.customer_type).all()
+        ).filter(not_return_clause).group_by(Bill.customer_type).all()
         
         # Recent bills
-        recent_bills = Bill.query.order_by(Bill.created_at.desc()).limit(5).all()
+        recent_bills = Bill.query.filter(not_return_clause).order_by(Bill.created_at.desc()).limit(5).all()
         
         return jsonify({
             'today': {
@@ -2208,3 +2452,127 @@ def get_digital_bill(bill_number, phone_number):
         print(f"Get digital bill error: {str(e)}")
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
+
+
+# ------------------ LEDGER BOOK MULTI-FY REPORT ------------------
+def extract_fy_tag(b_str, created_at=None):
+    b_str = str(b_str or '').strip().upper()
+    import re
+    m = re.match(r'^([A-Z]+)\d+[NR]$', b_str)
+    if m:
+        letters = m.group(1)
+        if len(letters) == 1:
+            offset = ord(letters[0]) - 65
+        else:
+            offset = 26 + (ord(letters[-1]) - 65)
+        start_yr = (2026 + offset) % 100
+        end_yr = (start_yr + 1) % 100
+        return f"{start_yr:02d}-{end_yr:02d}"
+    elif '/' in b_str:
+        return b_str.split('/')[0]
+    else:
+        return get_current_financial_year(created_at)
+
+
+@billing_bp.route("/billing/ledger-book", methods=["GET"])
+def get_ledger_book_data():
+    """Get Multi-FY bills, sales returns, and financial year aggregated summaries for Ledger Book"""
+    try:
+        selected_fy = request.args.get('fy') # Optional filter e.g. '26-27'
+        
+        all_bills = Bill.query.order_by(Bill.created_at.desc()).all()
+        all_returns = SaleReturn.query.order_by(SaleReturn.created_at.desc()).all()
+        
+        fy_groups = {}
+        processed_bills = []
+        
+        for bill in all_bills:
+            b_str = str(bill.bill_number or '').strip()
+            fy_tag = extract_fy_tag(b_str, bill.created_at)
+            clean_no = b_str.split('/')[-1] if '/' in b_str else b_str
+                
+            if fy_tag not in fy_groups:
+                fy_groups[fy_tag] = {
+                    'fy': fy_tag,
+                    'total_bills': 0,
+                    'total_sales_amount': 0.0,
+                    'total_returns_count': 0,
+                    'total_return_amount': 0.0,
+                    'net_revenue': 0.0,
+                    'total_items_sold': 0
+                }
+                
+            is_return_bill = b_str.upper().endswith('R')
+            if not is_return_bill:
+                fy_groups[fy_tag]['total_bills'] += 1
+                fy_groups[fy_tag]['total_sales_amount'] += float(bill.total or 0)
+                qty = sum(int(item.quantity or 1) for item in bill.items) if bill.items else 1
+                fy_groups[fy_tag]['total_items_sold'] += qty
+
+            if not selected_fy or selected_fy == fy_tag or selected_fy.lower() == 'all':
+                processed_bills.append({
+                    'id': bill.id,
+                    'fy': fy_tag,
+                    'rawBillNumber': bill.bill_number,
+                    'billNumber': clean_no,
+                    'customerName': bill.customer_name or 'Walk-in Customer',
+                    'customerPhone': bill.customer_phone or bill.contact or '',
+                    'customerType': bill.customer_type or 'regular',
+                    'total': round(float(bill.total or 0), 2),
+                    'paidAmount': round(float(bill.paid_amount or 0), 2),
+                    'paymentMethod': bill.payment_method or 'cash',
+                    'paymentStatus': bill.payment_status or 'completed',
+                    'itemCount': len(bill.items),
+                    'createdAt': bill.created_at.isoformat() if bill.created_at else None,
+                    'createdByName': bill.created_by_name or 'Admin'
+                })
+
+        for ret in all_returns:
+            r_str = str(ret.return_number or '').strip()
+            fy_tag = extract_fy_tag(r_str, ret.created_at)
+                
+            if fy_tag not in fy_groups:
+                fy_groups[fy_tag] = {
+                    'fy': fy_tag,
+                    'total_bills': 0,
+                    'total_sales_amount': 0.0,
+                    'total_returns_count': 0,
+                    'total_return_amount': 0.0,
+                    'net_revenue': 0.0,
+                    'total_items_sold': 0
+                }
+            fy_groups[fy_tag]['total_returns_count'] += 1
+            fy_groups[fy_tag]['total_return_amount'] += float(ret.total_return_amount or 0)
+
+        for fy_key in fy_groups:
+            g = fy_groups[fy_key]
+            g['total_sales_amount'] = round(g['total_sales_amount'], 2)
+            g['total_return_amount'] = round(g['total_return_amount'], 2)
+            g['net_revenue'] = round(g['total_sales_amount'] - g['total_return_amount'], 2)
+
+        available_fy = sorted(list(fy_groups.keys()), reverse=True)
+        if not available_fy:
+            curr_fy = get_current_financial_year()
+            available_fy = [curr_fy]
+            fy_groups[curr_fy] = {
+                'fy': curr_fy,
+                'total_bills': 0,
+                'total_sales_amount': 0.0,
+                'total_returns_count': 0,
+                'total_return_amount': 0.0,
+                'net_revenue': 0.0,
+                'total_items_sold': 0
+            }
+
+        return jsonify({
+            'success': True,
+            'available_fy_years': available_fy,
+            'fy_summaries': [fy_groups[k] for k in sorted(fy_groups.keys(), reverse=True)],
+            'bills': processed_bills
+        }), 200
+
+    except Exception as e:
+        print(f"Ledger book error: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+

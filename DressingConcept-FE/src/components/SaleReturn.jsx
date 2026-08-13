@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FaUndo, FaSearch, FaPrint, FaEye, FaCalendarAlt, FaReceipt, FaBoxOpen, FaExclamationCircle } from 'react-icons/fa';
+import { FaUndo, FaSearch, FaPrint, FaEye, FaCalendarAlt, FaReceipt, FaBoxOpen, FaExclamationCircle, FaTrashAlt } from 'react-icons/fa';
 
 const BASE_URL = 'http://localhost:5000';
 const API_BASE_URL = `${BASE_URL}/api`;
@@ -22,6 +22,81 @@ export default function SaleReturn() {
   const [endDate, setEndDate] = useState('');
   const [selectedReturn, setSelectedReturn] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [trashReturns, setTrashReturns] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("trashSaleReturnsData") || "[]");
+    } catch (_) {
+      return [];
+    }
+  });
+  const [showTrashModal, setShowTrashModal] = useState(false);
+
+  const handleMoveToTrash = (ret) => {
+    const retIdStr = String(ret.id || ret.returnNumber);
+    if (trashReturns.some(r => String(r.id || r.returnNumber) === retIdStr)) return;
+
+    const updatedTrash = [ret, ...trashReturns];
+    setTrashReturns(updatedTrash);
+    try {
+      localStorage.setItem("trashSaleReturnsData", JSON.stringify(updatedTrash));
+    } catch (_) {}
+  };
+
+  const handleRestoreFromTrash = (retId) => {
+    const updatedTrash = trashReturns.filter(r => String(r.id || r.returnNumber) !== String(retId));
+    setTrashReturns(updatedTrash);
+    try {
+      localStorage.setItem("trashSaleReturnsData", JSON.stringify(updatedTrash));
+    } catch (_) {}
+  };
+
+  const handleRemoveFromTrash = async (ret) => {
+    const retId = ret.id || ret.returnNumber;
+    if (!window.confirm(`⚠️ PERMANENT DELETE WARNING:\nAre you sure you want to permanently delete Sale Return #${ret.returnNumber} from the database? This cannot be undone!`)) return;
+
+    try {
+      if (ret.id) {
+        await api.delete(`/sale-returns/${ret.id}`);
+      }
+      const updatedTrash = trashReturns.filter(r => String(r.id || r.returnNumber) !== String(retId));
+      setTrashReturns(updatedTrash);
+      try {
+        localStorage.setItem("trashSaleReturnsData", JSON.stringify(updatedTrash));
+      } catch (_) {}
+      fetchSaleReturns();
+    } catch (err) {
+      console.error("Error deleting sale return from database:", err);
+      const updatedTrash = trashReturns.filter(r => String(r.id || r.returnNumber) !== String(retId));
+      setTrashReturns(updatedTrash);
+      try {
+        localStorage.setItem("trashSaleReturnsData", JSON.stringify(updatedTrash));
+      } catch (_) {}
+      fetchSaleReturns();
+    }
+  };
+
+  const handleEmptyTrash = async () => {
+    if (!window.confirm("⚠️ PERMANENT DELETE WARNING:\nAre you sure you want to permanently delete ALL Sale Returns in Trash from the database? This cannot be undone!")) return;
+
+    for (const ret of trashReturns) {
+      if (ret.id) {
+        try {
+          await api.delete(`/sale-returns/${ret.id}`);
+        } catch (err) {
+          console.error(`Error deleting sale return ${ret.id}:`, err);
+        }
+      }
+    }
+
+    setTrashReturns([]);
+    try {
+      localStorage.removeItem("trashSaleReturnsData");
+    } catch (_) {}
+    fetchSaleReturns();
+  };
+
+  const trashReturnIds = (trashReturns || []).map(r => String(r.id || r.returnNumber));
+  const visibleReturns = (returns || []).filter(r => !trashReturnIds.includes(String(r.id || r.returnNumber)));
 
   const fetchSaleReturns = async () => {
     setLoading(true);
@@ -362,7 +437,7 @@ export default function SaleReturn() {
                   Loading Sale Returns...
                 </td>
               </tr>
-            ) : returns.length === 0 ? (
+            ) : visibleReturns.length === 0 ? (
               <tr>
                 <td colSpan="8" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
                   <FaBoxOpen style={{ fontSize: '32px', marginBottom: '8px', opacity: 0.5 }} />
@@ -370,7 +445,7 @@ export default function SaleReturn() {
                 </td>
               </tr>
             ) : (
-              returns.map((r) => (
+              visibleReturns.map((r) => (
                 <tr key={r.id} style={{ borderBottom: '1px solid #334155', transition: 'background-color 0.15s' }}>
                   <td style={{ padding: '14px 16px', fontWeight: 'bold', color: '#ef4444' }}>
                     {r.returnNumber}
@@ -409,6 +484,13 @@ export default function SaleReturn() {
                         style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
                       >
                         <FaPrint /> Print
+                      </button>
+                      <button
+                        onClick={() => handleMoveToTrash(r)}
+                        title="Move to Trash"
+                        style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+                      >
+                        <FaTrashAlt />
                       </button>
                     </div>
                   </td>
@@ -506,6 +588,186 @@ export default function SaleReturn() {
                 style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#94a3b8', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '10px 18px', cursor: 'pointer' }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Floating Trash Button at Bottom Right Corner ── */}
+      <button
+        onClick={() => setShowTrashModal(true)}
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 9000,
+          backgroundColor: '#1e293b',
+          border: '2px solid #ef4444',
+          color: '#ffffff',
+          padding: '10px 18px',
+          borderRadius: '50px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontWeight: 'bold',
+          fontSize: '14px',
+          boxShadow: '0 8px 24px rgba(239, 68, 68, 0.4)',
+          transition: 'all 0.2s ease'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.06)'}
+        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+      >
+        <FaTrashAlt style={{ color: '#ef4444' }} />
+        <span>Trash</span>
+        {trashReturns.length > 0 && (
+          <span style={{
+            backgroundColor: '#ef4444',
+            color: '#fff',
+            fontSize: '11px',
+            fontWeight: '900',
+            padding: '2px 8px',
+            borderRadius: '12px'
+          }}>
+            {trashReturns.length}
+          </span>
+        )}
+      </button>
+
+      {/* ── Trash Modal (Shows All Sale Return Details) ── */}
+      {showTrashModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)',
+          zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center'
+        }} onClick={() => setShowTrashModal(false)}>
+          <div style={{
+            backgroundColor: '#0f172a', border: '2px solid #ef4444', borderRadius: '16px',
+            padding: '24px', maxWidth: '850px', width: '94%', maxHeight: '88vh', display: 'flex',
+            flexDirection: 'column', color: '#fff', boxShadow: '0 20px 50px rgba(0,0,0,0.6)'
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #334155', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FaTrashAlt size={22} style={{ color: '#ef4444' }} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#ef4444' }}>
+                    Sale Returns Trash Bin
+                  </h3>
+                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                    Deleted Sale Returns saved in Trash ({trashReturns.length} items)
+                  </span>
+                </div>
+              </div>
+              <button
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px' }}
+                onClick={() => setShowTrashModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
+              {trashReturns.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                  <span style={{ fontSize: '40px', display: 'block', marginBottom: '10px' }}>✨</span>
+                  Trash is empty! No deleted Sale Returns.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {trashReturns.map((tr) => (
+                    <div key={tr.id || tr.returnNumber} style={{
+                      backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px',
+                      padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '8px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed #334155', paddingBottom: '8px' }}>
+                        <div>
+                          <strong style={{ color: '#ef4444', fontSize: '15px' }}>Return #{tr.returnNumber}</strong>
+                          <span style={{ fontSize: '12px', color: '#38bdf8', marginLeft: '12px', fontWeight: 'bold' }}>
+                            Orig Bill #{tr.originalBillNumber}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => {
+                              setShowTrashModal(false);
+                              setSelectedReturn(tr);
+                              setShowDetailModal(true);
+                            }}
+                            style={{
+                              padding: '4px 10px', borderRadius: '6px', background: '#3b82f6',
+                              color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px',
+                              display: 'inline-flex', alignItems: 'center', gap: '4px'
+                            }}
+                            title="View Return Details"
+                          >
+                            <FaEye size={12} /> Details
+                          </button>
+                          <button
+                            onClick={() => handleRestoreFromTrash(tr.id || tr.returnNumber)}
+                            style={{
+                              padding: '4px 10px', borderRadius: '6px', background: '#059669',
+                              color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px',
+                              display: 'inline-flex', alignItems: 'center', gap: '4px'
+                            }}
+                            title="Restore back to Sale Returns list"
+                          >
+                            🔄 Restore
+                          </button>
+                          <button
+                            onClick={() => handleRemoveFromTrash(tr)}
+                            style={{
+                              padding: '4px 10px', borderRadius: '6px', background: '#dc2626',
+                              color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px',
+                              display: 'inline-flex', alignItems: 'center', gap: '4px'
+                            }}
+                            title="Permanently delete from database"
+                          >
+                            <FaTrashAlt size={12} /> Remove
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Summary Details Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', fontSize: '12px', color: '#cbd5e1' }}>
+                        <div><strong>Customer:</strong> <span style={{ color: '#fff' }}>{tr.customerName || 'Walk-in'}</span></div>
+                        <div><strong>Phone:</strong> <span style={{ color: '#fff' }}>{tr.customerPhone || 'N/A'}</span></div>
+                        <div><strong>Date:</strong> <span style={{ color: '#fff' }}>{tr.returnDate || '-'}</span></div>
+                        <div><strong>Processed By:</strong> <span style={{ color: '#cbd5e1' }}>{tr.createdByName || 'Admin'}</span></div>
+                      </div>
+
+                      {/* Refund Amount Totals */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0f172a', padding: '8px 12px', borderRadius: '8px', fontSize: '13px' }}>
+                        <span>Returned Items: <strong>{(tr.items || []).length} item(s)</strong></span>
+                        <span>Refund Amount: <strong style={{ color: '#ef4444', fontSize: '15px' }}>₹{Number(tr.totalReturnAmount || 0).toFixed(2)}</strong></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {trashReturns.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={handleEmptyTrash}
+                  style={{
+                    padding: '8px 14px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.2)',
+                    color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px'
+                  }}
+                >
+                  Empty Trash (Clear Database)
+                </button>
+              ) : <div />}
+              <button
+                type="button"
+                onClick={() => setShowTrashModal(false)}
+                style={{
+                  padding: '8px 18px', borderRadius: '8px', background: '#334155',
+                  color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold'
+                }}
+              >
+                Close Trash
               </button>
             </div>
           </div>

@@ -32,10 +32,13 @@ class SaleReturn(db.Model):
     items = db.relationship('SaleReturnItem', backref='sale_return', lazy=True, cascade='all, delete-orphan')
 
     def to_dict(self):
+        display_ret = self.return_number.split('/', 1)[-1] if (self.return_number and '/' in self.return_number) else self.return_number
+        display_orig = self.original_bill_number.split('/', 1)[-1] if (self.original_bill_number and '/' in self.original_bill_number) else self.original_bill_number
         return {
             'id': self.id,
-            'returnNumber': self.return_number,
-            'originalBillNumber': self.original_bill_number,
+            'returnNumber': display_ret,
+            'originalBillNumber': display_orig,
+            'rawReturnNumber': self.return_number,
             'customerName': self.customer_name,
             'customerPhone': self.customer_phone,
             'customerAddress': self.customer_address,

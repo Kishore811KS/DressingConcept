@@ -1,7 +1,22 @@
-// EmployeeManager.js - Updated component with password field
 import React, { useState, useEffect } from 'react';
-
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import jsPDF from 'jspdf';
+import {
+  FaCalendarAlt,
+  FaMoneyBillWave,
+  FaShoppingBag,
+  FaDownload,
+  FaEye,
+  FaEdit,
+  FaTrash,
+  FaChevronDown,
+  FaChevronUp,
+  FaClock,
+  FaUserCheck,
+  FaBoxOpen,
+  FaExclamationCircle
+} from 'react-icons/fa';
 
 const BASE_URL = 'http://localhost:5000';
 const API_BASE_URL = `${BASE_URL}/api`;
@@ -16,6 +31,7 @@ const api = axios.create({
 });
 
 const EmployeeManager = () => {
+  const navigate = useNavigate();
   // State for employee list
   const [employees, setEmployees] = useState([]);
   const [userTypes, setUserTypes] = useState([]);
@@ -31,9 +47,31 @@ const EmployeeManager = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState(null);
 
+  // Report Modals State
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [attendanceEmployee, setAttendanceEmployee] = useState(null);
+  const [attendanceData, setAttendanceData] = useState({ attendances: [], statistics: {} });
+  const [attendanceMonth, setAttendanceMonth] = useState(new Date().getMonth() + 1);
+  const [attendanceYear, setAttendanceYear] = useState(new Date().getFullYear());
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
+
+  const [showSalaryModal, setShowSalaryModal] = useState(false);
+  const [salaryEmployee, setSalaryEmployee] = useState(null);
+  const [salaryRecord, setSalaryRecord] = useState(null);
+  const [salaryMonth, setSalaryMonth] = useState(new Date().getMonth() + 1);
+  const [salaryYear, setSalaryYear] = useState(new Date().getFullYear());
+  const [loadingSalary, setLoadingSalary] = useState(false);
+
+  const [showPurchasesModal, setShowPurchasesModal] = useState(false);
+  const [purchasesEmployee, setPurchasesEmployee] = useState(null);
+  const [purchasesData, setPurchasesData] = useState({ purchases: [], summary: { total_bills: 0, total_amount: 0, total_items: 0 } });
+  const [loadingPurchases, setLoadingPurchases] = useState(false);
+  const [expandedBillId, setExpandedBillId] = useState(null);
+
   // Password visibility states
   const [showPassword, setShowPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
+
 
   const [formData, setFormData] = useState({
     employee_id: '',
@@ -379,6 +417,291 @@ const EmployeeManager = () => {
     });
   };
 
+  // Open Attendance Report Modal
+  const openAttendanceReport = async (employee, month = attendanceMonth, year = attendanceYear) => {
+    const targetEmp = employee || attendanceEmployee;
+    if (!targetEmp) return;
+    setAttendanceEmployee(targetEmp);
+    setShowAttendanceModal(true);
+    setLoadingAttendance(true);
+    try {
+      const response = await api.get(`/attendance/monthly-summary?employee_id=${targetEmp.id}&month=${month}&year=${year}`);
+      setAttendanceData(response.data || { attendances: [], statistics: {} });
+    } catch (err) {
+      console.error('Error fetching attendance report:', err);
+      try {
+        const resHistory = await api.get(`/attendance/history?employee_id=${targetEmp.id}&limit=60`);
+        setAttendanceData({
+          attendances: resHistory.data?.attendances || [],
+          statistics: resHistory.data?.summary || {}
+        });
+      } catch (err2) {
+        console.error('Error fetching attendance history fallback:', err2);
+      }
+    } finally {
+      setLoadingAttendance(false);
+    }
+  };
+
+  // Open Salary Report Modal
+  const openSalaryReport = async (employee, month = salaryMonth, year = salaryYear) => {
+    const targetEmp = employee || salaryEmployee;
+    if (!targetEmp) return;
+    setSalaryEmployee(targetEmp);
+    setShowSalaryModal(true);
+    setLoadingSalary(true);
+    try {
+      // 1. Calculate / Fetch base salary record
+      const response = await api.get(`/salary/calculate?month=${month}&year=${year}`);
+      const list = response.data || [];
+      const daysInTargetMonth = new Date(year, month, 0).getDate();
+      let empSalary = list.find(s => s.employee_id === targetEmp.id) || {
+        employee_id: targetEmp.id,
+        employee_name: targetEmp.full_name,
+        basic_salary: targetEmp.basic_salary || 0,
+        monthly_salary: targetEmp.monthly_salary || 0,
+        calculated_salary: (targetEmp.basic_salary || 0) * daysInTargetMonth,
+        advance_amount: 0,
+        net_salary: (targetEmp.basic_salary || 0) * daysInTargetMonth,
+        status: 'pending',
+        present_days: 0,
+        absent_days: 0,
+        effective_days: 0,
+        working_days_threshold: daysInTargetMonth
+      };
+
+      // 2. Fetch employee product purchases for this month & year
+      let monthPurchasesTotal = 0;
+      let monthItems = [];
+      let monthBills = [];
+
+      try {
+        const purchasesRes = await api.get(`/employees/${targetEmp.id}/purchases`);
+        const allBills = purchasesRes.data?.purchases || [];
+
+        monthBills = allBills.filter(b => {
+          const dateVal = b.createdAt || b.created_at;
+          if (!dateVal) return true;
+          const d = new Date(dateVal);
+          return (d.getMonth() + 1) === Number(month) && d.getFullYear() === Number(year);
+        });
+
+        monthPurchasesTotal = monthBills.reduce((acc, b) => acc + (b.summary?.total !== undefined ? b.summary.total : (b.total || 0)), 0);
+
+        monthBills.forEach(bill => {
+          const items = bill.items || [];
+          items.forEach(item => {
+            monthItems.push({
+              bill_number: String(bill.billNumber || bill.bill_number || '').split('/').pop(),
+              bill_date: bill.createdAt || bill.created_at,
+              product_name: item.product_name || item.productName || 'Product',
+              product_code: item.product_code || item.productCode || '-',
+              quantity: item.quantity || 1,
+              sell_price: item.sell_price || item.sellPrice || 0,
+              total: item.total !== undefined ? item.total : ((item.sell_price || 0) * (item.quantity || 1))
+            });
+          });
+        });
+      } catch (pErr) {
+        console.error('Error fetching employee purchases for salary report:', pErr);
+      }
+
+      const gross = empSalary.calculated_salary || 0;
+      const adv = empSalary.advance_amount || 0;
+      const net = Math.max(0, gross - adv - monthPurchasesTotal);
+
+      empSalary = {
+        ...empSalary,
+        purchases_amount: monthPurchasesTotal,
+        purchased_items: monthItems,
+        purchased_bills: monthBills,
+        net_salary: net
+      };
+
+      setSalaryRecord(empSalary);
+    } catch (err) {
+      console.error('Error fetching salary report:', err);
+    } finally {
+      setLoadingSalary(false);
+    }
+  };
+
+  // Open Purchased Products Report Modal
+  const openPurchasesReport = async (employee) => {
+    if (!employee) return;
+    setPurchasesEmployee(employee);
+    setShowPurchasesModal(true);
+    setLoadingPurchases(true);
+    setExpandedBillId(null);
+    try {
+      const response = await api.get(`/employees/${employee.id}/purchases`);
+      setPurchasesData(response.data || { purchases: [], summary: { total_bills: 0, total_amount: 0, total_items: 0 } });
+    } catch (err) {
+      console.error('Error fetching employee purchases:', err);
+      try {
+        const queryTerm = employee.phone_number || employee.full_name;
+        const resBills = await api.get(`/billing/customer-bills?search=${encodeURIComponent(queryTerm)}`);
+        const bills = resBills.data || [];
+        const totAmt = bills.reduce((acc, b) => acc + (b.summary?.total || b.total || 0), 0);
+        const totQty = bills.reduce((acc, b) => acc + (b.items ? b.items.reduce((iAcc, i) => iAcc + (i.quantity || 0), 0) : 0), 0);
+        setPurchasesData({
+          summary: { total_bills: bills.length, total_amount: totAmt, total_items: totQty },
+          purchases: bills
+        });
+      } catch (err2) {
+        console.error('Fallback purchases search failed:', err2);
+      }
+    } finally {
+      setLoadingPurchases(false);
+    }
+  };
+
+  // Download Salary Payslip PDF
+  const downloadPayslipPDF = (employee, salary) => {
+    if (!employee || !salary) return;
+    const doc = new jsPDF();
+
+    // Header
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.text("Dressing Concept - Employee Payslip", 105, 20, null, null, "center");
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    doc.text(`Employee ID: ${employee.employee_id || '-'}`, 20, 35);
+    doc.text(`Employee Name: ${employee.full_name}`, 20, 42);
+    doc.text(`Department: ${employee.department || '-'}`, 20, 49);
+
+    doc.text(`Pay Period: ${monthNames[salaryMonth - 1]} ${salaryYear}`, 130, 35);
+    doc.text(`Designation: ${employee.designation || '-'}`, 130, 42);
+    doc.text(`User Type: ${employee.user_type || '-'}`, 130, 49);
+
+    doc.line(20, 54, 190, 54);
+
+    // Attendance & Earnings Breakdown
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Attendance & Salary Breakdown", 20, 64);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const daysInSalMonth = new Date(salary.year || salaryYear, salary.month || salaryMonth, 0).getDate();
+    doc.text(`Working Days Threshold: ${salary.num_days_in_month || salary.working_days_threshold || daysInSalMonth}`, 20, 74);
+    doc.text(`Present Days: ${salary.present_days || 0}`, 20, 83);
+    doc.text(`Paid Leaves: ${salary.paid_leaves || 0}`, 20, 92);
+    doc.text(`Half Days: ${salary.half_days || 0}`, 20, 101);
+
+    doc.text(`Effective Paid Days: ${salary.effective_days || 0}`, 120, 74);
+    doc.text(`Unpaid Leaves (LOP): ${salary.unpaid_leaves || 0}`, 120, 83);
+    doc.text(`Absent Days: ${salary.absent_days || 0}`, 120, 92);
+
+    doc.line(20, 108, 190, 108);
+
+    const grossSalary = salary.calculated_salary || 0;
+    const advance = salary.advance_amount || 0;
+    const purchasesAmount = salary.purchases_amount || 0;
+    const netSalary = salary.net_salary !== undefined ? salary.net_salary : Math.max(0, grossSalary - advance - purchasesAmount);
+
+    doc.setFontSize(11);
+    doc.text(`Gross Calculated Salary:`, 20, 115);
+    doc.text(`Rs. ${grossSalary.toLocaleString()}`, 140, 115);
+
+    doc.text(`Advance Salary Deducted:`, 20, 124);
+    doc.setTextColor(220, 53, 69);
+    doc.text(`- Rs. ${advance.toLocaleString()}`, 140, 124);
+
+    doc.text(`Product Purchases Deducted:`, 20, 133);
+    doc.text(`- Rs. ${purchasesAmount.toLocaleString()}`, 140, 133);
+    doc.setTextColor(0, 0, 0);
+
+    doc.line(20, 141, 190, 141);
+
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Net Take-Home Salary:`, 20, 153);
+    doc.setTextColor(40, 167, 69);
+    doc.text(`Rs. ${netSalary.toLocaleString()}`, 140, 153);
+    doc.setTextColor(0, 0, 0);
+
+    let currentY = 166;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "italic");
+    doc.text(`Payment Status: ${(salary.status || 'pending').toUpperCase()}`, 20, currentY);
+
+    currentY += 12;
+
+    // Purchased Products Details Section under NOTE:
+    const purchasesToDisplay = [];
+    if (salary.purchased_bills && salary.purchased_bills.length > 0) {
+      salary.purchased_bills.forEach(b => {
+        const bNo = String(b.billNumber || b.bill_number || b.id || 'N/A').split('/').pop();
+        const rawDate = b.createdAt || b.created_at || b.date || '';
+        const bDate = rawDate ? String(rawDate).split('T')[0] : '-';
+        const bAmt = b.total !== undefined ? b.total : (b.summary?.total || 0);
+        purchasesToDisplay.push({ bill_number: bNo, date: bDate, total: bAmt });
+      });
+    } else if (salary.purchased_items && salary.purchased_items.length > 0) {
+      const seen = new Set();
+      salary.purchased_items.forEach(item => {
+        const bNo = String(item.bill_number || 'N/A').split('/').pop();
+        if (!seen.has(bNo)) {
+          seen.add(bNo);
+          const rawDate = item.bill_date || item.created_at || '';
+          const bDate = rawDate ? String(rawDate).split('T')[0] : '-';
+          const bAmt = item.bill_total !== undefined ? item.bill_total : (item.total !== undefined ? item.total : 0);
+          purchasesToDisplay.push({ bill_number: bNo, date: bDate, total: bAmt });
+        }
+      });
+    }
+
+    if (purchasesToDisplay.length > 0) {
+      doc.line(20, currentY, 190, currentY);
+      currentY += 8;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(180, 0, 0);
+      doc.text("NOTE: Purchased Products", 20, currentY);
+      doc.setTextColor(0, 0, 0);
+      currentY += 6;
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      purchasesToDisplay.forEach((p, idx) => {
+        if (currentY > 230) {
+          doc.addPage();
+          currentY = 20;
+        }
+        doc.text(`${idx + 1}. Bill #${p.bill_number}  |  Date: ${p.date}  |  Total Amount: Rs. ${p.total.toLocaleString()}`, 25, currentY);
+        currentY += 5.5;
+      });
+    }
+
+    // Proprietor Seal & Signature on Bottom Right (no box)
+    const sealY = 242;
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 58, 138);
+    doc.text("DRESSING CONCEPTS", 162.5, sealY + 6, null, null, "center");
+
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    doc.text("PROPRIETOR", 162.5, sealY + 12, null, null, "center");
+    doc.text("SEAL & SIGNATURE", 162.5, sealY + 16, null, null, "center");
+
+    doc.setLineWidth(0.4);
+    doc.setDrawColor(150, 150, 150);
+    doc.line(140, sealY + 24, 185, sealY + 24);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(80, 80, 80);
+    doc.text("Authorized Signatory", 162.5, sealY + 28, null, null, "center");
+    doc.setTextColor(0, 0, 0);
+
+    doc.save(`Payslip_${employee.full_name}_${monthNames[salaryMonth - 1]}_${salaryYear}.pdf`);
+  };
+
+
   return (
     <div style={styles.container}>
       <div style={styles.card}>
@@ -414,7 +737,7 @@ const EmployeeManager = () => {
                     <th style={styles.tableHeader}>Designation</th>
                     <th style={styles.tableHeader}>User Type</th>
                     <th style={styles.tableHeader}>Phone</th>
-                    <th style={styles.tableHeader}>Salary</th>
+                    <th style={styles.tableHeader}>Monthly Salary</th>
                     <th style={styles.tableHeader}>DOJ</th>
                     <th style={styles.tableHeader}>Documents</th>
                     <th style={styles.tableHeader}>Actions</th>
@@ -432,7 +755,7 @@ const EmployeeManager = () => {
                       <td style={styles.tableCell}>{employee.designation || '-'}</td>
                       <td style={{ ...styles.tableCell, textTransform: 'capitalize' }}>{employee.user_type || '-'}</td>
                       <td style={styles.tableCell}>{employee.phone_number || '-'}</td>
-                      <td style={styles.tableCell}>₹{employee.basic_salary || '0'}</td>
+                      <td style={styles.tableCell}>₹{employee.monthly_salary || (employee.basic_salary ? (Number(employee.basic_salary) * 30).toFixed(2) : '0')}</td>
                       <td style={styles.tableCell}>{formatDate(employee.date_of_joining)}</td>
                       <td style={styles.tableCell}>
                         {employee.aadhar_attachment && (
@@ -456,22 +779,46 @@ const EmployeeManager = () => {
                       <td style={styles.tableCell}>
                         <div style={styles.actionButtons}>
                           <button
+                            onClick={() => openAttendanceReport(employee)}
+                            style={{ ...styles.actionButton, backgroundColor: '#3b82f6', color: 'white' }}
+                            title="Attendance Report"
+                          >
+                            <FaCalendarAlt />
+                          </button>
+                          <button
+                            onClick={() => openSalaryReport(employee)}
+                            style={{ ...styles.actionButton, backgroundColor: '#8b5cf6', color: 'white' }}
+                            title="Salary Report"
+                          >
+                            <FaMoneyBillWave />
+                          </button>
+                          <button
+                            onClick={() => openPurchasesReport(employee)}
+                            style={{ ...styles.actionButton, backgroundColor: '#ec4899', color: 'white' }}
+                            title="Purchased Products Report"
+                          >
+                            <FaShoppingBag />
+                          </button>
+                          <button
                             onClick={() => viewEmployee(employee)}
                             style={{ ...styles.actionButton, ...styles.viewButton }}
+                            title="View Profile"
                           >
-                            View
+                            <FaEye />
                           </button>
                           <button
                             onClick={() => editEmployee(employee)}
                             style={{ ...styles.actionButton, ...styles.editButton }}
+                            title="Edit Employee"
                           >
-                            Edit
+                            <FaEdit />
                           </button>
                           <button
                             onClick={() => confirmDelete(employee.id)}
                             style={{ ...styles.actionButton, ...styles.deleteButton }}
+                            title="Delete Employee"
                           >
-                            Delete
+                            <FaTrash />
                           </button>
                         </div>
                       </td>
@@ -811,12 +1158,12 @@ const EmployeeManager = () => {
                     <span style={{ ...styles.detailValue, textTransform: 'capitalize' }}>{selectedEmployee.user_type || '-'}</span>
                   </div>
                   <div style={styles.detailItem}>
-                    <label style={styles.detailLabel}>Per Day Salary:</label>
-                    <span style={styles.detailValue}>₹{selectedEmployee.basic_salary || '0'}</span>
+                    <label style={styles.detailLabel}>Monthly Salary:</label>
+                    <span style={{ ...styles.detailValue, fontWeight: 'bold', color: '#4ade80' }}>₹{selectedEmployee.monthly_salary || (selectedEmployee.basic_salary ? (Number(selectedEmployee.basic_salary) * 30).toFixed(2) : '0')}</span>
                   </div>
                   <div style={styles.detailItem}>
-                    <label style={styles.detailLabel}>Monthly Salary:</label>
-                    <span style={styles.detailValue}>₹{selectedEmployee.monthly_salary || (selectedEmployee.basic_salary ? (selectedEmployee.basic_salary * 30).toFixed(2) : '0')}</span>
+                    <label style={styles.detailLabel}>Per Day Salary Rate:</label>
+                    <span style={styles.detailValue}>₹{selectedEmployee.basic_salary || '0'}</span>
                   </div>
                 </div>
               </div>
@@ -895,6 +1242,412 @@ const EmployeeManager = () => {
           </div>
         </div>
       )}
+
+      {/* Attendance Report Modal */}
+      {showAttendanceModal && attendanceEmployee && (
+        <div style={styles.modalOverlay} onClick={() => setShowAttendanceModal(false)}>
+          <div style={styles.modalLarge} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FaCalendarAlt style={{ color: '#3b82f6', fontSize: '24px' }} />
+                <div>
+                  <h2 style={styles.modalTitle}>Attendance Report - {attendanceEmployee.full_name}</h2>
+                  <span style={{ color: '#a0a5c0', fontSize: '13px' }}>
+                    Emp ID: {attendanceEmployee.employee_id} | Department: {attendanceEmployee.department || 'N/A'}
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setShowAttendanceModal(false)} style={styles.modalClose}>×</button>
+            </div>
+
+            <div style={styles.modalBody}>
+              {/* Month & Year Selection Bar */}
+              <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '20px', backgroundColor: '#0a0e27', padding: '12px 18px', borderRadius: '8px', border: '1px solid #2a2f4a' }}>
+                <label style={{ color: '#a0a5c0', fontWeight: '500', fontSize: '14px' }}>Select Month & Year:</label>
+                <select
+                  value={attendanceMonth}
+                  onChange={(e) => {
+                    const m = parseInt(e.target.value);
+                    setAttendanceMonth(m);
+                    openAttendanceReport(attendanceEmployee, m, attendanceYear);
+                  }}
+                  style={{ ...styles.input, width: '140px' }}
+                >
+                  {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m, idx) => (
+                    <option key={m} value={idx + 1}>{m}</option>
+                  ))}
+                </select>
+                <select
+                  value={attendanceYear}
+                  onChange={(e) => {
+                    const y = parseInt(e.target.value);
+                    setAttendanceYear(y);
+                    openAttendanceReport(attendanceEmployee, attendanceMonth, y);
+                  }}
+                  style={{ ...styles.input, width: '100px' }}
+                >
+                  {[2023, 2024, 2025, 2026, 2027].map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              {loadingAttendance ? (
+                <p style={styles.loadingMessage}>Loading attendance data...</p>
+              ) : (
+                <>
+                  {/* Stat Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #3b82f633', textAlign: 'center' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Total Tracked Days</span>
+                      <h3 style={{ color: '#3b82f6', fontSize: '24px', margin: '5px 0 0 0' }}>{attendanceData.statistics?.total_days || (attendanceData.attendances?.length || 0)}</h3>
+                    </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #10b98133', textAlign: 'center' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Present Days</span>
+                      <h3 style={{ color: '#10b981', fontSize: '24px', margin: '5px 0 0 0' }}>{attendanceData.statistics?.present || 0}</h3>
+                    </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #ef444433', textAlign: 'center' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Absent Days</span>
+                      <h3 style={{ color: '#ef4444', fontSize: '24px', margin: '5px 0 0 0' }}>{attendanceData.statistics?.absent || 0}</h3>
+                    </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #f59e0b33', textAlign: 'center' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Late / Half Days</span>
+                      <h3 style={{ color: '#f59e0b', fontSize: '24px', margin: '5px 0 0 0' }}>{attendanceData.statistics?.late || 0}</h3>
+                    </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #8b5cf633', textAlign: 'center' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Attendance Rate</span>
+                      <h3 style={{ color: '#8b5cf6', fontSize: '24px', margin: '5px 0 0 0' }}>{attendanceData.statistics?.attendance_rate !== undefined ? `${attendanceData.statistics.attendance_rate}%` : 'N/A'}</h3>
+                    </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #06b6d433', textAlign: 'center' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Total Hours Worked</span>
+                      <h3 style={{ color: '#06b6d4', fontSize: '24px', margin: '5px 0 0 0' }}>{attendanceData.statistics?.total_hours || 0} hrs</h3>
+                    </div>
+                  </div>
+
+                  {/* Attendance Table */}
+                  <div style={styles.tableWrapper}>
+                    <table style={styles.table}>
+                      <thead>
+                        <tr style={styles.tableHeaderRow}>
+                          <th style={styles.tableHeader}>Date</th>
+                          <th style={styles.tableHeader}>Check In</th>
+                          <th style={styles.tableHeader}>Check Out</th>
+                          <th style={styles.tableHeader}>Total Hours</th>
+                          <th style={styles.tableHeader}>Overtime</th>
+                          <th style={styles.tableHeader}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {!attendanceData.attendances || attendanceData.attendances.length === 0 ? (
+                          <tr>
+                            <td colSpan="6" style={{ ...styles.tableCell, textAlign: 'center', padding: '20px', color: '#a0a5c0' }}>
+                              No attendance records found for this period.
+                            </td>
+                          </tr>
+                        ) : (
+                          attendanceData.attendances.map((rec) => (
+                            <tr key={rec.id || rec.date} style={styles.tableRow}>
+                              <td style={styles.tableCell}>{formatDate(rec.date)}</td>
+                              <td style={styles.tableCell}>{rec.check_in_time ? new Date(rec.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                              <td style={styles.tableCell}>{rec.check_out_time ? new Date(rec.check_out_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                              <td style={styles.tableCell}>{rec.total_hours ? `${rec.total_hours} hrs` : '-'}</td>
+                              <td style={styles.tableCell}>{rec.overtime ? `${rec.overtime} hrs` : '-'}</td>
+                              <td style={styles.tableCell}>
+                                <span style={{
+                                  padding: '4px 10px',
+                                  borderRadius: '12px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  textTransform: 'capitalize',
+                                  backgroundColor: rec.status === 'present' ? '#10b98122' : rec.status === 'absent' ? '#ef444422' : '#f59e0b22',
+                                  color: rec.status === 'present' ? '#10b981' : rec.status === 'absent' ? '#ef4444' : '#f59e0b',
+                                  border: `1px solid ${rec.status === 'present' ? '#10b981' : rec.status === 'absent' ? '#ef4444' : '#f59e0b'}`
+                                }}>
+                                  {rec.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div style={styles.modalFooter}>
+              <button onClick={() => setShowAttendanceModal(false)} style={styles.modalButton}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Salary Report Modal */}
+      {showSalaryModal && salaryEmployee && (
+        <div style={styles.modalOverlay} onClick={() => setShowSalaryModal(false)}>
+          <div style={styles.modalLarge} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FaMoneyBillWave style={{ color: '#8b5cf6', fontSize: '24px' }} />
+                <div>
+                  <h2 style={styles.modalTitle}>Salary Report - {salaryEmployee.full_name}</h2>
+                  <span style={{ color: '#a0a5c0', fontSize: '13px' }}>
+                    Emp ID: {salaryEmployee.employee_id} | Designation: {salaryEmployee.designation || 'N/A'}
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setShowSalaryModal(false)} style={styles.modalClose}>×</button>
+            </div>
+
+            <div style={styles.modalBody}>
+              {/* Month & Year Selection Bar */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', backgroundColor: '#0a0e27', padding: '12px 18px', borderRadius: '8px', border: '1px solid #2a2f4a', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <label style={{ color: '#a0a5c0', fontWeight: '500', fontSize: '14px' }}>Pay Period:</label>
+                  <select
+                    value={salaryMonth}
+                    onChange={(e) => {
+                      const m = parseInt(e.target.value);
+                      setSalaryMonth(m);
+                      openSalaryReport(salaryEmployee, m, salaryYear);
+                    }}
+                    style={{ ...styles.input, width: '140px' }}
+                  >
+                    {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m, idx) => (
+                      <option key={m} value={idx + 1}>{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={salaryYear}
+                    onChange={(e) => {
+                      const y = parseInt(e.target.value);
+                      setSalaryYear(y);
+                      openSalaryReport(salaryEmployee, salaryMonth, y);
+                    }}
+                    style={{ ...styles.input, width: '100px' }}
+                  >
+                    {[2023, 2024, 2025, 2026, 2027].map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {salaryRecord && (
+                  <button
+                    onClick={() => downloadPayslipPDF(salaryEmployee, salaryRecord)}
+                    style={{ ...styles.modalButton, backgroundColor: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <FaDownload /> Download Payslip PDF
+                  </button>
+                )}
+              </div>
+
+              {loadingSalary ? (
+                <p style={styles.loadingMessage}>Calculating salary data...</p>
+              ) : !salaryRecord ? (
+                <p style={styles.emptyMessage}>No salary record found for this period.</p>
+              ) : (
+                <>
+                  {/* KPI Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '16px', borderRadius: '8px', border: '1px solid #2a2f4a' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Per Day Basic Salary</span>
+                      <h3 style={{ color: '#ffffff', fontSize: '20px', margin: '6px 0 0 0' }}>₹{salaryRecord.basic_salary || 0}</h3>
+                    </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '16px', borderRadius: '8px', border: '1px solid #2a2f4a' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Effective Paid Days</span>
+                      <h3 style={{ color: '#3b82f6', fontSize: '20px', margin: '6px 0 0 0' }}>{salaryRecord.effective_days || 0} / {salaryRecord.num_days_in_month || salaryRecord.working_days_threshold || new Date(salaryRecord.year || salaryYear, salaryRecord.month || salaryMonth, 0).getDate()}</h3>
+                    </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '16px', borderRadius: '8px', border: '1px solid #2a2f4a' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Gross Calculated Salary</span>
+                      <h3 style={{ color: '#8b5cf6', fontSize: '20px', margin: '6px 0 0 0' }}>₹{(salaryRecord.calculated_salary || 0).toLocaleString()}</h3>
+                    </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '16px', borderRadius: '8px', border: '1px solid #2a2f4a' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Advance Deducted</span>
+                      <h3 style={{ color: '#ef4444', fontSize: '20px', margin: '6px 0 0 0' }}>- ₹{(salaryRecord.advance_amount || 0).toLocaleString()}</h3>
+                    </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '16px', borderRadius: '8px', border: '1px solid #ec489933' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Purchases Deducted</span>
+                      <h3 style={{ color: '#ec4899', fontSize: '20px', margin: '6px 0 0 0' }}>- ₹{(salaryRecord.purchases_amount || 0).toLocaleString()}</h3>
+                    </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '16px', borderRadius: '8px', border: '1px solid #10b981' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Net Take-Home Pay</span>
+                      <h3 style={{ color: '#10b981', fontSize: '22px', fontWeight: 'bold', margin: '6px 0 0 0' }}>
+                        ₹{(salaryRecord.net_salary !== undefined ? salaryRecord.net_salary : Math.max(0, (salaryRecord.calculated_salary || 0) - (salaryRecord.advance_amount || 0) - (salaryRecord.purchases_amount || 0))).toLocaleString()}
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* Salary Calculation Breakdown */}
+                  <div style={styles.detailSection}>
+                    <h3 style={styles.detailSectionTitle}>Salary Computation Summary</h3>
+                    <div style={styles.detailGrid}>
+                      <div style={styles.detailItem}>
+                        <label style={styles.detailLabel}>Payment Status:</label>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '4px 12px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          width: 'fit-content',
+                          textTransform: 'uppercase',
+                          backgroundColor: salaryRecord.status === 'paid' ? '#10b98122' : '#f59e0b22',
+                          color: salaryRecord.status === 'paid' ? '#10b981' : '#f59e0b',
+                          border: `1px solid ${salaryRecord.status === 'paid' ? '#10b981' : '#f59e0b'}`
+                        }}>
+                          {salaryRecord.status || 'pending'}
+                        </span>
+                      </div>
+                      <div style={styles.detailItem}>
+                        <label style={styles.detailLabel}>Present Days:</label>
+                        <span style={styles.detailValue}>{salaryRecord.present_days || 0}</span>
+                      </div>
+                      <div style={styles.detailItem}>
+                        <label style={styles.detailLabel}>Paid Leaves:</label>
+                        <span style={styles.detailValue}>{salaryRecord.paid_leaves || 0}</span>
+                      </div>
+                      <div style={styles.detailItem}>
+                        <label style={styles.detailLabel}>Half Days:</label>
+                        <span style={styles.detailValue}>{salaryRecord.half_days || 0}</span>
+                      </div>
+                      <div style={styles.detailItem}>
+                        <label style={styles.detailLabel}>Unpaid Leaves / Absent:</label>
+                        <span style={styles.detailValue}>{(salaryRecord.unpaid_leaves || 0) + (salaryRecord.absent_days || 0)}</span>
+                      </div>
+                      <div style={styles.detailItem}>
+                        <label style={styles.detailLabel}>Payment Date:</label>
+                        <span style={styles.detailValue}>{formatDate(salaryRecord.payment_date)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Purchased Products Details in Salary Modal */}
+                  <div style={{ ...styles.detailSection, marginTop: '20px' }}>
+                    <h3 style={{ ...styles.detailSectionTitle, color: '#ec4899', borderLeftColor: '#ec4899' }}>
+                      Purchased Products Details ({salaryMonth}/{salaryYear})
+                    </h3>
+
+                    {!salaryRecord.purchased_items || salaryRecord.purchased_items.length === 0 ? (
+                      <p style={{ color: '#a0a5c0', fontSize: '13px', margin: '5px 0 0 0' }}>
+                        No product purchases recorded for this pay period.
+                      </p>
+                    ) : (
+                      <div style={styles.tableWrapper}>
+                        <table style={{ ...styles.table, fontSize: '13px' }}>
+                          <thead>
+                            <tr style={styles.tableHeaderRow}>
+                              <th style={styles.tableHeader}>Bill #</th>
+                              <th style={styles.tableHeader}>Date</th>
+                              <th style={styles.tableHeader}>Total Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(salaryRecord.purchased_bills || salaryRecord.purchased_items || []).map((item, idx) => (
+                              <tr key={idx} style={styles.tableRow}>
+                                <td style={{ ...styles.tableCell, fontWeight: 'bold', color: '#c2185b' }}>{String(item.bill_number || item.billNumber || '').split('/').pop()}</td>
+                                <td style={styles.tableCell}>{formatDate(item.date || item.bill_date || item.created_at)}</td>
+                                <td style={{ ...styles.tableCell, fontWeight: 'bold', color: '#ef4444' }}>- ₹{(item.total !== undefined ? item.total : (item.summary?.total || 0)).toLocaleString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                </>
+              )}
+            </div>
+
+            <div style={styles.modalFooter}>
+              <button onClick={() => setShowSalaryModal(false)} style={styles.modalButton}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Purchased Products Report Modal */}
+      {showPurchasesModal && purchasesEmployee && (
+        <div style={styles.modalOverlay} onClick={() => setShowPurchasesModal(false)}>
+          <div style={styles.modalLarge} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FaShoppingBag style={{ color: '#ec4899', fontSize: '24px' }} />
+                <div>
+                  <h2 style={styles.modalTitle}>Purchased Products Details - {purchasesEmployee.full_name}</h2>
+                  <span style={{ color: '#a0a5c0', fontSize: '13px' }}>
+                    Emp ID: {purchasesEmployee.employee_id} | Phone: {purchasesEmployee.phone_number || 'N/A'}
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setShowPurchasesModal(false)} style={styles.modalClose}>×</button>
+            </div>
+
+            <div style={styles.modalBody}>
+              {loadingPurchases ? (
+                <p style={styles.loadingMessage}>Loading purchase history...</p>
+              ) : (
+                <>
+                  {/* KPI Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '25px' }}>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '16px', borderRadius: '8px', border: '1px solid #ec489933', textAlign: 'center' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Total Orders / Bills</span>
+                      <h3 style={{ color: '#ec4899', fontSize: '24px', margin: '6px 0 0 0' }}>{purchasesData.summary?.total_bills || 0}</h3>
+                    </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '16px', borderRadius: '8px', border: '1px solid #3b82f633', textAlign: 'center' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Total Items Purchased</span>
+                      <h3 style={{ color: '#3b82f6', fontSize: '24px', margin: '6px 0 0 0' }}>{purchasesData.summary?.total_items || 0}</h3>
+                    </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '16px', borderRadius: '8px', border: '1px solid #10b98133', textAlign: 'center' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Total Amount Spent</span>
+                      <h3 style={{ color: '#10b981', fontSize: '24px', margin: '6px 0 0 0' }}>₹{(purchasesData.summary?.total_amount || 0).toLocaleString()}</h3>
+                    </div>
+                  </div>
+
+                  {/* Purchased Bills List */}
+                  {!purchasesData.purchases || purchasesData.purchases.length === 0 ? (
+                    <p style={styles.emptyMessage}>No product purchase history found for this employee.</p>
+                  ) : (
+                    <div style={styles.tableWrapper}>
+                      <table style={{ ...styles.table, fontSize: '13px' }}>
+                        <thead>
+                          <tr style={styles.tableHeaderRow}>
+                            <th style={styles.tableHeader}>#</th>
+                            <th style={styles.tableHeader}>Bill Number</th>
+                            <th style={styles.tableHeader}>Date</th>
+                            <th style={styles.tableHeader}>Total Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {purchasesData.purchases.map((bill, idx) => {
+                            const billTotal = bill.summary?.total !== undefined ? bill.summary.total : (bill.total || 0);
+                            const billDate = formatDate(bill.createdAt || bill.created_at || bill.date);
+                            return (
+                              <tr key={bill.id || idx} style={styles.tableRow}>
+                                <td style={styles.tableCell}>{idx + 1}</td>
+                                <td style={{ ...styles.tableCell, fontWeight: 'bold', color: '#c2185b' }}>Bill #{String(bill.billNumber || bill.bill_number || '').split('/').pop()}</td>
+                                <td style={styles.tableCell}>{billDate}</td>
+                                <td style={{ ...styles.tableCell, fontWeight: 'bold', color: '#10b981' }}>₹{Number(billTotal).toLocaleString()}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div style={styles.modalFooter}>
+              <button onClick={() => setShowPurchasesModal(false)} style={styles.modalButton}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
@@ -1009,7 +1762,8 @@ const styles = {
     fontWeight: '600',
     color: '#a0a5c0',
     textTransform: 'uppercase',
-    letterSpacing: '0.5px'
+    letterSpacing: '0.5px',
+    whiteSpace: 'nowrap'
   },
   tableRow: {
     borderBottom: '1px solid #2a2f4a',
@@ -1018,7 +1772,9 @@ const styles = {
   tableCell: {
     padding: '12px 16px',
     fontSize: '14px',
-    color: '#e0e5f0'
+    color: '#e0e5f0',
+    whiteSpace: 'nowrap',
+    verticalAlign: 'middle'
   },
   whiteText: {
     color: '#ffffff'
@@ -1047,18 +1803,24 @@ const styles = {
     color: '#ffffff'
   },
   actionButtons: {
-    display: 'flex',
-    gap: '8px',
-    flexWrap: 'wrap'
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    whiteSpace: 'nowrap',
+    flexWrap: 'nowrap'
   },
   actionButton: {
-    padding: '6px 12px',
-    fontSize: '12px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '32px',
+    height: '32px',
+    padding: '0',
+    fontSize: '14px',
     border: 'none',
-    borderRadius: '4px',
+    borderRadius: '6px',
     cursor: 'pointer',
-    fontWeight: '500',
-    transition: 'opacity 0.2s'
+    transition: 'all 0.15s'
   },
   viewButton: {
     backgroundColor: '#17a2b8',

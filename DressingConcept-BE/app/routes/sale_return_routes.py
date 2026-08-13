@@ -25,17 +25,32 @@ def create_sale_return():
         data = request.get_json() or {}
         
         original_bill_number = str(data.get('originalBillNumber', '')).strip()
-        if not original_bill_number:
-            return jsonify({'error': 'Original Bill Number is required.'}), 400
 
-        # Validate original bill existence
-        original_bill = Bill.query.filter_by(bill_number=original_bill_number).first()
-        if not original_bill:
-            alt_number = original_bill_number.lstrip('0')
-            possible_numbers = [n for n in [original_bill_number, alt_number] if n]
-            original_bill = Bill.query.filter(Bill.bill_number.in_(possible_numbers)).first()
+        # Smart candidate matching for original bill
+        original_bill = None
+        if original_bill_number and original_bill_number.upper() != "DIRECT":
+            original_bill = Bill.query.filter_by(bill_number=original_bill_number).first()
             if not original_bill:
-                return jsonify({'error': f'Original Bill Number #{original_bill_number} does not exist.'}), 404
+                from app.routes.billing_routes import get_current_financial_year
+                fy_prefix = get_current_financial_year()
+                clean_no = original_bill_number.split('/')[-1].rstrip('N').rstrip('n').rstrip('R').rstrip('r')
+                clean_digits = re.sub(r'\D', '', clean_no)
+                possible = set([original_bill_number, original_bill_number.upper(), clean_no])
+                if clean_digits:
+                    num = int(clean_digits)
+                    padded = clean_digits.zfill(4)
+                    possible.update([
+                        f"{fy_prefix}/{num}N",
+                        f"{fy_prefix}/{num}R",
+                        f"{fy_prefix}/{padded}N",
+                        f"{num}N",
+                        f"{num}R",
+                        f"{padded}N",
+                        f"{padded}R"
+                    ])
+                original_bill = Bill.query.filter(Bill.bill_number.in_(list(possible))).first()
+
+        ref_bill_no = original_bill.bill_number if original_bill else (original_bill_number or "DIRECT")
 
         items_data = data.get('items', [])
         if not items_data or len(items_data) == 0:
@@ -55,7 +70,7 @@ def create_sale_return():
         # ── ANTI-DUPLICATE SUBMISSION CHECK ──
         # If an identical return for the same bill was processed in the last 15 seconds, return existing instead of duplicating
         recent_duplicate = SaleReturn.query.filter(
-            SaleReturn.original_bill_number == original_bill.bill_number,
+            SaleReturn.original_bill_number == ref_bill_no,
             SaleReturn.total_return_amount == total_return_amount,
             SaleReturn.created_at >= datetime.utcnow() - timedelta(seconds=15)
         ).first()
@@ -67,7 +82,7 @@ def create_sale_return():
             }), 200
 
         # ── CUMULATIVE PRIOR RETURNS CHECK ──
-        prior_returns = SaleReturn.query.filter_by(original_bill_number=original_bill.bill_number).all()
+        prior_returns = SaleReturn.query.filter_by(original_bill_number=ref_bill_no).all() if ref_bill_no else []
         already_returned = {}
         for pr in prior_returns:
             for item in pr.items:
@@ -103,16 +118,6 @@ def create_sale_return():
             prev_ret = max(already_returned.get(k_code, 0), already_returned.get(k_name, 0))
             max_refundable = orig_qty - prev_ret
 
-            if returned_qty > max_refundable:
-                if max_refundable <= 0:
-                    return jsonify({
-                        'error': f'"{product_name}" from Original Bill #{original_bill.bill_number} has already been fully returned.'
-                    }), 400
-                else:
-                    return jsonify({
-                        'error': f'Cannot return {returned_qty} of "{product_name}". Only {max_refundable} remaining returnable ({prev_ret} already returned).'
-                    }), 400
-
             item_total = round(sell_price * returned_qty, 2)
             computed_subtotal += item_total
 
@@ -138,17 +143,20 @@ def create_sale_return():
         tax_amount = float(data.get('tax', 0) or 0)
         subtotal_amount = float(data.get('subtotal') or computed_subtotal)
 
-        # Calculate reward points deduction: 1 Point for every ₹100 of Sale Return Amount
-        reward_points_deducted = math.floor(total_return_amount / 100.0)
+        # Do not deduct reward points on Sale Return
+        reward_points_deducted = 0.0
 
         req_ret_no = str(data.get('returnNumber', '')).strip()
         if req_ret_no:
-            if req_ret_no.isdigit():
-                return_number = f"{req_ret_no.zfill(4)}R"
-            elif not (req_ret_no.endswith('R') or req_ret_no.endswith('r')):
-                return_number = f"{req_ret_no}R"
-            else:
+            from app.routes.billing_routes import get_current_financial_year
+            fy_prefix = get_current_financial_year()
+            if '/' in req_ret_no:
                 return_number = req_ret_no.upper()
+            else:
+                clean_seq = req_ret_no.rstrip('R').rstrip('r')
+                if not clean_seq.endswith('R'):
+                    clean_seq = f"{clean_seq}R"
+                return_number = f"{fy_prefix}/{clean_seq}"
         else:
             return_number = generate_return_number()
 
@@ -203,24 +211,6 @@ def create_sale_return():
                 supp_item = Item.query.filter_by(name=str(sri.product_name)).first()
             if supp_item:
                 supp_item.quantity = int(supp_item.quantity or 0) + int(qty)
-
-        # Deduct reward points from Customer profile in customer database
-        target_phone = cust_phone
-        if target_phone and target_phone.strip():
-            clean_p = ''.join(filter(str.isdigit, str(target_phone)))
-            conditions = []
-            if target_phone:
-                conditions.append(CustomerRewards.phone == target_phone)
-                conditions.append(CustomerRewards.member_id == target_phone)
-            if clean_p:
-                conditions.append(CustomerRewards.phone == clean_p)
-                conditions.append(CustomerRewards.member_id == clean_p)
-
-            if conditions:
-                customer_reward = CustomerRewards.query.filter(db.or_(*conditions)).first()
-                if customer_reward:
-                    customer_reward.current_balance = max(0.0, float(customer_reward.current_balance or 0) - reward_points_deducted)
-                    customer_reward.total_points_redeemed = float(customer_reward.total_points_redeemed or 0) + reward_points_deducted
 
         db.session.add(sale_return)
         db.session.commit()
@@ -307,5 +297,28 @@ def get_sale_return_detail(identifier):
         return jsonify({'saleReturn': sr.to_dict()}), 200
 
     except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@sale_return_bp.route('/sale-returns/<int:return_id>', methods=['DELETE'])
+def delete_sale_return(return_id):
+    try:
+        sr = SaleReturn.query.get(return_id)
+        if not sr:
+            return jsonify({'error': 'Sale Return record not found.'}), 404
+
+        # Delete related items
+        if hasattr(sr, 'items') and sr.items:
+            for item in list(sr.items):
+                db.session.delete(item)
+
+        db.session.delete(sr)
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': f'Sale Return #{sr.return_number} permanently deleted'}), 200
+
+    except Exception as e:
+        db.session.rollback()
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500

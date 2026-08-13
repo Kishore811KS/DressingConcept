@@ -36,6 +36,7 @@ import {
   FaChartLine,
   FaKeyboard,
   FaUndo,
+  FaBook,
 } from "react-icons/fa";
 
 import axios from 'axios';
@@ -89,6 +90,7 @@ const Sidebar = ({ isOpen }) => {
       '/warranty': 'W',
       '/bill': 'B',
       '/billreport': 'R',
+      '/ledger-book': 'LB',
       '/salereturn': 'SR',
       '/service': 'G',
       '/serviceBillView': 'X',
@@ -277,11 +279,12 @@ const Sidebar = ({ isOpen }) => {
           )} */}
 
           {/* Billing Section */}
-          {isSectionVisible(["create_bill", "bill_reports", "sale_return", "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount"]) && (
+          {isSectionVisible(["create_bill", "bill_reports", "ledger_book", "sale_return", "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount"]) && (
             <>
               <div style={styles.sectionTitle}>Billing</div>
               {hasPermission("create_bill") && renderLink("/bill", <FaReceipt style={styles.icon} />, "Create Bill")}
               {hasPermission("bill_reports") && renderLink("/billreport", <FaChartLine style={styles.icon} />, "Bill Reports")}
+              {(hasPermission("bill_reports") || hasPermission("ledger_book")) && renderLink("/ledger-book", <FaBook style={styles.icon} />, "Ledger Book")}
               {(hasPermission("bill_reports") || hasPermission("sale_return")) && renderLink("/salereturn", <FaUndo style={styles.icon} />, "Sale Return")}
               {hasPermission("service_bill") && renderLink("/service", <FaShoppingCart style={styles.icon} />, "Service Bill")}
               {hasPermission("service_bills") && renderLink("/serviceBillView", <FaFileContract style={styles.icon} />, "Service Bills")}

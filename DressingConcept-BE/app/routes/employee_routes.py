@@ -605,3 +605,71 @@ def download_file(filename):
     except Exception as e:
         print(f"Error in download_file: {str(e)}")
         return jsonify({'error': 'Failed to download file'}), 500
+
+
+# ========== EMPLOYEE REPORT ROUTES ==========
+
+@employee_bp.route('/employees/<int:id>/purchases', methods=['GET'])
+def get_employee_purchases(id):
+    """Get all purchase bills and products purchased by a specific employee"""
+    try:
+        from app.models.billing import Bill
+        from sqlalchemy import or_
+
+        employee = Employee.query.get(id)
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 404
+
+        # Search for bills matching employee phone or name
+        conditions = []
+        if employee.phone_number:
+            conditions.append(Bill.customer_phone == employee.phone_number)
+        if employee.full_name:
+            conditions.append(Bill.customer_name.ilike(employee.full_name))
+        
+        if not conditions:
+            return jsonify({'purchases': [], 'summary': {'total_bills': 0, 'total_amount': 0, 'total_items': 0}}), 200
+
+        bills = Bill.query.filter(or_(*conditions)).order_by(Bill.created_at.desc()).all()
+
+        total_amount = sum(b.total or 0 for b in bills)
+        total_items = sum(sum(item.quantity or 0 for item in b.items) for b in bills)
+
+        return jsonify({
+            'employee_id': employee.id,
+            'employee_name': employee.full_name,
+            'summary': {
+                'total_bills': len(bills),
+                'total_amount': round(total_amount, 2),
+                'total_items': total_items
+            },
+            'purchases': [b.to_dict() for b in bills]
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching employee purchases: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'error': f"Failed to fetch employee purchases: {str(e)}"}), 500
+
+
+@employee_bp.route('/employees/<int:id>/salary-history', methods=['GET'])
+def get_employee_salary_history(id):
+    """Get salary history for a specific employee across all months"""
+    try:
+        from app.models.salary import Salary
+
+        employee = Employee.query.get(id)
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 404
+
+        salaries = Salary.query.filter_by(employee_id=id).order_by(Salary.year.desc(), Salary.month.desc()).all()
+
+        return jsonify({
+            'employee_id': employee.id,
+            'employee_name': employee.full_name,
+            'salaries': [s.to_dict() for s in salaries]
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching employee salary history: {str(e)}")
+        return jsonify({'error': f"Failed to fetch salary history: {str(e)}"}), 500

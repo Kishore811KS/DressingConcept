@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import axios from 'axios';
 
@@ -20,18 +20,17 @@ const DEFAULT_UNIT = "PCS";
 
 const pad = (value) => String(value).padStart(2, "0");
 
-const formatBillNo = (val, type = "N") => {
-  if (val === null || val === undefined || val === "") return `0001${type}`;
+const formatBillNo = (val, type = 'N') => {
+  if (val === null || val === undefined || val === "") return type === 'R' ? "1R" : "1N";
   const str = String(val).trim();
-  if (/^\d+[NRnr]$/.test(str)) {
-    const digits = str.slice(0, -1).padStart(4, "0");
-    const letter = str.slice(-1).toUpperCase();
-    return `${digits}${letter}`;
-  }
-  if (/^\d+$/.test(str)) {
-    return `${str.padStart(4, "0")}${type}`;
-  }
-  return str.toUpperCase();
+  const rawSeq = str.includes('/') ? str.split('/').pop() : str;
+  const cleanDigits = rawSeq.replace(/\D/g, "");
+  if (!cleanDigits) return str;
+  const num = parseInt(cleanDigits, 10);
+  let suffix = type === 'R' ? 'R' : 'N';
+  if (rawSeq.toUpperCase().endsWith('R')) suffix = 'R';
+  else if (rawSeq.toUpperCase().endsWith('N')) suffix = 'N';
+  return isNaN(num) ? str : `${num}${suffix}`;
 };
 
 const formatDate = (date) => {
@@ -52,6 +51,7 @@ const blankRows = Array.from({ length: 8 }, (_, index) => index);
 
 export default function Bill() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const requestFullScreen = () => {
     const elem = document.documentElement;
@@ -144,8 +144,32 @@ export default function Bill() {
   const [onlineRef, setOnlineRef] = useState(() => getSavedState("onlineRef", ""));
   const [paidBefore, setPaidBefore] = useState(() => getSavedState("paidBefore", ""));
   const [contactNumber, setContactNumber] = useState(() => getSavedState("contactNumber", ""));
+  const [salesReturnAmount, setSalesReturnAmount] = useState(() => getSavedState("salesReturnAmount", ""));
+  const [isEmployeeCustomer, setIsEmployeeCustomer] = useState(() => getSavedState("isEmployeeCustomer", false));
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  // Handle pre-filled employee/customer data passed via route navigation
+  useEffect(() => {
+    if (location.state?.selectedCustomer || location.state?.employee) {
+      const cust = location.state.selectedCustomer || location.state.employee;
+      if (cust.name || cust.full_name) {
+        setCustomerName(cust.name || cust.full_name);
+      }
+      if (cust.phone || cust.phone_number) {
+        setMobileNumber(cust.phone || cust.phone_number);
+        setContactNumber(cust.phone || cust.phone_number);
+      }
+      if (cust.memberId || cust.employee_id) {
+        setMemberId(cust.memberId || cust.employee_id);
+      }
+      const pts = Number(cust.reward_points || cust.rewardPoints || cust.points || 0);
+      if (!isNaN(pts)) setAvailablePoints(pts);
+
+      setIsEmployeeCustomer(true);
+      setMessage(`💼 Pre-loaded Employee: ${cust.name || cust.full_name}`);
+    }
+  }, [location.state]);
   const [now, setNow] = useState(new Date());
   const [quickProductQuery, setQuickProductQuery] = useState("");
   const [mobileSuggestions, setMobileSuggestions] = useState([]);
@@ -162,7 +186,10 @@ export default function Bill() {
   const [memberIdSuggestions, setMemberIdSuggestions] = useState([]);
   const [showMemberIdSuggestions, setShowMemberIdSuggestions] = useState(false);
   const [highlightedMemberIdIndex, setHighlightedMemberIdIndex] = useState(-1);
-  const [availablePoints, setAvailablePoints] = useState(0);
+  const [customerNameSuggestions, setCustomerNameSuggestions] = useState([]);
+  const [showCustomerNameSuggestions, setShowCustomerNameSuggestions] = useState(false);
+  const [highlightedCustomerNameIndex, setHighlightedCustomerNameIndex] = useState(0);
+  const [availablePoints, setAvailablePoints] = useState(() => getSavedState("availablePoints", 0));
   const [billNumberSuggestions, setBillNumberSuggestions] = useState([]);
   const [showBillNumberSuggestions, setShowBillNumberSuggestions] = useState(false);
   const [showMemberModal, setShowMemberModal] = useState(false);
@@ -214,6 +241,7 @@ export default function Bill() {
   const upiAmountRef = useRef(null);
   const cardAmountRef = useRef(null);
   const onlineAmountRef = useRef(null);
+  const salesReturnAmountRef = useRef(null);
   const discountPercentRef = useRef(null);
   const discountAmountRef = useRef(null);
   const quickAddInputRef = useRef(null);
@@ -259,6 +287,10 @@ export default function Bill() {
     if (phone) setContactNumber(phone);
     if (addr) setAddress(addr);
     setAvailablePoints(points);
+    const returnAmt = Number(customer.salesReturnAmount || customer.sales_return_amount || customer.salesReturn || 0);
+    if (returnAmt > 0) {
+      setSalesReturnAmount(returnAmt);
+    }
 
     setSelectedMember({
       memberId: String(id),
@@ -266,10 +298,112 @@ export default function Bill() {
       phone,
       address: addr,
       points,
+      salesReturnAmount: returnAmt,
       isFound: true
     });
     setShowMemberIdSuggestions(false);
     setShowMemberModal(true);
+  };
+
+  const filterCustomerNameSuggestions = (value) => {
+    const query = String(value || "").trim().toLowerCase();
+    if (!query) {
+      setCustomerNameSuggestions([]);
+      setShowCustomerNameSuggestions(false);
+      return;
+    }
+    const matches = (customers || []).filter((c) => {
+      const name = String(c.name || c.full_name || c.customer_name || "").toLowerCase();
+      const phone = String(c.phone || c.contact || "").toLowerCase();
+      return name.includes(query) || phone.includes(query);
+    }).slice(0, 10);
+
+    setCustomerNameSuggestions(matches);
+    setShowCustomerNameSuggestions(matches.length > 0);
+    setHighlightedCustomerNameIndex(0);
+  };
+
+  const selectCustomerNameSuggestion = (cust) => {
+    const name = cust.name || cust.full_name || cust.customer_name || "Walk-in Customer";
+    const phone = cust.phone || cust.contact || cust.mobile || cust.contact_number || "";
+    const addr = cust.address || "";
+    const points = cust.reward_points || cust.rewardPoints || 0;
+    const id = cust.member_id || cust.id || phone;
+
+    setCustomerName(name);
+    if (phone) {
+      setMemberId(String(phone));
+      setMobileNumber(phone);
+      setContactNumber(phone);
+    }
+    if (addr) setAddress(addr);
+    setAvailablePoints(points);
+    const returnAmt = Number(cust.salesReturnAmount || cust.sales_return_amount || cust.salesReturn || 0);
+    if (returnAmt > 0) {
+      setSalesReturnAmount(returnAmt);
+    }
+    setShowCustomerNameSuggestions(false);
+    showTempMessage("success", `✅ Selected Customer: ${name} (${points} Pts${returnAmt > 0 ? `, Return: ₹${returnAmt}` : ''})`);
+  };
+
+  const handleCustomerNameKeyDown = async (e) => {
+    if (showCustomerNameSuggestions && customerNameSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHighlightedCustomerNameIndex((prev) => (prev + 1) % customerNameSuggestions.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlightedCustomerNameIndex((prev) => (prev - 1 + customerNameSuggestions.length) % customerNameSuggestions.length);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const indexToSelect = highlightedCustomerNameIndex >= 0 && highlightedCustomerNameIndex < customerNameSuggestions.length
+          ? highlightedCustomerNameIndex
+          : 0;
+        selectCustomerNameSuggestion(customerNameSuggestions[indexToSelect]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowCustomerNameSuggestions(false);
+        return;
+      }
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const query = String(customerName || "").trim();
+      if (!query) {
+        showTempMessage("error", "Please enter a Customer Name");
+        return;
+      }
+
+      setShowCustomerNameSuggestions(false);
+
+      const queryLower = query.toLowerCase();
+      let matchedCust = (customers || []).find((c) => {
+        const name = String(c.name || c.full_name || c.customer_name || "").toLowerCase();
+        const phone = String(c.phone || c.contact || c.mobile || "").toLowerCase();
+        return name === queryLower || phone === queryLower || name.includes(queryLower);
+      });
+
+      if (!matchedCust) {
+        try {
+          const response = await api.get(`/billing/customer/${encodeURIComponent(query)}`);
+          if (response.data?.exists && response.data?.customer) {
+            matchedCust = response.data.customer;
+          }
+        } catch (_) { }
+      }
+
+      if (matchedCust) {
+        selectCustomerNameSuggestion(matchedCust);
+      } else {
+        showTempMessage("info", `Customer Name set: ${query}`);
+      }
+    }
   };
 
   const handleMemberIdKeyDown = async (e) => {
@@ -432,10 +566,9 @@ export default function Bill() {
     }
   };
 
-  const fetchNextBillNumber = async (type) => {
+  const fetchNextBillNumber = async (type = 'N') => {
     try {
-      const billType = type || (isSaleReturnMode ? 'R' : 'N');
-      const response = await api.get(`/billing/next-bill-number?type=${billType}`);
+      const response = await api.get(`/billing/next-bill-number?type=${type}`);
       if (response.data?.nextBillNumber) {
         setBillNo(response.data.nextBillNumber);
         return response.data.nextBillNumber;
@@ -443,7 +576,7 @@ export default function Bill() {
     } catch (err) {
       console.error("Error fetching next bill number:", err);
     }
-    const fallback = `0001${type || (isSaleReturnMode ? 'R' : 'N')}`;
+    const fallback = `${String(Math.floor(1000 + Math.random() * 8999)).padStart(4, "0")}${type}`;
     setBillNo(fallback);
     return fallback;
   };
@@ -472,14 +605,16 @@ export default function Bill() {
       rows, billNo, counter, customerName, memberId, mobileNumber, salesPerson,
       address, saleReturn, redeemedPoints, classicCustomer, cashReceived,
       upiAmount, cardAmount, cardNumber, discountPercent, discountAmount,
-      onlineAmount, onlinePhone, onlineRef, paidBefore, contactNumber
+      onlineAmount, onlinePhone, onlineRef, paidBefore, contactNumber, salesReturnAmount,
+      isEmployeeCustomer, availablePoints
     };
     localStorage.setItem("bill_draft", JSON.stringify(state));
   }, [
     rows, billNo, counter, customerName, memberId, mobileNumber, salesPerson,
     address, saleReturn, redeemedPoints, classicCustomer, cashReceived,
     upiAmount, cardAmount, cardNumber, discountPercent, discountAmount,
-    onlineAmount, onlinePhone, onlineRef, paidBefore, contactNumber
+    onlineAmount, onlinePhone, onlineRef, paidBefore, contactNumber, salesReturnAmount,
+    isEmployeeCustomer, availablePoints
   ]);
 
   useEffect(() => {
@@ -520,6 +655,41 @@ export default function Bill() {
       })
     );
   }, [classicCustomer, products]);
+
+  const formatPts = (val) => {
+    const num = Number(val) || 0;
+    return Number.isInteger(num) ? num.toString() : num.toFixed(2);
+  };
+
+  useEffect(() => {
+    const queryPhone = String(mobileNumber || contactNumber || "").trim();
+    const queryId = String(memberId || "").trim();
+    const queryName = String(customerName || "").trim().toLowerCase();
+
+    if (!queryPhone && !queryId && (!queryName || queryName === "walk-in customer")) {
+      setAvailablePoints(0);
+      return;
+    }
+
+    if (!customers || customers.length === 0) return;
+
+    const matchedCust = customers.find(c => {
+      const p = String(c.phone || c.contact || c.mobile || "").trim();
+      const id = String(c.member_id || c.id || "").trim();
+      const n = String(c.name || c.full_name || c.customer_name || "").trim().toLowerCase();
+      return (queryPhone && p && p === queryPhone) ||
+        (queryId && id && id === queryId) ||
+        (queryName && queryName !== "walk-in customer" && n === queryName);
+    });
+
+    if (matchedCust) {
+      const pts = Number(matchedCust.reward_points || matchedCust.rewardPoints || matchedCust.points || 0);
+      setAvailablePoints(isNaN(pts) ? 0 : pts);
+    } else {
+      // New customer not yet in DB -> prior available points are 0
+      setAvailablePoints(0);
+    }
+  }, [customers, mobileNumber, memberId, customerName, contactNumber]);
 
   const showTempMessage = (type, text) => {
     if (type === "success") setMessage(text);
@@ -600,6 +770,10 @@ export default function Bill() {
     if (customer.address) setAddress(customer.address);
     if (customer.type === 'classic') setClassicCustomer(true);
     setAvailablePoints(customer.reward_points || customer.rewardPoints || 0);
+    const returnAmt = Number(customer.salesReturnAmount || customer.sales_return_amount || customer.salesReturn || 0);
+    if (returnAmt > 0) {
+      setSalesReturnAmount(returnAmt);
+    }
     setShowMobileSuggestions(false);
     salesPersonRef.current?.focus();
   };
@@ -612,16 +786,43 @@ export default function Bill() {
         if (cust.name && cust.name !== 'Walk-in Customer') setCustomerName(cust.name);
         if (cust.address) setAddress(cust.address);
         if (cust.type === 'classic') setClassicCustomer(true);
-        setAvailablePoints(cust.reward_points || 0);
+        const pts = Number(cust.reward_points || cust.rewardPoints || cust.points || 0);
+        setAvailablePoints(isNaN(pts) ? 0 : pts);
+        const returnAmt = Number(cust.salesReturnAmount || cust.sales_return_amount || cust.salesReturn || 0);
+        if (returnAmt > 0) {
+          setSalesReturnAmount(returnAmt);
+        }
       } else {
-        setAvailablePoints(0);
+        const match = (customers || []).find(c =>
+          String(c.phone || c.contact || c.mobile || "") === String(value) ||
+          String(c.member_id || c.id || "") === String(value)
+        );
+        if (match) {
+          const pts = Number(match.reward_points || match.rewardPoints || match.points || 0);
+          setAvailablePoints(isNaN(pts) ? 0 : pts);
+          const returnAmt = Number(match.salesReturnAmount || match.sales_return_amount || match.salesReturn || 0);
+          if (returnAmt > 0) {
+            setSalesReturnAmount(returnAmt);
+          }
+        } else {
+          setAvailablePoints(0);
+        }
         if (!customerName || customerName === 'Walk-in Customer') {
           setCustomerName("");
         }
       }
     } catch (err) {
       console.error("Could not fetch customer details", err);
-      setAvailablePoints(0);
+      const match = (customers || []).find(c =>
+        String(c.phone || c.contact || c.mobile || "") === String(value) ||
+        String(c.member_id || c.id || "") === String(value)
+      );
+      if (match) {
+        const pts = Number(match.reward_points || match.rewardPoints || match.points || 0);
+        setAvailablePoints(isNaN(pts) ? 0 : pts);
+      } else {
+        setAvailablePoints(0);
+      }
     }
   };
 
@@ -652,6 +853,7 @@ export default function Bill() {
     setShowPointsModal(false);
     showTempMessage("success", "Cleared points redemption");
   };
+
 
   const fetchBillForReprint = async (queryBillNo) => {
     if (!queryBillNo || String(queryBillNo).trim().length === 0) return;
@@ -707,6 +909,7 @@ export default function Bill() {
         setUpiAmount("");
         setCardAmount("");
         setCardNumber("");
+        setSalesReturnAmount("");
 
         const totalVal = bill.summary?.total || bill.total || 0;
         if (method === "cash" || bill.cash_received > 0) {
@@ -746,6 +949,14 @@ export default function Bill() {
     if (!isSaleReturnMode) {
       setSaleReturn(false);
     }
+  };
+
+  const switchToSaleReturnMode = () => {
+    performClear();
+    setIsSaleReturnMode(true);
+    setSaleReturn(true);
+    fetchNextBillNumber('R');
+    showTempMessage("success", "🔄 Switched to Sale Return Mode (Blank Bill)");
   };
 
   const handleOpenSaleReturnModal = () => {
@@ -950,51 +1161,48 @@ export default function Bill() {
 
   const fetchBillForSaleReturn = async (inputBillNo) => {
     if (!inputBillNo || String(inputBillNo).trim().length === 0) return;
-    const searchNo = String(inputBillNo).trim();
+    const formatted = formatBillNo(String(inputBillNo).trim(), 'N');
     setError("");
     setMessage("");
     setLoading(true);
 
     try {
-      const response = await api.get(`/billing/bills/return-details/${encodeURIComponent(searchNo)}`);
-      if (response.data?.success) {
-        const data = response.data;
-        const custPhone = data.customerPhone || "";
-        const custName = data.customerName || "Walk-in Customer";
-        const custAddr = data.customerAddress || "";
+      const response = await api.get(`/billing/bills/return-details/${encodeURIComponent(formatted)}`);
+      if (response.data) {
+        const billData = response.data;
+        const bill = billData.bill || billData;
+
+        const custPhone = bill.customer?.phone || bill.customer_phone || bill.contact || bill.customerPhone || "";
+        const custName = bill.customer?.name || bill.customer_name || bill.customerName || "Walk-in Customer";
+        const custAddr = bill.customer?.address || bill.customer_address || bill.customerAddress || "";
 
         setCustomerName(custName);
         setMobileNumber(custPhone);
         setContactNumber(custPhone);
         setAddress(custAddr);
 
-        if (Array.isArray(data.items) && data.items.length > 0) {
-          const availableForReturn = data.items.filter(item => (item.remainingQuantity || 0) > 0);
-          if (availableForReturn.length === 0) {
-            setError(`All products from Bill #${data.billNumber} have already been fully returned.`);
-            setIsSaleReturnMode(false);
-            setOriginalBillNumber("");
-            setLoading(false);
-            return;
-          }
+        const returnableItems = billData.items || [];
 
-          const loadedRows = availableForReturn.map((item) => {
-            const sellPrice = item.sellPrice || item.mrp || 0;
-            const remQty = item.remainingQuantity || 1;
+        if (Array.isArray(returnableItems) && returnableItems.length > 0) {
+          const loadedRows = returnableItems.map((item) => {
+            const sellPrice = item.sellPrice || item.sell_price || item.mrp || 0;
+            const qty = (item.remainingQuantity !== undefined && item.remainingQuantity > 0)
+              ? item.remainingQuantity
+              : (item.originalQuantity || item.quantity || 1);
+            const disc = item.discountPercent || item.discount_percent || 0;
             return {
-              productId: item.productCode || String(item.productId || ""),
-              _dbId: item.productId,
-              description: item.productName || "",
-              tax: item.tax || 5.0,
+              productId: item.productCode || item.product_code || String(item.productId || item.product_id || ""),
+              _dbId: item.productId || item.product_id,
+              description: item.productName || item.product_name || "",
+              tax: item.tax || 0,
               unit: item.unit || "PCS",
               mrp: sellPrice,
-              discountPercent: 0,
+              discountPercent: disc,
               netPrice: sellPrice,
-              originalQuantity: item.originalQuantity,
-              alreadyReturnedQuantity: item.alreadyReturnedQuantity,
-              remainingQuantity: remQty,
-              quantity: remQty,
-              salesPerson: data.createdByName || "",
+              originalQuantity: item.originalQuantity || item.quantity || qty,
+              remainingQuantity: qty,
+              quantity: qty,
+              salesPerson: bill.createdByName || bill.created_by_name || "",
             };
           });
           setRows(loadedRows);
@@ -1002,15 +1210,14 @@ export default function Bill() {
 
         setSaleReturn(true);
         setIsSaleReturnMode(true);
-        setOriginalBillNumber(data.billNumber);
-        setShowSaleReturnModal(false);
+        setOriginalBillNumber(formatted);
         fetchNextBillNumber('R');
-        setMessage(`🔄 Loaded Bill #${data.billNumber} for Sale Return. Set returned quantities.`);
+        setShowSaleReturnModal(false);
+        setMessage(`🔄 Loaded Bill #${formatted} into Sale Return mode! Adjust returned quantities and print.`);
       }
     } catch (err) {
       console.log("Sale Return bill fetch error", err);
-      const errMsg = err.response?.data?.error || `Bill Number #${searchNo} not found.`;
-      setError(errMsg);
+      setError(`Bill Number #${formatted} not found. Sale Return mode cancelled.`);
       setSaleReturn(false);
       setIsSaleReturnMode(false);
       setOriginalBillNumber("");
@@ -1039,11 +1246,11 @@ export default function Bill() {
       else if (paymentTotals.online > 0) paymentMethod = "online";
 
       const totalReturnAmount = totals.billValue;
-      const pointsDeducted = Math.floor(totalReturnAmount / 100);
+      const pointsDeducted = 0;
 
       const payload = {
+        originalBillNumber: originalBillNumber || "DIRECT",
         returnNumber: formatBillNo(billNo, 'R'),
-        originalBillNumber: originalBillNumber || billNo,
         customerName: customerName || "Walk-in Customer",
         customerPhone: mobileNumber || contactNumber || memberId || "",
         customerAddress: address || "",
@@ -1051,7 +1258,7 @@ export default function Bill() {
         discount: totals.totalDiscount,
         tax: totals.taxTotal,
         totalReturnAmount,
-        rewardPointsDeducted: pointsDeducted,
+        rewardPointsDeducted: 0,
         paymentMethod,
         processedByName: loggedInUserName,
         items: validItems.map((row) => ({
@@ -1077,10 +1284,7 @@ export default function Bill() {
       if (savedReturn?.returnNumber) {
         setBillNo(savedReturn.returnNumber);
       }
-      if (pointsDeducted > 0 && availablePoints > 0) {
-        setAvailablePoints(prev => Math.max(0, prev - pointsDeducted));
-      }
-      setMessage(`Sale Return ${savedReturn?.returnNumber || ''} processed successfully! Deducted ${pointsDeducted} pts.`);
+      setMessage(`Sale Return ${savedReturn?.returnNumber || ''} processed successfully!`);
       localStorage.removeItem("bill_draft");
       await loadProducts();
 
@@ -1280,18 +1484,22 @@ export default function Bill() {
     const query = String(value || "").trim();
     if (!query) return false;
 
-    let found = products.find((product) => (
-      String(product.id) === query ||
-      String(product.productCode || "").toLowerCase() === query.toLowerCase() ||
-      String(product.name || "").toLowerCase() === query.toLowerCase()
-    ));
+    const queryLower = query.toLowerCase();
+    let found = products.find((product) => String(product.productCode || "").toLowerCase() === queryLower)
+      || products.find((product) => String(product.id) === query)
+      || products.find((product) => String(product.name || "").toLowerCase() === queryLower);
 
-    if (!found && /^\d+$/.test(query)) {
+    if (!found) {
       try {
-        const response = await api.get(`/products/${query}`);
-        if (response.data && !isDeletedProduct(response.data)) {
-          found = response.data;
+        const response = await api.get(`/billing/search-products?q=${encodeURIComponent(query)}`);
+        const list = response.data || [];
+        found = list.find(p => String(p.productCode || "").toLowerCase() === queryLower)
+          || list.find(p => String(p.id) === query)
+          || list[0];
+        if (found && !isDeletedProduct(found)) {
           setProducts(prev => [...prev, found]);
+        } else {
+          found = null;
         }
       } catch (err) {
         console.log("Product not found in API");
@@ -1316,11 +1524,10 @@ export default function Bill() {
       return;
     }
 
-    let found = products.find((p) => (
-      String(p.id) === query ||
-      String(p.productCode || "").toLowerCase() === query.toLowerCase() ||
-      String(p.name || "").toLowerCase() === query.toLowerCase()
-    ));
+    const queryLower = query.toLowerCase();
+    let found = products.find((p) => String(p.productCode || "").toLowerCase() === queryLower)
+      || products.find((p) => String(p.id) === query)
+      || products.find((p) => String(p.name || "").toLowerCase() === queryLower);
 
     const applyFound = (product) => {
       if (isDeletedProduct(product)) {
@@ -1396,9 +1603,27 @@ export default function Bill() {
           });
         }
 
-        if (onDone) setTimeout(() => onDone(index + 1, false), 100);
+        setTimeout(() => {
+          if (qtyInputRefs.current[index]) {
+            qtyInputRefs.current[index].focus();
+            qtyInputRefs.current[index].select();
+          }
+        }, 60);
+
+        if (onDone) setTimeout(() => onDone(index, true), 60);
         return nextRows;
       });
+    };
+
+    const handleNotFound = () => {
+      setError(`❌ Product "${query}" not found or is deleted.`);
+      if (onDone) onDone(index, false);
+      setTimeout(() => {
+        if (rowInputRefs.current[index]) {
+          rowInputRefs.current[index].focus();
+          rowInputRefs.current[index].select();
+        }
+      }, 60);
     };
 
     if (found) {
@@ -1406,23 +1631,20 @@ export default function Bill() {
       return;
     }
 
-    if (/^\d+$/.test(query)) {
-      api.get(`/products/${query}`).then((res) => {
-        if (res.data && !isDeletedProduct(res.data)) {
-          applyFound(res.data);
-          setProducts(prev => [...prev, res.data]);
-        } else {
-          setError(`❌ Product "${query}" not found or is deleted.`);
-          if (onDone) onDone(index, false);
-        }
-      }).catch(() => {
-        setError(`❌ Product "${query}" not found.`);
-        if (onDone) onDone(index, false);
-      });
-    } else {
-      setError(`❌ Product "${query}" not found.`);
-      if (onDone) onDone(index, false);
-    }
+    api.get(`/billing/search-products?q=${encodeURIComponent(query)}`).then((res) => {
+      const list = res.data || [];
+      const matched = list.find(p => String(p.productCode || "").toLowerCase() === queryLower)
+        || list.find(p => String(p.id) === query)
+        || list[0];
+      if (matched && !isDeletedProduct(matched)) {
+        applyFound(matched);
+        setProducts(prev => [...prev, matched]);
+      } else {
+        handleNotFound();
+      }
+    }).catch(() => {
+      handleNotFound();
+    });
   };
 
   const updateRow = (index, field, value) => {
@@ -1437,13 +1659,13 @@ export default function Bill() {
       const newRows = current.map((row, rowIndex) => {
         if (rowIndex !== index) return row;
 
-        let numVal = numericFields.includes(field) ? Number(value) || 0 : value;
-
-        if (field === "quantity" && isSaleReturnMode) {
-          const maxAllowed = row.originalQuantity !== undefined ? Number(row.originalQuantity) : Number(row.quantity);
-          if (numVal > maxAllowed) {
-            numVal = maxAllowed;
-            showTempMessage("error", `Returned quantity cannot exceed original sold quantity (${maxAllowed})`);
+        let numVal = value;
+        if (numericFields.includes(field)) {
+          if (value === "" || value === null || value === undefined) {
+            numVal = "";
+          } else {
+            const parsed = Number(value);
+            numVal = isNaN(parsed) ? value : parsed;
           }
         }
 
@@ -1549,9 +1771,27 @@ export default function Bill() {
     const card = Number(cardAmount) || 0;
     const online = Number(onlineAmount) || 0;
     const previous = Number(paidBefore) || 0;
-    const totalPaid = money(cash + upi + card + online + previous);
-    return { cash, upi, card, online, previous, totalPaid };
-  }, [cashReceived, upiAmount, cardAmount, onlineAmount, paidBefore]);
+
+    const activeRows = rows.filter(r => r.productId && r._dbId);
+    const netBeforeDiscount = activeRows.reduce((sum, row) => sum + (Number(row.netPrice) || 0) * (Number(row.quantity) || 0), 0);
+    const pointsDisc = money((Number(redeemedPoints) || 0) * 2);
+    let manualDisc = 0;
+    const discAmtNum = Number(discountAmount);
+    const discPctNum = Number(discountPercent);
+    if (discountAmount !== "" && !isNaN(discAmtNum) && discAmtNum > 0) {
+      manualDisc = money(discAmtNum);
+    } else if (discountPercent !== "" && !isNaN(discPctNum) && discPctNum > 0) {
+      manualDisc = money((netBeforeDiscount * discPctNum) / 100);
+    }
+    const currentBillVal = Math.round(Math.max(0, netBeforeDiscount - manualDisc - pointsDisc));
+
+    const rawSalesReturn = Number(salesReturnAmount) || 0;
+    const maxCreditNeeded = Math.max(0, currentBillVal - cash - upi - card - online - previous);
+    const salesReturn = Math.min(rawSalesReturn, maxCreditNeeded);
+
+    const totalPaid = money(cash + upi + card + online + previous + salesReturn);
+    return { cash, upi, card, online, previous, salary: 0, salesReturn, rawSalesReturn, totalPaid };
+  }, [cashReceived, upiAmount, cardAmount, onlineAmount, paidBefore, salesReturnAmount, rows, discountPercent, discountAmount, redeemedPoints]);
 
   const totals = useMemo(() => {
     const activeRows = rows.filter(r => r.productId && r._dbId);
@@ -1622,6 +1862,7 @@ export default function Bill() {
       case 'upi': setUpiAmount(numValue); break;
       case 'card': setCardAmount(numValue); break;
       case 'online': setOnlineAmount(numValue); break;
+      case 'salesReturn': setSalesReturnAmount(numValue); break;
       case 'paidBefore': setPaidBefore(numValue); break;
       default: break;
     }
@@ -1645,7 +1886,8 @@ export default function Bill() {
 
     try {
       let paymentMethod = "cash";
-      if (paymentTotals.card > 0) paymentMethod = "card";
+      if (paymentTotals.salesReturn > 0 && paymentTotals.cash === 0 && paymentTotals.card === 0 && paymentTotals.upi === 0 && paymentTotals.online === 0) paymentMethod = "sales_return";
+      else if (paymentTotals.card > 0) paymentMethod = "card";
       else if (paymentTotals.upi > 0) paymentMethod = "upi";
       else if (paymentTotals.online > 0) paymentMethod = "online";
 
@@ -1654,7 +1896,7 @@ export default function Bill() {
         customerName: customerName || "Walk-in Customer",
         customerPhone: mobileNumber || contactNumber || memberId || "",
         customerAddress: address || "",
-        customerType: "external",
+        customerType: isEmployeeCustomer ? "employee" : "external",
         subtotal: totals.mrpTotal,
         discount: totals.totalDiscount,
         discountType: "amount",
@@ -1670,10 +1912,13 @@ export default function Bill() {
         onlineAmount: paymentTotals.online,
         onlinePhone,
         onlineRef,
+        salaryDeductionAmount: 0,
+        salesReturnAmount: paymentTotals.salesReturn,
+        deductFromSalary: false,
         paidBefore: paymentTotals.previous,
         contact: mobileNumber || contactNumber || memberId || "",
         createdByName: [salesPerson, ...new Set(rows.filter(r => r.salesPerson && r.productId).map(r => r.salesPerson))].filter(Boolean).join(", ") || counter,
-        rewardPointsEarned: Math.floor(totals.billValue / 100),
+        rewardPointsEarned: Math.floor(Math.max(0, totals.billValue - Number(paymentTotals.salesReturn || 0)) / 100),
         rewardPointsRedeemed: Number(redeemedPoints) || 0,
         isClassic: classicCustomer,
         items: rows.filter(r => r.productId && r._dbId).map((row) => ({
@@ -1739,6 +1984,8 @@ export default function Bill() {
     setOnlinePhone("");
     setOnlineRef("");
     setPaidBefore("");
+    setSalesReturnAmount("");
+    setIsEmployeeCustomer(false);
     setSaleReturn(false);
     setRedeemedPoints(0);
     setPointsInput("");
@@ -1753,6 +2000,7 @@ export default function Bill() {
     fetchNextBillNumber();
     localStorage.removeItem("bill_draft");
     loadProducts();
+    loadCustomers();
     setTimeout(() => {
       if (quickAddInputRef.current) {
         quickAddInputRef.current.focus();
@@ -1766,9 +2014,21 @@ export default function Bill() {
     if (isSaleReturnMode) {
       const saved = await saveSaleReturn();
       if (saved) {
-        printSaleReturnReceipt(saved);
-        performClear();
-        setMessage("Sale return processed successfully! Ready for next bill.");
+        let resetDone = false;
+        const doReset = () => {
+          if (!resetDone) {
+            resetDone = true;
+            performClear();
+            setMessage("Sale return processed successfully! Ready for next bill.");
+            window.removeEventListener('afterprint', doReset);
+            setTimeout(requestFullScreen, 300);
+          }
+        };
+        window.addEventListener('afterprint', doReset);
+        setTimeout(doReset, 1500);
+        setTimeout(() => {
+          window.print();
+        }, 100);
       }
       return;
     }
@@ -2013,8 +2273,7 @@ export default function Bill() {
 
       if ((event.altKey && (event.key === 's' || event.key === 'S')) || (event.altKey && event.key === '1')) {
         event.preventDefault();
-        handleOpenSaleReturnModal();
-        showTempMessage("success", "⌨️ Sale Return Lookup Opened");
+        switchToSaleReturnMode();
         return;
       }
 
@@ -2240,15 +2499,7 @@ export default function Bill() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (!isSaleReturnMode) {
-                    setIsSaleReturnMode(true);
-                    fetchNextBillNumber('R');
-                    handleOpenSaleReturnModal();
-                  } else {
-                    handleOpenSaleReturnModal();
-                  }
-                }}
+                onClick={switchToSaleReturnMode}
                 style={{
                   padding: '4px 12px',
                   borderRadius: '6px',
@@ -2275,129 +2526,266 @@ export default function Bill() {
                   setShowPointsModal(true);
                 }}
                 style={{
-                  padding: '4px 12px',
-                  background: redeemedPoints > 0 ? 'linear-gradient(135deg, #059669, #10b981)' : 'linear-gradient(135deg, #2563eb, #3b82f6)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '12px',
+                  padding: '6px 14px',
+                  background: redeemedPoints > 0 ? 'linear-gradient(135deg, #059669, #10b981)' : 'linear-gradient(135deg, #d97706, #f59e0b)',
+                  color: '#ffffff',
+                  border: '1px solid #fbbf24',
+                  borderRadius: '8px',
+                  fontSize: '13px',
                   fontWeight: 'bold',
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+                  gap: '6px',
+                  boxShadow: '0 3px 10px rgba(245, 158, 11, 0.35)',
                   transition: 'all 0.2s ease'
                 }}
               >
-                🎁 Points {redeemedPoints > 0 ? `(${redeemedPoints} pts = -₹${redeemedPoints * 2})` : ""} <span className="shortcut-hint" style={{ color: 'rgba(255,255,255,0.8)' }}>Alt+3</span>
+                🎁 Redeem Points ({availablePoints || 0} Pts) <span className="shortcut-hint" style={{ color: '#ffffff', backgroundColor: 'rgba(0,0,0,0.3)', padding: '1px 5px', borderRadius: '4px', fontSize: '10px' }}>Alt+3</span>
               </button>
               <label className="check"><input type="checkbox" checked={classicCustomer} onChange={(event) => setClassicCustomer(event.target.checked)} /> Use Classic Mode <span className="shortcut-hint">Alt+4</span></label>
             </div>
           </div>
 
-          <div className="header-middle" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 20px', gap: '16px' }}>
-            <div className="field-group" style={{ width: '100%', maxWidth: '380px', position: 'relative' }}>
-              <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#4da6ff', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Member ID / Phone <span className="shortcut-hint">F7</span></span>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'normal' }}>Type or press Enter</span>
-              </label>
-              <input
-                ref={memberIdRef}
-                value={memberId}
-                onChange={(event) => {
-                  setMemberId(event.target.value);
-                  filterMemberIdSuggestions(event.target.value);
-                }}
-                onKeyDown={handleMemberIdKeyDown}
-                onBlur={() => setTimeout(() => setShowMemberIdSuggestions(false), 200)}
-                placeholder="Enter Member ID or Phone..."
-                style={{
-                  padding: '10px 14px',
-                  fontSize: '15px',
-                  fontWeight: 'bold',
-                  borderRadius: '8px',
-                  border: '2px solid #4da6ff',
-                  backgroundColor: '#0f172a',
-                  color: '#fff',
-                  outline: 'none',
-                  boxShadow: '0 0 12px rgba(77, 166, 255, 0.2)'
-                }}
-              />
-              {showMemberIdSuggestions && memberIdSuggestions.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  zIndex: 2500,
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #38bdf8',
-                  borderRadius: '8px',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-                  marginTop: '4px',
-                  overflow: 'hidden'
-                }}>
-                  {memberIdSuggestions.map((cust, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: '10px 14px',
-                        cursor: 'pointer',
-                        backgroundColor: idx === highlightedMemberIdIndex ? '#0284c7' : 'transparent',
-                        color: idx === highlightedMemberIdIndex ? '#ffffff' : '#e2e8f0',
-                        borderBottom: '1px solid #334155',
-                        fontSize: '13px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        selectMemberIdSuggestion(cust);
-                      }}
-                    >
-                      <div>
-                        <strong style={{ color: idx === highlightedMemberIdIndex ? '#fff' : '#38bdf8' }}>
-                          {cust.name || cust.full_name || 'Customer'}
-                        </strong>
-                        <div style={{ fontSize: '11px', color: idx === highlightedMemberIdIndex ? '#e0f2fe' : '#94a3b8', marginTop: '2px' }}>
-                          ID: {cust.member_id || cust.id || 'N/A'} | PH: {cust.phone || cust.contact || 'N/A'}
+          <div className="header-middle" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 16px', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', maxWidth: '380px' }}>
+              {/* Option 1: Member ID / Phone */}
+              <div className="field-group" style={{ position: 'relative' }}>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4da6ff', marginBottom: '2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Member ID / Phone <span className="shortcut-hint">F7</span></span>
+                  <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'normal' }}>Type or press Enter</span>
+                </label>
+                <input
+                  ref={memberIdRef}
+                  value={memberId}
+                  onChange={(event) => {
+                    setMemberId(event.target.value);
+                    filterMemberIdSuggestions(event.target.value);
+                  }}
+                  onKeyDown={handleMemberIdKeyDown}
+                  onBlur={() => setTimeout(() => setShowMemberIdSuggestions(false), 200)}
+                  placeholder="Enter Member ID or Phone..."
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    borderRadius: '6px',
+                    border: '1px solid #4da6ff',
+                    backgroundColor: '#0f172a',
+                    color: '#fff',
+                    outline: 'none',
+                    width: '100%'
+                  }}
+                />
+                {showMemberIdSuggestions && memberIdSuggestions.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 2500,
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #38bdf8',
+                    borderRadius: '8px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                    marginTop: '2px',
+                    overflow: 'hidden'
+                  }}>
+                    {memberIdSuggestions.map((cust, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          backgroundColor: idx === highlightedMemberIdIndex ? '#0284c7' : 'transparent',
+                          color: idx === highlightedMemberIdIndex ? '#ffffff' : '#e2e8f0',
+                          borderBottom: '1px solid #334155',
+                          fontSize: '12px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          selectMemberIdSuggestion(cust);
+                        }}
+                      >
+                        <div>
+                          <strong style={{ color: idx === highlightedMemberIdIndex ? '#fff' : '#38bdf8' }}>
+                            {cust.name || cust.full_name || 'Customer'}
+                          </strong>
+                          <div style={{ fontSize: '10px', color: idx === highlightedMemberIdIndex ? '#e0f2fe' : '#94a3b8' }}>
+                            ID: {cust.member_id || cust.id || 'N/A'} | PH: {cust.phone || cust.contact || 'N/A'}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: idx === highlightedMemberIdIndex ? '#fff' : '#4ade80', display: 'block' }}>
+                            💎 {cust.reward_points || cust.rewardPoints || 0} Pts
+                          </span>
+                          <span style={{ fontSize: '10px', fontWeight: 'bold', color: idx === highlightedMemberIdIndex ? '#fef08a' : '#f59e0b', marginTop: '2px', display: 'block' }}>
+                            ↩️ Return: ₹{Number(cust.salesReturnAmount || cust.sales_return_amount || cust.salesReturn || 0)}
+                          </span>
                         </div>
                       </div>
-                      <span style={{ fontSize: '11px', fontWeight: 'bold', color: idx === highlightedMemberIdIndex ? '#fff' : '#4ade80' }}>
-                        💎 {cust.reward_points || cust.rewardPoints || 0} Pts
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Option 2: Customer Name (with autocomplete dropdown of saved customers) */}
+              <div className="field-group" style={{ position: 'relative' }}>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#38bdf8', marginBottom: '2px', display: 'block' }}>
+                  <span>Customer Name</span>
+                </label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(event) => {
+                    const val = event.target.value;
+                    setCustomerName(val);
+                    filterCustomerNameSuggestions(val);
+                  }}
+                  onFocus={(event) => {
+                    if (event.target.value) {
+                      filterCustomerNameSuggestions(event.target.value);
+                    }
+                  }}
+                  onKeyDown={handleCustomerNameKeyDown}
+                  onBlur={() => setTimeout(() => setShowCustomerNameSuggestions(false), 200)}
+                  placeholder="Enter Customer Name..."
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    borderRadius: '6px',
+                    border: '1px solid #38bdf8',
+                    backgroundColor: '#0f172a',
+                    color: '#fff',
+                    outline: 'none',
+                    width: '100%'
+                  }}
+                />
+                {showCustomerNameSuggestions && customerNameSuggestions.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 2500,
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #38bdf8',
+                    borderRadius: '8px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                    marginTop: '2px',
+                    maxHeight: '200px',
+                    overflowY: 'auto'
+                  }}>
+                    {customerNameSuggestions.map((cust, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          backgroundColor: idx === highlightedCustomerNameIndex ? '#0284c7' : 'transparent',
+                          color: idx === highlightedCustomerNameIndex ? '#ffffff' : '#e2e8f0',
+                          borderBottom: '1px solid #334155',
+                          fontSize: '12px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          selectCustomerNameSuggestion(cust);
+                        }}
+                      >
+                        <div>
+                          <strong style={{ color: idx === highlightedCustomerNameIndex ? '#fff' : '#38bdf8' }}>
+                            👤 {cust.name || cust.full_name || 'Customer'}
+                          </strong>
+                          <div style={{ fontSize: '10px', color: idx === highlightedCustomerNameIndex ? '#e0f2fe' : '#94a3b8' }}>
+                            PH: {cust.phone || cust.contact || 'N/A'}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: idx === highlightedCustomerNameIndex ? '#fff' : '#4ade80', display: 'block' }}>
+                            💎 {cust.reward_points || cust.rewardPoints || 0} Pts
+                          </span>
+                          <span style={{ fontSize: '10px', fontWeight: 'bold', color: idx === highlightedCustomerNameIndex ? '#fef08a' : '#f59e0b', marginTop: '2px', display: 'block' }}>
+                            ↩️ Return: ₹{Number(cust.salesReturnAmount || cust.sales_return_amount || cust.salesReturn || 0)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {(() => {
+              const pointsEarned = isSaleReturnMode ? 0 : Math.floor(Math.max(0, (totals.billValue || 0) - Number(salesReturnAmount || 0)) / 100);
               const remainingPts = Math.max(0, (availablePoints || 0) - (redeemedPoints || 0));
+              const totalBalance = remainingPts + pointsEarned;
+              const returnAmt = Number(salesReturnAmount || 0);
               return (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(56, 189, 248, 0.15))',
-                  border: '1px solid #38bdf8',
-                  borderRadius: '10px',
-                  padding: '8px 14px',
-                  minWidth: '180px'
-                }}>
-                  <span style={{ fontSize: '24px' }}>🎁</span>
-                  <div>
-                    <div style={{ fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.5px', fontWeight: '600' }}>Points Available</div>
-                    <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#38bdf8' }}>
-                      {remainingPts.toFixed(2)} Pts <span style={{ fontSize: '12px', color: '#4ade80' }}>(₹{(remainingPts * 2).toFixed(2)})</span>
-                    </div>
-                    {redeemedPoints > 0 && (
-                      <div style={{ fontSize: '10px', color: '#4ade80' }}>
-                        Points Used: {redeemedPoints} Pts
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {/* Points Available Card */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    background: 'linear-gradient(135deg, #064e3b 0%, #022c22 100%)',
+                    border: '2px solid #34d399',
+                    borderRadius: '12px',
+                    padding: '8px 14px',
+                    minWidth: '180px',
+                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)'
+                  }}>
+                    <span style={{ fontSize: '24px' }}>🎁</span>
+                    <div>
+                      <div style={{ fontSize: '10px', textTransform: 'uppercase', color: '#ffffff', letterSpacing: '0.8px', fontWeight: '800' }}>
+                        POINTS AVAILABLE
                       </div>
-                    )}
+                      <div style={{ fontSize: '16px', fontWeight: '900', color: '#fbbf24', marginTop: '1px' }}>
+                        {formatPts(totalBalance)} Pts
+                      </div>
+                      {!isSaleReturnMode && pointsEarned > 0 && (
+                        <div style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 'bold', marginTop: '1px' }}>
+                          + Earned: {formatPts(pointsEarned)} Pts
+                        </div>
+                      )}
+                      {redeemedPoints > 0 && (
+                        <div style={{ fontSize: '10px', color: '#6ee7b7', fontWeight: 'bold', marginTop: '1px' }}>
+                          ✓ Used: {formatPts(redeemedPoints)} Pts
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Sales Return Amount Card */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    background: 'linear-gradient(135deg, #78350f 0%, #451a03 100%)',
+                    border: '2px solid #f59e0b',
+                    borderRadius: '12px',
+                    padding: '8px 14px',
+                    minWidth: '170px',
+                    boxShadow: '0 4px 14px rgba(245, 158, 11, 0.3)'
+                  }}>
+                    <span style={{ fontSize: '24px' }}>↩️</span>
+                    <div>
+                      <div style={{ fontSize: '10px', textTransform: 'uppercase', color: '#ffffff', letterSpacing: '0.8px', fontWeight: '800' }}>
+                        SALES RETURN AMT
+                      </div>
+                      <div style={{ fontSize: '16px', fontWeight: '900', color: '#fef08a', marginTop: '1px' }}>
+                        ₹{returnAmt}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#fde68a', fontWeight: '600', marginTop: '1px' }}>
+                        {returnAmt > 0 ? 'Credit Available' : 'No Return Credit'}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
@@ -2487,21 +2875,17 @@ export default function Bill() {
                             event.preventDefault();
                             const typedValue = event.target.value;
                             if (typedValue) {
-                              handleProductSearch(index, typedValue, (targetIndex, isExisting) => {
-                                setTimeout(() => {
-                                  const targetInput = rowInputRefs.current[targetIndex];
-                                  if (targetInput) {
-                                    targetInput.focus();
-                                    targetInput.select();
-                                  } else if (targetIndex === rows.length && !isExisting) {
-                                    setTimeout(() => {
-                                      const newEmptyIndex = rows.findIndex(r => !r.productId);
-                                      if (newEmptyIndex !== -1 && rowInputRefs.current[newEmptyIndex]) {
-                                        rowInputRefs.current[newEmptyIndex].focus();
-                                      }
-                                    }, 50);
-                                  }
-                                }, 50);
+                              handleProductSearch(index, typedValue, (targetIndex, isSuccess) => {
+                                if (isSuccess) {
+                                  moveToNextRow(targetIndex !== undefined ? targetIndex : index);
+                                } else {
+                                  setTimeout(() => {
+                                    if (rowInputRefs.current[index]) {
+                                      rowInputRefs.current[index].focus();
+                                      rowInputRefs.current[index].select();
+                                    }
+                                  }, 50);
+                                }
                               });
                             } else {
                               // Empty product field pressed Enter:
@@ -2544,22 +2928,20 @@ export default function Bill() {
                         type="number"
                         min="1"
                         max={row.stock || undefined}
-                        value={row.quantity}
+                        value={row.quantity !== undefined && row.quantity !== null ? row.quantity : ""}
                         onChange={(event) => updateRow(index, "quantity", event.target.value)}
                         onFocus={(event) => {
                           handleRowFocus(index);
                           // Select all on focus so user can type straight away
                           event.target.select();
                         }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            const currentQty = Number(row.quantity) || 0;
-                            const nextQty = currentQty + 1;
-                            updateRow(index, "quantity", nextQty);
-                            showTempMessage("success", `✅ ${row.description || 'Product'} quantity increased to ${nextQty}`);
+                        onBlur={() => {
+                          if ((row.quantity === "" || row.quantity === null || row.quantity === undefined || Number(row.quantity) <= 0) && row.productId) {
+                            updateRow(index, "quantity", 1);
                           }
-                          if (event.key === '+') {
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === '+') {
                             event.preventDefault();
                             moveToNextRow(index);
                           }
@@ -2747,6 +3129,26 @@ export default function Bill() {
                     if (totals.canSave) {
                       printBill();
                     } else {
+                      salesReturnAmountRef.current?.focus();
+                      salesReturnAmountRef.current?.select();
+                    }
+                  }
+                }}
+              />
+            </div>
+            <div className="info-row">
+              <span>Sales Return</span>
+              <input
+                ref={salesReturnAmountRef}
+                type="number"
+                value={salesReturnAmount}
+                onChange={(event) => handlePaymentChange('salesReturn', event.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (totals.canSave) {
+                      printBill();
+                    } else {
                       onlineAmountRef.current?.focus();
                       onlineAmountRef.current?.select();
                     }
@@ -2800,17 +3202,25 @@ export default function Bill() {
               <input value={cardNumber} onChange={(event) => setCardNumber(event.target.value)} placeholder="Card Number" />
             </div>
             {(() => {
+              const pointsEarned = isSaleReturnMode ? 0 : Math.floor(Math.max(0, (totals.billValue || 0) - Number(salesReturnAmount || 0)) / 100);
               const remainingPts = Math.max(0, (availablePoints || 0) - (redeemedPoints || 0));
+              const totalBalance = remainingPts + pointsEarned;
               return (
                 <>
+                  {!isSaleReturnMode && pointsEarned > 0 && (
+                    <div className="info-row">
+                      <span style={{ color: '#fbbf24' }}>Points Earned</span>
+                      <input value={`${formatPts(pointsEarned)} Pts`} readOnly style={{ fontWeight: 'bold', color: '#fbbf24' }} />
+                    </div>
+                  )}
                   <div className="info-row">
                     <span style={{ color: '#38bdf8' }}>Points Available</span>
-                    <input value={`${remainingPts.toFixed(2)} (₹${(remainingPts * 2).toFixed(2)})`} readOnly style={{ fontWeight: 'bold', color: '#38bdf8' }} />
+                    <input value={`${formatPts(totalBalance)} Pts`} readOnly style={{ fontWeight: 'bold', color: '#38bdf8' }} />
                   </div>
                   {redeemedPoints > 0 && (
                     <div className="info-row">
                       <span style={{ color: '#4ade80' }}>Points Used</span>
-                      <input value={`${redeemedPoints} (₹${redeemedPoints * 2})`} readOnly style={{ fontWeight: 'bold', color: '#4ade80' }} />
+                      <input value={`${formatPts(redeemedPoints)} Pts`} readOnly style={{ fontWeight: 'bold', color: '#4ade80' }} />
                     </div>
                   )}
                 </>
@@ -2820,24 +3230,51 @@ export default function Bill() {
 
           {/* ── Col 5: Pay Board Summary ── */}
           <div className="pay-board">
-            <div className="pay-card">
-              <div className="pay-label">TOTAL BILL</div>
-              <div className="pay-value">₹{Math.round(totals.billValue)}</div>
-            </div>
-            <div className="pay-card">
-              <div className="pay-label">TOTAL PAID</div>
-              <div className="pay-value">₹{Math.round(totals.displayPaid)}</div>
-            </div>
-            <div className="pay-card">
-              <div className="pay-label">BALANCE DUE</div>
-              <div className="pay-value" style={{ color: totals.balanceDue > 0 ? '#ff6b6b' : '#51cf66' }}>
-                ₹{Math.round(totals.balanceDue)}
-              </div>
-            </div>
-            <div className="pay-card return-card">
-              <div className="pay-label">RETURN</div>
-              <div className="pay-value">₹{Math.round(totals.returnAmount)}</div>
-            </div>
+            {isSaleReturnMode ? (
+              <>
+                <div className="pay-card" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: '#f87171' }}>
+                  <div className="pay-label" style={{ color: '#f87171' }}>TOTAL RETURN VALUE</div>
+                  <div className="pay-value" style={{ color: '#f87171' }}>₹{Math.round(totals.billValue)}</div>
+                </div>
+                <div className="pay-card">
+                  <div className="pay-label">REFUND PAYOUT</div>
+                  <div className="pay-value">₹{Math.round(totals.displayPaid)}</div>
+                </div>
+                <div className="pay-card">
+                  <div className="pay-label">BALANCE DUE</div>
+                  <div className="pay-value" style={{ color: totals.balanceDue > 0 ? '#ff6b6b' : '#51cf66' }}>
+                    ₹{Math.round(totals.balanceDue)}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="pay-card">
+                  <div className="pay-label">TOTAL BILL</div>
+                  <div className="pay-value">₹{Math.round(totals.billValue)}</div>
+                </div>
+                <div className="pay-card">
+                  <div className="pay-label">TOTAL PAID</div>
+                  <div className="pay-value">₹{Math.round(totals.displayPaid)}</div>
+                </div>
+                <div className="pay-card">
+                  <div className="pay-label">BALANCE DUE</div>
+                  <div className="pay-value" style={{ color: totals.balanceDue > 0 ? '#ff6b6b' : '#51cf66' }}>
+                    ₹{Math.round(totals.balanceDue)}
+                  </div>
+                </div>
+                <div className="pay-card return-card">
+                  <div className="pay-label">RETURN</div>
+                  <div className="pay-value">
+                    ₹{Math.round(
+                      paymentTotals.rawSalesReturn > 0
+                        ? Math.max(totals.returnAmount, paymentTotals.rawSalesReturn - paymentTotals.salesReturn)
+                        : totals.returnAmount
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
             {!totals.canSave && totals.billValue > 0 && (
               <div className="payment-warning">
                 {paymentTotals.totalPaid < totals.billValue ?
@@ -2937,6 +3374,7 @@ export default function Bill() {
             {paymentTotals.cash > 0 && <div className="receipt-row"><span>Cash Amt: {Math.round(paymentTotals.cash)}</span></div>}
             {paymentTotals.upi > 0 && <div className="receipt-row"><span>UPI Amt: {Math.round(paymentTotals.upi)}</span></div>}
             {paymentTotals.online > 0 && <div className="receipt-row"><span>Online Amt: {Math.round(paymentTotals.online)}</span></div>}
+            {paymentTotals.salesReturn > 0 && <div className="receipt-row"><span>Sales Return: {Math.round(paymentTotals.salesReturn)}</span></div>}
             {paymentTotals.previous > 0 && <div className="receipt-row"><span>Paid Before: {Math.round(paymentTotals.previous)}</span></div>}
           </div>
         )}
@@ -2958,14 +3396,17 @@ export default function Bill() {
           )}
         </div>
 
-        {!isSaleReturnMode && (() => {
+        {(() => {
+          const pointsEarned = isSaleReturnMode ? 0 : Math.floor(Math.max(0, (totals.billValue || 0) - Number(salesReturnAmount || 0)) / 100);
           const remainingPts = Math.max(0, (availablePoints || 0) - (redeemedPoints || 0));
+          const totalBalance = remainingPts + pointsEarned;
           return (
             <>
               <div className="receipt-line" />
               <div className="receipt-summary-block">
-                <div className="receipt-row" style={{ fontWeight: 'bold' }}><span>Points Available:</span><span>{remainingPts.toFixed(2)} Pts</span></div>
-                {redeemedPoints > 0 && <div className="receipt-row"><span>Points Used:</span><span>{redeemedPoints} Pts</span></div>}
+                {!isSaleReturnMode && pointsEarned > 0 && <div className="receipt-row"><span>Points Earned:</span><span>{formatPts(pointsEarned)} Pts</span></div>}
+                {redeemedPoints > 0 && <div className="receipt-row"><span>Points Used:</span><span>{formatPts(redeemedPoints)} Pts</span></div>}
+                <div className="receipt-row" style={{ fontWeight: 'bold' }}><span>Points Available:</span><span>{formatPts(totalBalance)} Pts</span></div>
               </div>
             </>
           );
@@ -3008,12 +3449,12 @@ export default function Bill() {
             </div>
 
             <div className="member-modal-body" style={{ padding: '20px 24px' }}>
-              <div style={{ background: 'rgba(51, 65, 85, 0.4)', borderRadius: '12px', padding: '14px 18px', marginBottom: '16px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Customer Available Points</div>
-                <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#38bdf8', marginTop: '4px' }}>
-                  {availablePoints} Points <span style={{ fontSize: '15px', color: '#4ade80', fontWeight: '600' }}>(₹{availablePoints * 2})</span>
+              <div style={{ background: 'linear-gradient(135deg, #064e3b 0%, #0f172a 100%)', borderRadius: '12px', padding: '16px 20px', marginBottom: '16px', border: '2px solid #34d399', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.2)' }}>
+                <div style={{ fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: '800' }}>CUSTOMER AVAILABLE POINTS</div>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#fbbf24', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>{availablePoints} Points</span>
                 </div>
-                {customerName && <div style={{ fontSize: '13px', color: '#cbd5e1', marginTop: '4px' }}>Customer: <strong>{customerName}</strong> {mobileNumber && `(${mobileNumber})`}</div>}
+                {customerName && <div style={{ fontSize: '13px', color: '#e2e8f0', marginTop: '6px', fontWeight: '500' }}>Customer: <strong style={{ color: '#38bdf8' }}>{customerName}</strong> {mobileNumber && `(${mobileNumber})`}</div>}
               </div>
 
               {pointsError && <div className="reg-error-msg" style={{ marginBottom: '12px' }}>⚠️ {pointsError}</div>}
@@ -3060,7 +3501,7 @@ export default function Bill() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   className="modal-submit-btn"
@@ -3238,83 +3679,6 @@ export default function Bill() {
         </div>
       )}
 
-      {/* ── Sale Return Lookup Modal ── */}
-      {showSaleReturnModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)',
-          zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center'
-        }} onClick={handleCloseSaleReturnModal}>
-          <div style={{
-            backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '16px',
-            padding: '24px', maxWidth: '440px', width: '90%', color: '#fff', boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
-          }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#f87171', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                🔄 Sale Return Lookup
-              </h3>
-              <button
-                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '18px' }}
-                onClick={handleCloseSaleReturnModal}
-              >
-                ✕
-              </button>
-            </div>
-
-            <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '16px', lineHeight: 1.4 }}>
-              Enter the original Bill Number to load bill items for sale return processing.
-            </p>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '6px' }}>
-                Original Bill Number:
-              </label>
-              <input
-                ref={saleReturnBillInputRef}
-                type="text"
-                value={saleReturnBillInput}
-                onChange={(e) => setSaleReturnBillInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && saleReturnBillInput.trim()) {
-                    e.preventDefault();
-                    fetchBillForSaleReturn(saleReturnBillInput);
-                  }
-                }}
-                placeholder="e.g. 0001 or 0025"
-                style={{
-                  width: '100%', padding: '10px 14px', borderRadius: '8px',
-                  border: '2px solid #f87171', backgroundColor: '#0f172a', color: '#fff',
-                  fontSize: '15px', fontWeight: 'bold', outline: 'none'
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={handleCloseSaleReturnModal}
-                style={{
-                  padding: '8px 16px', borderRadius: '8px', background: '#334155',
-                  color: '#fff', border: 'none', cursor: 'pointer', fontWeight: '600'
-                }}
-              >
-                Cancel (Esc)
-              </button>
-              <button
-                type="button"
-                disabled={loading || !saleReturnBillInput.trim()}
-                onClick={() => fetchBillForSaleReturn(saleReturnBillInput)}
-                style={{
-                  padding: '8px 16px', borderRadius: '8px', background: '#f87171',
-                  color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold'
-                }}
-              >
-                {loading ? "Fetching..." : "Fetch Bill Items"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -4151,9 +4515,9 @@ const saleStyles = `
   }
 
   .customer-name {
-    background: #1e293b;
-    color: #94a3b8;
-    border: 1px solid #475569;
+    background: #f1f5f9;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
     font-weight: 600;
     padding: 4px 10px;
     text-align: center;
@@ -4162,9 +4526,9 @@ const saleStyles = `
   }
 
   .clock {
-    background: #0f172a;
-    color: #38bdf8;
-    border: 1px solid #334155;
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #7dd3fc;
     font-weight: 800;
     padding: 3px 8px;
     text-align: center;
@@ -4231,15 +4595,16 @@ const saleStyles = `
   }
 
   .quick-add button {
-    border: 1px solid #444;
+    border: 1px solid #000;
     background: #111;
     color: #fff;
     font-weight: 700;
-    padding: 3px 12px;
+    padding: 4px 14px;
     cursor: pointer;
     border-radius: 4px;
     font-size: 11px;
     margin-left: 4px;
+    transition: background 0.2s;
   }
 
   .quick-add button:hover:not(:disabled) {
@@ -4380,8 +4745,9 @@ const saleStyles = `
   }
 
   .info-row strong {
-    background: #020202;
-    color: #fff;
+    background: #f1f5f9;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
     padding: 1px 5px;
     border-radius: 3px;
     font-size: 11px;
@@ -4443,9 +4809,12 @@ const saleStyles = `
   }
 
   .price-strip strong {
-    background: #020202;
-    color: #fff;
+    background: #f1f5f9;
+    color: #0f172a;
     font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #cbd5e1;
   }
 
   .print-btn {

@@ -45,7 +45,9 @@ import {
   MessageCircle,
   Building2,
   Store,
-  Globe
+  Globe,
+  Trash2,
+  Database
 } from 'lucide-react';
 
 import axios from 'axios';
@@ -82,6 +84,12 @@ const Crown = (props) => (
 
 
 
+const cleanBillNo = (numStr) => {
+  if (!numStr) return "";
+  const str = String(numStr).trim();
+  return str.includes("/") ? str.split("/").pop() : str;
+};
+
 const getBillQuantity = (bill) => {
   if (!bill) return 0;
   if (Array.isArray(bill.items) && bill.items.length > 0) {
@@ -105,6 +113,115 @@ const VisitBillPage = () => {
   const [copiedBillNo, setCopiedBillNo] = useState(null);
   const [permissions, setPermissions] = useState([]);
   const [whatsappStatus, setWhatsappStatus] = useState({});
+  const [trashBills, setTrashBills] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("trashBillsData") || "[]");
+    } catch (_) {
+      return [];
+    }
+  });
+  const [showTrashModal, setShowTrashModal] = useState(false);
+
+  const handleMoveToTrash = (bill) => {
+    const billIdStr = String(bill.id || bill.billNumber);
+    if (trashBills.some(b => String(b.id || b.billNumber) === billIdStr)) return;
+
+    const updatedTrash = [bill, ...trashBills];
+    setTrashBills(updatedTrash);
+    try {
+      localStorage.setItem("trashBillsData", JSON.stringify(updatedTrash));
+    } catch (_) { }
+    showMessage("success", `🗑️ Bill #${bill.billNumber} moved to Trash`);
+  };
+
+  const handleRestoreFromTrash = (billId) => {
+    const updatedTrash = trashBills.filter(b => String(b.id || b.billNumber) !== String(billId));
+    setTrashBills(updatedTrash);
+    try {
+      localStorage.setItem("trashBillsData", JSON.stringify(updatedTrash));
+    } catch (_) { }
+    showMessage("success", `🔄 Bill restored back to Bill Reports`);
+  };
+
+  const handleRemoveFromTrash = async (bill) => {
+    const billId = bill.id || bill.billNumber;
+    if (!window.confirm(`⚠️ PERMANENT DELETE WARNING:\nAre you sure you want to permanently delete Bill #${bill.billNumber} from the database? This cannot be undone!`)) return;
+
+    try {
+      if (bill.id) {
+        await api.delete(`/billing/bills/${bill.id}`);
+      }
+      const updatedTrash = trashBills.filter(b => String(b.id || b.billNumber) !== String(billId));
+      setTrashBills(updatedTrash);
+      try {
+        localStorage.setItem("trashBillsData", JSON.stringify(updatedTrash));
+      } catch (_) { }
+      showMessage("success", `💥 Bill #${bill.billNumber} permanently deleted from database`);
+      fetchBills();
+    } catch (err) {
+      console.error("Error deleting bill from database:", err);
+      const updatedTrash = trashBills.filter(b => String(b.id || b.billNumber) !== String(billId));
+      setTrashBills(updatedTrash);
+      try {
+        localStorage.setItem("trashBillsData", JSON.stringify(updatedTrash));
+      } catch (_) { }
+      showMessage("success", `💥 Bill #${bill.billNumber} cleared from Trash`);
+      fetchBills();
+    }
+  };
+
+  const handleDeleteFromDatabase = async (bill) => {
+    const billNo = bill.billNumber || bill.bill_number || bill.id;
+    const billId = bill.id;
+    if (!window.confirm(`⚠️ PERMANENT DELETE FROM DATABASE WARNING:\nAre you sure you want to permanently erase Bill #${billNo} and ALL its records from the database?\nThis action CANNOT be undone!`)) return;
+
+    try {
+      let targetId = billId;
+      if (!targetId) {
+        const res = await api.get(`/billing/bills/number/${encodeURIComponent(billNo)}`);
+        if (res.data?.bill?.id) {
+          targetId = res.data.bill.id;
+        }
+      }
+
+      if (targetId) {
+        await api.delete(`/billing/bills/${targetId}`);
+      }
+
+      const updatedTrash = (trashBills || []).filter(b => String(b.id || b.billNumber) !== String(billId || billNo));
+      setTrashBills(updatedTrash);
+      try {
+        localStorage.setItem("trashBillsData", JSON.stringify(updatedTrash));
+      } catch (_) { }
+
+      showMessage("success", `💥 Bill #${billNo} and all its records permanently erased from database!`);
+      fetchBills();
+    } catch (err) {
+      console.error("Error clearing bill from database:", err);
+      showMessage("error", err.response?.data?.error || `Failed to erase Bill #${billNo} from database.`);
+    }
+  };
+
+  const handleEmptyTrash = async () => {
+    if (!window.confirm("⚠️ PERMANENT DELETE WARNING:\nAre you sure you want to permanently delete ALL bills in Trash from the database? This cannot be undone!")) return;
+
+    for (const bill of trashBills) {
+      if (bill.id) {
+        try {
+          await api.delete(`/billing/bills/${bill.id}`);
+        } catch (err) {
+          console.error(`Error deleting bill ${bill.id}:`, err);
+        }
+      }
+    }
+
+    setTrashBills([]);
+    try {
+      localStorage.removeItem("trashBillsData");
+    } catch (_) { }
+    showMessage("success", "💥 All bills in Trash permanently deleted from database!");
+    fetchBills();
+  };
 
   // Get user info
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -175,7 +292,7 @@ const VisitBillPage = () => {
 
 
   // Create axios instance with credentials
-  
+
 
   // Payment method icons and colors
   const paymentMethodMap = {
@@ -198,11 +315,18 @@ const VisitBillPage = () => {
     corporate: { icon: <Briefcase size={14} />, color: '#2563eb', label: 'Corporate' }
   };
 
+  // Filter out bills stored in Trash for active table view
+  const trashBillIds = (trashBills || []).map(b => String(b.id || b.billNumber));
+  const visibleBills = (filteredBills || []).filter(bill => {
+    const idStr = String(bill.id || bill.billNumber);
+    return !trashBillIds.includes(idStr);
+  });
+
   // Calculate current bills for pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentBills = filteredBills.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredBills.length / itemsPerPage);
+  const currentBills = visibleBills.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(visibleBills.length / itemsPerPage);
 
   // Sales Summary calculation
   const salesSummary = React.useMemo(() => {
@@ -1147,7 +1271,7 @@ const VisitBillPage = () => {
     message += `═══════════════════════\n`;
     message += `*BILL DETAILS*\n`;
     message += `═══════════════════════\n`;
-    message += `*Bill No:* ${bill.billNumber}\n`;
+    message += `*Bill No:* ${String(bill.billNumber || '').split('/').pop()}\n`;
     message += `*Date:* ${new Date(bill.createdAt).toLocaleDateString()}\n`;
     message += `*Time:* ${new Date(bill.createdAt).toLocaleTimeString()}\n`;
     message += `*Customer:* ${bill.customerName || 'Walk-in Customer'}\n`;
@@ -1339,7 +1463,7 @@ const VisitBillPage = () => {
       const exportData = filteredBills.map(bill => {
         const totalQty = getBillQuantity(bill);
         return {
-          'Bill Number': bill.billNumber || '',
+          'Bill Number': cleanBillNo(bill.billNumber) || '',
           'Date': (() => {
             const d = new Date(bill.createdAt.includes('Z') || bill.createdAt.includes('+') ? bill.createdAt : bill.createdAt + 'Z');
             return d.toLocaleDateString('en-GB');
@@ -1480,7 +1604,7 @@ const VisitBillPage = () => {
         const dueVal = totalVal - paidVal;
 
         return [
-          bill?.billNumber || '',
+          cleanBillNo(bill?.billNumber) || '',
           formattedDate,
           String(bill?.customerName || 'Walk-in').substring(0, 20),
           String(bill?.customerType || 'ext').substring(0, 3).toUpperCase(),
@@ -2539,7 +2663,7 @@ const VisitBillPage = () => {
                   <tr key={bill.id}>
                     <td style={styles.td}>
                       <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <strong>{bill.billNumber}</strong>
+                        <strong>{String(bill.billNumber || '').split('/').pop()}</strong>
                         <button
                           style={styles.copyButton}
                           onClick={() => handleCopyBillNumber(bill.billNumber)}
@@ -2702,6 +2826,48 @@ const VisitBillPage = () => {
                             <MessageCircle size={14} />
                           )}
                         </button>
+
+                        {/* Move to Trash Button */}
+                        <button
+                          style={{
+                            ...styles.actionButton,
+                            backgroundColor: '#ef4444',
+                            color: '#ffffff'
+                          }}
+                          onClick={() => handleMoveToTrash(bill)}
+                          title="Move Bill to Trash"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#dc2626';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#ef4444';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+
+                        {/* Clear Database Action Button */}
+                        <button
+                          style={{
+                            ...styles.actionButton,
+                            backgroundColor: '#b91c1c',
+                            color: '#ffffff'
+                          }}
+                          onClick={() => handleDeleteFromDatabase(bill)}
+                          title="Clear Bill Record from Database"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#991b1b';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#b91c1c';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }}
+                        >
+                          <Database size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -2716,7 +2882,7 @@ const VisitBillPage = () => {
       {filteredBills.length > 0 && (
         <div style={styles.pagination}>
           <div style={styles.paginationInfo}>
-            Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredBills.length)} of {filteredBills.length} BT bills
+            Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, visibleBills.length)} of {visibleBills.length} BT bills
           </div>
 
           <div style={styles.paginationControls}>
@@ -2832,14 +2998,14 @@ const VisitBillPage = () => {
 
             <h2 style={styles.modalTitle}>
               <Receipt size={24} color="#6366f1" />
-              Bill Details - {selectedBill.billNumber}
+              Bill Details - {String(selectedBill.billNumber || '').split('/').pop()}
             </h2>
 
             <div style={styles.modalSection}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' }}>
                 <div>
                   <p style={styles.modalText}>
-                    <strong>Bill Number:</strong> {selectedBill.billNumber}
+                    <strong>Bill Number:</strong> {String(selectedBill.billNumber || '').split('/').pop()}
                   </p>
                   <p style={styles.modalText}>
                     <strong>Date:</strong> {(() => {
@@ -3050,6 +3216,187 @@ const VisitBillPage = () => {
                 }}
               >
                 Close (Esc)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Floating Trash Button at Bottom Right Corner ── */}
+      <button
+        onClick={() => setShowTrashModal(true)}
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 9000,
+          backgroundColor: '#1e293b',
+          border: '2px solid #ef4444',
+          color: '#ffffff',
+          padding: '10px 18px',
+          borderRadius: '50px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontWeight: 'bold',
+          fontSize: '14px',
+          boxShadow: '0 8px 24px rgba(239, 68, 68, 0.4)',
+          transition: 'all 0.2s ease'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.06)'}
+        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+      >
+        <Trash2 size={18} color="#ef4444" />
+        <span>Trash</span>
+        {trashBills.length > 0 && (
+          <span style={{
+            backgroundColor: '#ef4444',
+            color: '#fff',
+            fontSize: '11px',
+            fontWeight: '900',
+            padding: '2px 8px',
+            borderRadius: '12px'
+          }}>
+            {trashBills.length}
+          </span>
+        )}
+      </button>
+
+      {/* ── Trash Modal (Shows All Bill Details) ── */}
+      {showTrashModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)',
+          zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center'
+        }} onClick={() => setShowTrashModal(false)}>
+          <div style={{
+            backgroundColor: '#0f172a', border: '2px solid #ef4444', borderRadius: '16px',
+            padding: '24px', maxWidth: '850px', width: '94%', maxHeight: '88vh', display: 'flex',
+            flexDirection: 'column', color: '#fff', boxShadow: '0 20px 50px rgba(0,0,0,0.6)'
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #334155', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Trash2 size={24} color="#ef4444" />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#ef4444' }}>
+                    Bill Reports Trash
+                  </h3>
+                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                    Deleted bills saved in Trash ({trashBills.length} items)
+                  </span>
+                </div>
+              </div>
+              <button
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px' }}
+                onClick={() => setShowTrashModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
+              {trashBills.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                  <span style={{ fontSize: '40px', display: 'block', marginBottom: '10px' }}>✨</span>
+                  Trash is empty! No deleted bills.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {trashBills.map((tb) => (
+                    <div key={tb.id || tb.billNumber} style={{
+                      backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px',
+                      padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '8px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed #334155', paddingBottom: '8px' }}>
+                        <div>
+                          <strong style={{ color: '#f87171', fontSize: '15px' }}>Bill #{tb.billNumber}</strong>
+                          <span style={{ fontSize: '12px', color: '#94a3b8', marginLeft: '12px' }}>
+                            {tb.createdAt ? new Date(tb.createdAt.includes('Z') || tb.createdAt.includes('+') ? tb.createdAt : tb.createdAt + 'Z').toLocaleString('en-GB') : '-'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => {
+                              setShowTrashModal(false);
+                              fetchBillDetails(tb.id);
+                            }}
+                            style={{
+                              padding: '4px 10px', borderRadius: '6px', background: '#3b82f6',
+                              color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px',
+                              display: 'inline-flex', alignItems: 'center', gap: '4px'
+                            }}
+                            title="View Full Bill Details"
+                          >
+                            <Eye size={12} /> Details
+                          </button>
+                          <button
+                            onClick={() => handleRestoreFromTrash(tb.id || tb.billNumber)}
+                            style={{
+                              padding: '4px 10px', borderRadius: '6px', background: '#059669',
+                              color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px',
+                              display: 'inline-flex', alignItems: 'center', gap: '4px'
+                            }}
+                            title="Restore Bill back to Bill Reports"
+                          >
+                            🔄 Restore
+                          </button>
+                          <button
+                            onClick={() => handleRemoveFromTrash(tb)}
+                            style={{
+                              padding: '4px 10px', borderRadius: '6px', background: '#dc2626',
+                              color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px',
+                              display: 'inline-flex', alignItems: 'center', gap: '4px'
+                            }}
+                            title="Permanently delete bill from database"
+                          >
+                            <Trash2 size={12} /> Remove
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Bill Summary Details Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', fontSize: '12px', color: '#cbd5e1' }}>
+                        <div><strong>Customer:</strong> <span style={{ color: '#fff' }}>{tb.customerName || 'Walk-in'}</span></div>
+                        <div><strong>Phone:</strong> <span style={{ color: '#fff' }}>{tb.customerPhone || tb.contact || 'N/A'}</span></div>
+                        <div><strong>Salesperson:</strong> <span style={{ color: '#fff' }}>{tb.salesPerson || tb.createdByName || 'N/A'}</span></div>
+                        <div><strong>Payment:</strong> <span style={{ color: '#38bdf8', textTransform: 'capitalize' }}>{tb.paymentMethod || 'Cash'}</span></div>
+                      </div>
+
+                      {/* Financial Totals */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0f172a', padding: '8px 12px', borderRadius: '8px', fontSize: '13px' }}>
+                        <span>Items Count: <strong>{tb.itemCount || (tb.items ? tb.items.length : 0)} items</strong></span>
+                        <span>Paid: <strong style={{ color: '#34d399' }}>₹{(tb.paidAmount || 0).toFixed(2)}</strong></span>
+                        <span>Total Bill: <strong style={{ color: '#fbbf24', fontSize: '15px' }}>₹{(tb.total || 0).toFixed(2)}</strong></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {trashBills.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={handleEmptyTrash}
+                  style={{
+                    padding: '8px 14px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.2)',
+                    color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px'
+                  }}
+                >
+                  Empty Trash (Clear Database)
+                </button>
+              ) : <div />}
+              <button
+                type="button"
+                onClick={() => setShowTrashModal(false)}
+                style={{
+                  padding: '8px 18px', borderRadius: '8px', background: '#334155',
+                  color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold'
+                }}
+              >
+                Close Trash
               </button>
             </div>
           </div>

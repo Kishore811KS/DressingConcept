@@ -62,6 +62,7 @@ class Bill(db.Model):
     payment_online_phone = db.Column(db.String(20), nullable=True)
     payment_online_ref = db.Column(db.String(100), nullable=True)
     cash_received = db.Column(db.Float, default=0)
+    sales_return_amount = db.Column(db.Float, default=0)
     
     # Metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -110,9 +111,11 @@ class Bill(db.Model):
             self.payment_status = 'pending'
     
     def to_dict(self):
+        display_num = self.bill_number.split('/', 1)[-1] if (self.bill_number and '/' in self.bill_number) else self.bill_number
         return {
             'id': self.id,
-            'billNumber': self.bill_number,
+            'billNumber': display_num,
+            'rawBillNumber': self.bill_number,
             'customer': {
                 'name': self.customer_name,
                 'phone': self.customer_phone,
