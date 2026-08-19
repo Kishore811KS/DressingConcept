@@ -54,6 +54,9 @@ const EmployeeManager = () => {
   const [attendanceMonth, setAttendanceMonth] = useState(new Date().getMonth() + 1);
   const [attendanceYear, setAttendanceYear] = useState(new Date().getFullYear());
   const [loadingAttendance, setLoadingAttendance] = useState(false);
+  const [attendanceStartDate, setAttendanceStartDate] = useState('');
+  const [attendanceEndDate, setAttendanceEndDate] = useState('');
+  const [attendanceStatusFilter, setAttendanceStatusFilter] = useState('all');
 
   const [showSalaryModal, setShowSalaryModal] = useState(false);
   const [salaryEmployee, setSalaryEmployee] = useState(null);
@@ -443,6 +446,62 @@ const EmployeeManager = () => {
     }
   };
 
+  const getFilteredAttendance = () => {
+    let list = attendanceData?.attendances || [];
+
+    if (attendanceStartDate) {
+      list = list.filter(item => {
+        const itemDateStr = (item.date || item.attendance_date || item.check_in_time || '').split('T')[0];
+        return itemDateStr >= attendanceStartDate;
+      });
+    }
+
+    if (attendanceEndDate) {
+      list = list.filter(item => {
+        const itemDateStr = (item.date || item.attendance_date || item.check_in_time || '').split('T')[0];
+        return itemDateStr <= attendanceEndDate;
+      });
+    }
+
+    if (attendanceStatusFilter && attendanceStatusFilter !== 'all') {
+      list = list.filter(item => {
+        const st = String(item.status || '').toLowerCase();
+        return st === attendanceStatusFilter.toLowerCase();
+      });
+    }
+
+    return list;
+  };
+
+  const getFilteredStats = (filteredList) => {
+    const total_days = filteredList.length;
+    let present = 0;
+    let absent = 0;
+    let late = 0;
+    let total_hours = 0;
+
+    filteredList.forEach(rec => {
+      const st = String(rec.status || '').toLowerCase();
+      if (st.includes('present')) present++;
+      else if (st.includes('absent')) absent++;
+      else if (st.includes('late') || st.includes('half')) late++;
+      else present++;
+
+      total_hours += Number(rec.total_hours || rec.hours || 0);
+    });
+
+    const attendance_rate = total_days > 0 ? Math.round(((present + late) / total_days) * 100) : (attendanceData?.statistics?.attendance_rate || 0);
+
+    return {
+      total_days,
+      present,
+      absent,
+      late,
+      total_hours: Math.round(total_hours * 10) / 10,
+      attendance_rate
+    };
+  };
+
   // Open Salary Report Modal
   const openSalaryReport = async (employee, month = salaryMonth, year = salaryYear) => {
     const targetEmp = employee || salaryEmployee;
@@ -508,7 +567,8 @@ const EmployeeManager = () => {
 
       const gross = empSalary.calculated_salary || 0;
       const adv = empSalary.advance_amount || 0;
-      const net = Math.max(0, gross - adv - monthPurchasesTotal);
+      const inc = empSalary.incentive_amount || 0;
+      const net = Math.max(0, gross + inc - adv - monthPurchasesTotal);
 
       empSalary = {
         ...empSalary,
@@ -556,149 +616,364 @@ const EmployeeManager = () => {
     }
   };
 
-  // Download Salary Payslip PDF
+  // Download Salary Payslip PDF (Identical to Salary section payslip generator)
   const downloadPayslipPDF = (employee, salary) => {
     if (!employee || !salary) return;
     const doc = new jsPDF();
 
-    // Header
-    doc.setFontSize(20);
-    doc.setFont("helvetica", "bold");
-    doc.text("Dressing Concept - Employee Payslip", 105, 20, null, null, "center");
+    const empName = employee.full_name || salary.employee_name || 'Unknown';
+    const monthVal = salary.month || salaryMonth || (new Date().getMonth() + 1);
+    const yearVal = salary.year || salaryYear || new Date().getFullYear();
 
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    doc.text(`Employee ID: ${employee.employee_id || '-'}`, 20, 35);
-    doc.text(`Employee Name: ${employee.full_name}`, 20, 42);
-    doc.text(`Department: ${employee.department || '-'}`, 20, 49);
+    const generatePdf = (logoBase64 = null) => {
+      // Dressing Concept Title on top (centered)
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text("Dressing Concept", 105, 16, null, null, "center");
 
-    doc.text(`Pay Period: ${monthNames[salaryMonth - 1]} ${salaryYear}`, 130, 35);
-    doc.text(`Designation: ${employee.designation || '-'}`, 130, 42);
-    doc.text(`User Type: ${employee.user_type || '-'}`, 130, 49);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "normal");
+      doc.text("Payslip", 105, 23, null, null, "center");
 
-    doc.line(20, 54, 190, 54);
-
-    // Attendance & Earnings Breakdown
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("Attendance & Salary Breakdown", 20, 64);
-
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    const daysInSalMonth = new Date(salary.year || salaryYear, salary.month || salaryMonth, 0).getDate();
-    doc.text(`Working Days Threshold: ${salary.num_days_in_month || salary.working_days_threshold || daysInSalMonth}`, 20, 74);
-    doc.text(`Present Days: ${salary.present_days || 0}`, 20, 83);
-    doc.text(`Paid Leaves: ${salary.paid_leaves || 0}`, 20, 92);
-    doc.text(`Half Days: ${salary.half_days || 0}`, 20, 101);
-
-    doc.text(`Effective Paid Days: ${salary.effective_days || 0}`, 120, 74);
-    doc.text(`Unpaid Leaves (LOP): ${salary.unpaid_leaves || 0}`, 120, 83);
-    doc.text(`Absent Days: ${salary.absent_days || 0}`, 120, 92);
-
-    doc.line(20, 108, 190, 108);
-
-    const grossSalary = salary.calculated_salary || 0;
-    const advance = salary.advance_amount || 0;
-    const purchasesAmount = salary.purchases_amount || 0;
-    const netSalary = salary.net_salary !== undefined ? salary.net_salary : Math.max(0, grossSalary - advance - purchasesAmount);
-
-    doc.setFontSize(11);
-    doc.text(`Gross Calculated Salary:`, 20, 115);
-    doc.text(`Rs. ${grossSalary.toLocaleString()}`, 140, 115);
-
-    doc.text(`Advance Salary Deducted:`, 20, 124);
-    doc.setTextColor(220, 53, 69);
-    doc.text(`- Rs. ${advance.toLocaleString()}`, 140, 124);
-
-    doc.text(`Product Purchases Deducted:`, 20, 133);
-    doc.text(`- Rs. ${purchasesAmount.toLocaleString()}`, 140, 133);
-    doc.setTextColor(0, 0, 0);
-
-    doc.line(20, 141, 190, 141);
-
-    doc.setFontSize(13);
-    doc.setFont("helvetica", "bold");
-    doc.text(`Net Take-Home Salary:`, 20, 153);
-    doc.setTextColor(40, 167, 69);
-    doc.text(`Rs. ${netSalary.toLocaleString()}`, 140, 153);
-    doc.setTextColor(0, 0, 0);
-
-    let currentY = 166;
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "italic");
-    doc.text(`Payment Status: ${(salary.status || 'pending').toUpperCase()}`, 20, currentY);
-
-    currentY += 12;
-
-    // Purchased Products Details Section under NOTE:
-    const purchasesToDisplay = [];
-    if (salary.purchased_bills && salary.purchased_bills.length > 0) {
-      salary.purchased_bills.forEach(b => {
-        const bNo = String(b.billNumber || b.bill_number || b.id || 'N/A').split('/').pop();
-        const rawDate = b.createdAt || b.created_at || b.date || '';
-        const bDate = rawDate ? String(rawDate).split('T')[0] : '-';
-        const bAmt = b.total !== undefined ? b.total : (b.summary?.total || 0);
-        purchasesToDisplay.push({ bill_number: bNo, date: bDate, total: bAmt });
-      });
-    } else if (salary.purchased_items && salary.purchased_items.length > 0) {
-      const seen = new Set();
-      salary.purchased_items.forEach(item => {
-        const bNo = String(item.bill_number || 'N/A').split('/').pop();
-        if (!seen.has(bNo)) {
-          seen.add(bNo);
-          const rawDate = item.bill_date || item.created_at || '';
-          const bDate = rawDate ? String(rawDate).split('T')[0] : '-';
-          const bAmt = item.bill_total !== undefined ? item.bill_total : (item.total !== undefined ? item.total : 0);
-          purchasesToDisplay.push({ bill_number: bNo, date: bDate, total: bAmt });
+      // Logo placed below title
+      if (logoBase64) {
+        try {
+          doc.addImage(logoBase64, 'PNG', 82.5, 26, 45, 18);
+        } catch (e) {
+          console.warn("Logo add error", e);
         }
-      });
+      }
+
+      const startY = logoBase64 ? 48 : 32;
+
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Employee Name: ${empName}`, 20, startY);
+      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      doc.text(`Month/Year: ${monthNames[monthVal - 1]} ${yearVal}`, 120, startY);
+
+      doc.line(20, startY + 5, 190, startY + 5); // horizontal line
+
+      const row1Y = startY + 16;
+      const daysInSelMonth = new Date(yearVal, monthVal, 0).getDate();
+      doc.text(`Working Days in Month: ${salary.working_days_threshold || salary.num_days_in_month || daysInSelMonth}`, 20, row1Y);
+      doc.text(`Present Days: ${salary.present_days || 0}`, 20, row1Y + 9);
+      doc.text(`Paid Leaves: ${salary.paid_leaves || 0}`, 20, row1Y + 18);
+      doc.text(`Half Days: ${salary.half_days || 0}`, 20, row1Y + 27);
+
+      doc.text(`Effective Paid Days: ${salary.effective_days || 0}`, 120, row1Y);
+      doc.text(`Unpaid Leaves (LOP): ${salary.unpaid_leaves || 0}`, 120, row1Y + 9);
+      doc.text(`Absent Days: ${salary.absent_days || 0}`, 120, row1Y + 18);
+
+      const row2Y = row1Y + 34;
+      doc.line(20, row2Y, 190, row2Y);
+
+      const basicSalaryRate = employee.basic_salary || salary.basic_salary || 0;
+      const totalDeductions = ((salary.unpaid_leaves || 0) + (salary.absent_days || 0) + (salary.half_days || 0) * 0.5) * basicSalaryRate;
+      const advance = Number(salary.advance_amount) || 0;
+      const purchasesAmount = Number(salary.purchases_amount) || 0;
+      const incentive = Number(salary.incentive_amount) || 0;
+      const netTakeHome = Math.max(0, (salary.calculated_salary || 0) + incentive - advance - purchasesAmount);
+
+      doc.setFontSize(11);
+      doc.text(`Gross Salary:`, 20, row2Y + 12);
+      doc.text(`Rs. ${(salary.calculated_salary || 0).toLocaleString()}`, 140, row2Y + 12);
+
+      let currentLineY = row2Y + 21;
+      if (incentive > 0) {
+        doc.text(`Incentive / Bonus:`, 20, currentLineY);
+        doc.setTextColor(2, 132, 199);
+        doc.text(`+ Rs. ${incentive.toLocaleString()}`, 140, currentLineY);
+        doc.setTextColor(0, 0, 0);
+        currentLineY += 9;
+      }
+
+      doc.text(`LOP Deductions:`, 20, currentLineY);
+      doc.setTextColor(200, 0, 0);
+      doc.text(`- Rs. ${totalDeductions.toLocaleString()}`, 140, currentLineY);
+      currentLineY += 9;
+
+      doc.text(`Advance Deducted:`, 20, currentLineY);
+      doc.setTextColor(230, 81, 0);
+      doc.text(`- Rs. ${advance.toLocaleString()}`, 140, currentLineY);
+      currentLineY += 9;
+
+      doc.text(`Product Purchases Deducted:`, 20, currentLineY);
+      doc.setTextColor(194, 24, 91);
+      doc.text(`- Rs. ${purchasesAmount.toLocaleString()}`, 140, currentLineY);
+      doc.setTextColor(0, 0, 0);
+      currentLineY += 7;
+
+      doc.line(20, currentLineY, 190, currentLineY);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.text(`Net Take-Home:`, 20, currentLineY + 11);
+      doc.setTextColor(0, 150, 0);
+      doc.text(`Rs. ${netTakeHome.toLocaleString()}`, 140, currentLineY + 11);
+      doc.setTextColor(0, 0, 0);
+
+      let currentY = row2Y + 70;
+      const purchasesToDisplay = [];
+      if (salary.purchased_bills && salary.purchased_bills.length > 0) {
+        salary.purchased_bills.forEach(b => {
+          const bNo = String(b.billNumber || b.bill_number || b.id || 'N/A').split('/').pop();
+          const rawDate = b.createdAt || b.created_at || b.date || '';
+          const bDate = rawDate ? String(rawDate).split('T')[0] : '-';
+          const bAmt = b.total !== undefined ? b.total : (b.summary?.total || 0);
+          purchasesToDisplay.push({ bill_number: bNo, date: bDate, total: bAmt });
+        });
+      } else if (salary.purchased_items && salary.purchased_items.length > 0) {
+        const seen = new Set();
+        salary.purchased_items.forEach(item => {
+          const bNo = String(item.bill_number || 'N/A').split('/').pop();
+          if (!seen.has(bNo)) {
+            seen.add(bNo);
+            const rawDate = item.bill_date || item.created_at || '';
+            const bDate = rawDate ? String(rawDate).split('T')[0] : '-';
+            const bAmt = item.bill_total !== undefined ? item.bill_total : (item.total !== undefined ? item.total : 0);
+            purchasesToDisplay.push({ bill_number: bNo, date: bDate, total: bAmt });
+          }
+        });
+      }
+
+      if (purchasesToDisplay.length > 0) {
+        doc.line(20, currentY, 190, currentY);
+        currentY += 8;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(180, 0, 0);
+        doc.text("NOTE: Purchased Products", 20, currentY);
+        doc.setTextColor(0, 0, 0);
+        currentY += 6;
+
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        purchasesToDisplay.forEach((p, idx) => {
+          if (currentY > 230) {
+            doc.addPage();
+            currentY = 20;
+          }
+          doc.text(`${idx + 1}. Bill #${p.bill_number}  |  Date: ${p.date}  |  Total Amount: Rs. ${p.total.toLocaleString()}`, 25, currentY);
+          currentY += 5.5;
+        });
+      }
+
+      // Proprietor Seal & Signature on Bottom Right (no box)
+      const sealY = 245;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 58, 138);
+      doc.text("For Dressing Concept", 190, sealY, null, null, "right");
+
+      // Space left for signature
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 58, 138);
+      doc.text("Proprietor", 190, sealY + 20, null, null, "right");
+      doc.setTextColor(0, 0, 0);
+
+      doc.save(`Payslip_${empName}_${monthNames[monthVal - 1]}_${yearVal}.pdf`);
+    };
+
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.src = '/Dressing_Concept.png';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const dataURL = canvas.toDataURL('image/png');
+        generatePdf(dataURL);
+      } catch (err) {
+        generatePdf(null);
+      }
+    };
+    img.onerror = () => {
+      generatePdf(null);
+    };
+  };
+
+  // Download Attendance Report PDF
+  const downloadAttendancePDF = (employee, attendanceInfo, month, year, customStartDate = null, customEndDate = null) => {
+    if (!employee || !attendanceInfo) return;
+    const doc = new jsPDF();
+
+    const empName = employee.full_name || 'Employee';
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthVal = month || attendanceMonth;
+    const yearVal = year || attendanceYear;
+    const monthName = monthNames[monthVal - 1] || 'Month';
+
+    let periodLabel = `${monthName} ${yearVal}`;
+    if (customStartDate && customEndDate) {
+      periodLabel = `${customStartDate} to ${customEndDate}`;
+    } else if (customStartDate) {
+      periodLabel = `From ${customStartDate}`;
+    } else if (customEndDate) {
+      periodLabel = `Until ${customEndDate}`;
     }
 
-    if (purchasesToDisplay.length > 0) {
-      doc.line(20, currentY, 190, currentY);
-      currentY += 8;
+    const generatePdf = (logoBase64 = null) => {
+      // Dressing Concept Title on top (centered)
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text("Dressing Concept", 105, 16, null, null, "center");
+
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "normal");
+      doc.text("Employee Attendance Report", 105, 23, null, null, "center");
+
+      // Logo placed below title
+      if (logoBase64) {
+        try {
+          doc.addImage(logoBase64, 'PNG', 82.5, 26, 45, 18);
+        } catch (e) {
+          console.warn("Logo add error", e);
+        }
+      }
+
+      const startY = logoBase64 ? 48 : 32;
+
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Employee ID: ${employee.employee_id || '-'}`, 20, startY);
+      doc.text(`Employee Name: ${empName}`, 20, startY + 7);
+      doc.text(`Department: ${employee.department || '-'}`, 20, startY + 14);
+
+      doc.text(`Report Period: ${periodLabel}`, 120, startY);
+      doc.text(`Designation: ${employee.designation || '-'}`, 120, startY + 7);
+      doc.text(`User Type: ${employee.user_type || '-'}`, 120, startY + 14);
+
+      doc.line(20, startY + 20, 190, startY + 20);
+
+      // Attendance Statistics Summary Box
+      const statsY = startY + 30;
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("Attendance Summary", 20, statsY);
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const stats = attendanceInfo.statistics || {};
+      const attendances = attendanceInfo.attendances || [];
+
+      doc.text(`Total Tracked Days: ${stats.total_days || attendances.length || 0}`, 20, statsY + 10);
+      doc.text(`Present Days: ${stats.present || 0}`, 20, statsY + 18);
+      doc.text(`Absent Days: ${stats.absent || 0}`, 20, statsY + 26);
+
+      doc.text(`Late / Half Days: ${stats.late || 0}`, 120, statsY + 10);
+      doc.text(`Attendance Rate: ${stats.attendance_rate !== undefined ? `${stats.attendance_rate}%` : 'N/A'}`, 120, statsY + 18);
+      doc.text(`Total Hours Worked: ${stats.total_hours || 0} hrs`, 120, statsY + 26);
+
+      const tableHeaderY = statsY + 36;
+      doc.line(20, tableHeaderY, 190, tableHeaderY);
+
+      // Attendance Table Headers
+      let currentY = tableHeaderY + 10;
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(180, 0, 0);
-      doc.text("NOTE: Purchased Products", 20, currentY);
-      doc.setTextColor(0, 0, 0);
-      currentY += 6;
+      doc.text("Date", 20, currentY);
+      doc.text("Check In", 60, currentY);
+      doc.text("Check Out", 95, currentY);
+      doc.text("Hours", 130, currentY);
+      doc.text("Status", 160, currentY);
+
+      doc.line(20, currentY + 3, 190, currentY + 3);
+      currentY += 10;
 
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
-      purchasesToDisplay.forEach((p, idx) => {
-        if (currentY > 230) {
-          doc.addPage();
-          currentY = 20;
-        }
-        doc.text(`${idx + 1}. Bill #${p.bill_number}  |  Date: ${p.date}  |  Total Amount: Rs. ${p.total.toLocaleString()}`, 25, currentY);
-        currentY += 5.5;
-      });
-    }
 
-    // Proprietor Seal & Signature on Bottom Right (no box)
-    const sealY = 242;
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(30, 58, 138);
-    doc.text("DRESSING CONCEPTS", 162.5, sealY + 6, null, null, "center");
+      if (attendances.length === 0) {
+        doc.text("No attendance records found for this period.", 20, currentY);
+      } else {
+        attendances.forEach((rec) => {
+          if (currentY > 260) {
+            doc.addPage();
+            currentY = 20;
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            doc.text("Date", 20, currentY);
+            doc.text("Check In", 60, currentY);
+            doc.text("Check Out", 95, currentY);
+            doc.text("Hours", 130, currentY);
+            doc.text("Status", 160, currentY);
+            doc.line(20, currentY + 3, 190, currentY + 3);
+            currentY += 10;
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+          }
 
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.text("PROPRIETOR", 162.5, sealY + 12, null, null, "center");
-    doc.text("SEAL & SIGNATURE", 162.5, sealY + 16, null, null, "center");
+          const dateStr = formatDate(rec.date);
+          const inTime = rec.check_in_time ? new Date(rec.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
+          const outTime = rec.check_out_time ? new Date(rec.check_out_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
+          const hrs = rec.total_hours ? `${rec.total_hours} hrs` : '-';
+          const statusStr = (rec.status || '-').toUpperCase();
 
-    doc.setLineWidth(0.4);
-    doc.setDrawColor(150, 150, 150);
-    doc.line(140, sealY + 24, 185, sealY + 24);
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "italic");
-    doc.setTextColor(80, 80, 80);
-    doc.text("Authorized Signatory", 162.5, sealY + 28, null, null, "center");
-    doc.setTextColor(0, 0, 0);
+          doc.text(dateStr, 20, currentY);
+          doc.text(inTime, 60, currentY);
+          doc.text(outTime, 95, currentY);
+          doc.text(hrs, 130, currentY);
 
-    doc.save(`Payslip_${employee.full_name}_${monthNames[salaryMonth - 1]}_${salaryYear}.pdf`);
+          if (rec.status === 'present') {
+            doc.setTextColor(16, 185, 129);
+          } else if (rec.status === 'absent') {
+            doc.setTextColor(239, 68, 68);
+          } else {
+            doc.setTextColor(245, 158, 11);
+          }
+          doc.text(statusStr, 160, currentY);
+          doc.setTextColor(0, 0, 0);
+
+          currentY += 6;
+        });
+      }
+
+      // Proprietor Seal & Signature on Bottom Right
+      const sealY = Math.max(currentY + 20, 245);
+      if (sealY > 265) {
+        doc.addPage();
+        const newSealY = 245;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(30, 58, 138);
+        doc.text("For Dressing Concept", 190, newSealY, null, null, "right");
+        doc.text("Proprietor", 190, newSealY + 20, null, null, "right");
+      } else {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(30, 58, 138);
+        doc.text("For Dressing Concept", 190, sealY, null, null, "right");
+        doc.text("Proprietor", 190, sealY + 20, null, null, "right");
+      }
+      doc.setTextColor(0, 0, 0);
+
+      doc.save(`Attendance_Report_${empName}_${monthName}_${yearVal}.pdf`);
+    };
+
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.src = '/Dressing_Concept.png';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const dataURL = canvas.toDataURL('image/png');
+        generatePdf(dataURL);
+      } catch (err) {
+        generatePdf(null);
+      }
+    };
+    img.onerror = () => {
+      generatePdf(null);
+    };
   };
 
 
@@ -1261,119 +1536,187 @@ const EmployeeManager = () => {
             </div>
 
             <div style={styles.modalBody}>
-              {/* Month & Year Selection Bar */}
-              <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '20px', backgroundColor: '#0a0e27', padding: '12px 18px', borderRadius: '8px', border: '1px solid #2a2f4a' }}>
-                <label style={{ color: '#a0a5c0', fontWeight: '500', fontSize: '14px' }}>Select Month & Year:</label>
-                <select
-                  value={attendanceMonth}
-                  onChange={(e) => {
-                    const m = parseInt(e.target.value);
-                    setAttendanceMonth(m);
-                    openAttendanceReport(attendanceEmployee, m, attendanceYear);
-                  }}
-                  style={{ ...styles.input, width: '140px' }}
-                >
-                  {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m, idx) => (
-                    <option key={m} value={idx + 1}>{m}</option>
-                  ))}
-                </select>
-                <select
-                  value={attendanceYear}
-                  onChange={(e) => {
-                    const y = parseInt(e.target.value);
-                    setAttendanceYear(y);
-                    openAttendanceReport(attendanceEmployee, attendanceMonth, y);
-                  }}
-                  style={{ ...styles.input, width: '100px' }}
-                >
-                  {[2023, 2024, 2025, 2026, 2027].map(y => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
+              {(() => {
+                const filteredAttendances = getFilteredAttendance();
+                const filteredStats = getFilteredStats(filteredAttendances);
+                return (
+                  <>
+                    {/* Month, Year & Date Range Filter Bar */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', marginBottom: '20px', backgroundColor: '#0a0e27', padding: '14px 18px', borderRadius: '8px', border: '1px solid #2a2f4a' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <label style={{ color: '#a0a5c0', fontWeight: '500', fontSize: '13px' }}>Month & Year:</label>
+                        <select
+                          value={attendanceMonth}
+                          onChange={(e) => {
+                            const m = parseInt(e.target.value);
+                            setAttendanceMonth(m);
+                            openAttendanceReport(attendanceEmployee, m, attendanceYear);
+                          }}
+                          style={{ ...styles.input, width: '125px', padding: '6px' }}
+                        >
+                          {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m, idx) => (
+                            <option key={m} value={idx + 1}>{m}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={attendanceYear}
+                          onChange={(e) => {
+                            const y = parseInt(e.target.value);
+                            setAttendanceYear(y);
+                            openAttendanceReport(attendanceEmployee, attendanceMonth, y);
+                          }}
+                          style={{ ...styles.input, width: '85px', padding: '6px' }}
+                        >
+                          {[2023, 2024, 2025, 2026, 2027].map(y => (
+                            <option key={y} value={y}>{y}</option>
+                          ))}
+                        </select>
+                      </div>
 
-              {loadingAttendance ? (
-                <p style={styles.loadingMessage}>Loading attendance data...</p>
-              ) : (
-                <>
-                  {/* Stat Cards */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-                    <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #3b82f633', textAlign: 'center' }}>
-                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Total Tracked Days</span>
-                      <h3 style={{ color: '#3b82f6', fontSize: '24px', margin: '5px 0 0 0' }}>{attendanceData.statistics?.total_days || (attendanceData.attendances?.length || 0)}</h3>
-                    </div>
-                    <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #10b98133', textAlign: 'center' }}>
-                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Present Days</span>
-                      <h3 style={{ color: '#10b981', fontSize: '24px', margin: '5px 0 0 0' }}>{attendanceData.statistics?.present || 0}</h3>
-                    </div>
-                    <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #ef444433', textAlign: 'center' }}>
-                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Absent Days</span>
-                      <h3 style={{ color: '#ef4444', fontSize: '24px', margin: '5px 0 0 0' }}>{attendanceData.statistics?.absent || 0}</h3>
-                    </div>
-                    <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #f59e0b33', textAlign: 'center' }}>
-                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Late / Half Days</span>
-                      <h3 style={{ color: '#f59e0b', fontSize: '24px', margin: '5px 0 0 0' }}>{attendanceData.statistics?.late || 0}</h3>
-                    </div>
-                    <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #8b5cf633', textAlign: 'center' }}>
-                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Attendance Rate</span>
-                      <h3 style={{ color: '#8b5cf6', fontSize: '24px', margin: '5px 0 0 0' }}>{attendanceData.statistics?.attendance_rate !== undefined ? `${attendanceData.statistics.attendance_rate}%` : 'N/A'}</h3>
-                    </div>
-                    <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #06b6d433', textAlign: 'center' }}>
-                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Total Hours Worked</span>
-                      <h3 style={{ color: '#06b6d4', fontSize: '24px', margin: '5px 0 0 0' }}>{attendanceData.statistics?.total_hours || 0} hrs</h3>
-                    </div>
-                  </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <label style={{ color: '#a0a5c0', fontWeight: '500', fontSize: '13px' }}>From:</label>
+                        <input
+                          type="date"
+                          value={attendanceStartDate}
+                          onChange={(e) => setAttendanceStartDate(e.target.value)}
+                          style={{ ...styles.input, width: '135px', padding: '5px 8px' }}
+                        />
+                        <label style={{ color: '#a0a5c0', fontWeight: '500', fontSize: '13px' }}>To:</label>
+                        <input
+                          type="date"
+                          value={attendanceEndDate}
+                          onChange={(e) => setAttendanceEndDate(e.target.value)}
+                          style={{ ...styles.input, width: '135px', padding: '5px 8px' }}
+                        />
+                      </div>
 
-                  {/* Attendance Table */}
-                  <div style={styles.tableWrapper}>
-                    <table style={styles.table}>
-                      <thead>
-                        <tr style={styles.tableHeaderRow}>
-                          <th style={styles.tableHeader}>Date</th>
-                          <th style={styles.tableHeader}>Check In</th>
-                          <th style={styles.tableHeader}>Check Out</th>
-                          <th style={styles.tableHeader}>Total Hours</th>
-                          <th style={styles.tableHeader}>Overtime</th>
-                          <th style={styles.tableHeader}>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {!attendanceData.attendances || attendanceData.attendances.length === 0 ? (
-                          <tr>
-                            <td colSpan="6" style={{ ...styles.tableCell, textAlign: 'center', padding: '20px', color: '#a0a5c0' }}>
-                              No attendance records found for this period.
-                            </td>
-                          </tr>
-                        ) : (
-                          attendanceData.attendances.map((rec) => (
-                            <tr key={rec.id || rec.date} style={styles.tableRow}>
-                              <td style={styles.tableCell}>{formatDate(rec.date)}</td>
-                              <td style={styles.tableCell}>{rec.check_in_time ? new Date(rec.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                              <td style={styles.tableCell}>{rec.check_out_time ? new Date(rec.check_out_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                              <td style={styles.tableCell}>{rec.total_hours ? `${rec.total_hours} hrs` : '-'}</td>
-                              <td style={styles.tableCell}>{rec.overtime ? `${rec.overtime} hrs` : '-'}</td>
-                              <td style={styles.tableCell}>
-                                <span style={{
-                                  padding: '4px 10px',
-                                  borderRadius: '12px',
-                                  fontSize: '12px',
-                                  fontWeight: '600',
-                                  textTransform: 'capitalize',
-                                  backgroundColor: rec.status === 'present' ? '#10b98122' : rec.status === 'absent' ? '#ef444422' : '#f59e0b22',
-                                  color: rec.status === 'present' ? '#10b981' : rec.status === 'absent' ? '#ef4444' : '#f59e0b',
-                                  border: `1px solid ${rec.status === 'present' ? '#10b981' : rec.status === 'absent' ? '#ef4444' : '#f59e0b'}`
-                                }}>
-                                  {rec.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <label style={{ color: '#a0a5c0', fontWeight: '500', fontSize: '13px' }}>Status:</label>
+                        <select
+                          value={attendanceStatusFilter}
+                          onChange={(e) => setAttendanceStatusFilter(e.target.value)}
+                          style={{ ...styles.input, width: '110px', padding: '6px' }}
+                        >
+                          <option value="all">All</option>
+                          <option value="present">Present</option>
+                          <option value="absent">Absent</option>
+                          <option value="late">Late / Half</option>
+                        </select>
+                      </div>
+
+                      {(attendanceStartDate || attendanceEndDate || attendanceStatusFilter !== 'all') && (
+                        <button
+                          onClick={() => {
+                            setAttendanceStartDate('');
+                            setAttendanceEndDate('');
+                            setAttendanceStatusFilter('all');
+                          }}
+                          style={{ ...styles.modalButton, backgroundColor: '#374151', padding: '6px 12px', fontSize: '12px' }}
+                        >
+                          Clear Filter
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => downloadAttendancePDF(
+                          attendanceEmployee,
+                          { attendances: filteredAttendances, statistics: filteredStats },
+                          attendanceMonth,
+                          attendanceYear,
+                          attendanceStartDate,
+                          attendanceEndDate
                         )}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
+                        style={{ ...styles.modalButton, backgroundColor: '#059669', display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto', padding: '8px 14px' }}
+                      >
+                        <FaDownload /> Download PDF
+                      </button>
+                    </div>
+
+                    {loadingAttendance ? (
+                      <p style={styles.loadingMessage}>Loading attendance data...</p>
+                    ) : (
+                      <>
+                        {/* Stat Cards */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+                          <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #3b82f633', textAlign: 'center' }}>
+                            <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Total Tracked Days</span>
+                            <h3 style={{ color: '#3b82f6', fontSize: '24px', margin: '5px 0 0 0' }}>{filteredStats.total_days}</h3>
+                          </div>
+                          <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #10b98133', textAlign: 'center' }}>
+                            <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Present Days</span>
+                            <h3 style={{ color: '#10b981', fontSize: '24px', margin: '5px 0 0 0' }}>{filteredStats.present}</h3>
+                          </div>
+                          <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #ef444433', textAlign: 'center' }}>
+                            <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Absent Days</span>
+                            <h3 style={{ color: '#ef4444', fontSize: '24px', margin: '5px 0 0 0' }}>{filteredStats.absent}</h3>
+                          </div>
+                          <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #f59e0b33', textAlign: 'center' }}>
+                            <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Late / Half Days</span>
+                            <h3 style={{ color: '#f59e0b', fontSize: '24px', margin: '5px 0 0 0' }}>{filteredStats.late}</h3>
+                          </div>
+                          <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #8b5cf633', textAlign: 'center' }}>
+                            <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Attendance Rate</span>
+                            <h3 style={{ color: '#8b5cf6', fontSize: '24px', margin: '5px 0 0 0' }}>{filteredStats.attendance_rate}%</h3>
+                          </div>
+                          <div style={{ backgroundColor: '#0a0e27', padding: '15px', borderRadius: '8px', border: '1px solid #06b6d433', textAlign: 'center' }}>
+                            <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Total Hours Worked</span>
+                            <h3 style={{ color: '#06b6d4', fontSize: '24px', margin: '5px 0 0 0' }}>{filteredStats.total_hours} hrs</h3>
+                          </div>
+                        </div>
+
+                        {/* Attendance Table */}
+                        <div style={styles.tableWrapper}>
+                          <table style={styles.table}>
+                            <thead>
+                              <tr style={styles.tableHeaderRow}>
+                                <th style={styles.tableHeader}>Date</th>
+                                <th style={styles.tableHeader}>Check In</th>
+                                <th style={styles.tableHeader}>Check Out</th>
+                                <th style={styles.tableHeader}>Total Hours</th>
+                                <th style={styles.tableHeader}>Overtime</th>
+                                <th style={styles.tableHeader}>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filteredAttendances.length === 0 ? (
+                                <tr>
+                                  <td colSpan="6" style={{ ...styles.tableCell, textAlign: 'center', padding: '20px', color: '#a0a5c0' }}>
+                                    No attendance records found for the selected date range & filters.
+                                  </td>
+                                </tr>
+                              ) : (
+                                filteredAttendances.map((rec) => (
+                                  <tr key={rec.id || rec.date} style={styles.tableRow}>
+                                    <td style={styles.tableCell}>{formatDate(rec.date)}</td>
+                                    <td style={styles.tableCell}>{rec.check_in_time ? new Date(rec.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                                    <td style={styles.tableCell}>{rec.check_out_time ? new Date(rec.check_out_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                                    <td style={styles.tableCell}>{rec.total_hours ? `${rec.total_hours} hrs` : '-'}</td>
+                                    <td style={styles.tableCell}>{rec.overtime ? `${rec.overtime} hrs` : '-'}</td>
+                                    <td style={styles.tableCell}>
+                                      <span style={{
+                                        padding: '4px 10px',
+                                        borderRadius: '12px',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        textTransform: 'capitalize',
+                                        backgroundColor: rec.status === 'present' ? '#10b98122' : rec.status === 'absent' ? '#ef444422' : '#f59e0b22',
+                                        color: rec.status === 'present' ? '#10b981' : rec.status === 'absent' ? '#ef4444' : '#f59e0b',
+                                        border: `1px solid ${rec.status === 'present' ? '#10b981' : rec.status === 'absent' ? '#ef4444' : '#f59e0b'}`
+                                      }}>
+                                        {rec.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             <div style={styles.modalFooter}>
@@ -1463,6 +1806,10 @@ const EmployeeManager = () => {
                       <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Gross Calculated Salary</span>
                       <h3 style={{ color: '#8b5cf6', fontSize: '20px', margin: '6px 0 0 0' }}>₹{(salaryRecord.calculated_salary || 0).toLocaleString()}</h3>
                     </div>
+                    <div style={{ backgroundColor: '#0a0e27', padding: '16px', borderRadius: '8px', border: '1px solid #0284c733' }}>
+                      <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Incentive / Bonus</span>
+                      <h3 style={{ color: '#0284c7', fontSize: '20px', margin: '6px 0 0 0' }}>+ ₹{(salaryRecord.incentive_amount || 0).toLocaleString()}</h3>
+                    </div>
                     <div style={{ backgroundColor: '#0a0e27', padding: '16px', borderRadius: '8px', border: '1px solid #2a2f4a' }}>
                       <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Advance Deducted</span>
                       <h3 style={{ color: '#ef4444', fontSize: '20px', margin: '6px 0 0 0' }}>- ₹{(salaryRecord.advance_amount || 0).toLocaleString()}</h3>
@@ -1474,7 +1821,7 @@ const EmployeeManager = () => {
                     <div style={{ backgroundColor: '#0a0e27', padding: '16px', borderRadius: '8px', border: '1px solid #10b981' }}>
                       <span style={{ color: '#a0a5c0', fontSize: '12px' }}>Net Take-Home Pay</span>
                       <h3 style={{ color: '#10b981', fontSize: '22px', fontWeight: 'bold', margin: '6px 0 0 0' }}>
-                        ₹{(salaryRecord.net_salary !== undefined ? salaryRecord.net_salary : Math.max(0, (salaryRecord.calculated_salary || 0) - (salaryRecord.advance_amount || 0) - (salaryRecord.purchases_amount || 0))).toLocaleString()}
+                        ₹{(salaryRecord.net_salary !== undefined ? salaryRecord.net_salary : Math.max(0, (salaryRecord.calculated_salary || 0) + (salaryRecord.incentive_amount || 0) - (salaryRecord.advance_amount || 0) - (salaryRecord.purchases_amount || 0))).toLocaleString()}
                       </h3>
                     </div>
                   </div>
@@ -1499,6 +1846,10 @@ const EmployeeManager = () => {
                         }}>
                           {salaryRecord.status || 'pending'}
                         </span>
+                      </div>
+                      <div style={styles.detailItem}>
+                        <label style={styles.detailLabel}>Incentive / Bonus:</label>
+                        <span style={{ ...styles.detailValue, color: '#0284c7', fontWeight: 'bold' }}>+ ₹{(salaryRecord.incentive_amount || 0).toLocaleString()}</span>
                       </div>
                       <div style={styles.detailItem}>
                         <label style={styles.detailLabel}>Present Days:</label>
@@ -1656,18 +2007,18 @@ const EmployeeManager = () => {
 const styles = {
   container: {
     minHeight: '100vh',
-    backgroundColor: '#0a0e27',
+    backgroundColor: '#0f172a',
     padding: '40px 20px',
     fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif'
   },
   card: {
     maxWidth: '1400px',
     margin: '0 auto',
-    backgroundColor: '#1a1f3e',
+    backgroundColor: '#1e293b',
     borderRadius: '12px',
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
     padding: '30px',
-    border: '1px solid #2a2f4a'
+    border: '1px solid #334155'
   },
   header: {
     display: 'flex',
@@ -1858,34 +2209,34 @@ const styles = {
     animation: 'fadeIn 0.3s ease'
   },
   modal: {
-    backgroundColor: '#1a1f3e',
+    backgroundColor: '#1e293b',
     borderRadius: '12px',
     maxWidth: '800px',
     width: '90%',
     maxHeight: '90vh',
     overflow: 'auto',
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-    border: '1px solid #2a2f4a',
+    border: '1px solid #334155',
     animation: 'slideUp 0.3s ease'
   },
   modalLarge: {
-    backgroundColor: '#1a1f3e',
+    backgroundColor: '#1e293b',
     borderRadius: '12px',
     maxWidth: '1200px',
     width: '95%',
     maxHeight: '90vh',
     overflow: 'auto',
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-    border: '1px solid #2a2f4a',
+    border: '1px solid #334155',
     animation: 'slideUp 0.3s ease'
   },
   confirmModal: {
-    backgroundColor: '#1a1f3e',
+    backgroundColor: '#1e293b',
     borderRadius: '12px',
     maxWidth: '400px',
     width: '90%',
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-    border: '1px solid #2a2f4a',
+    border: '1px solid #334155',
     animation: 'slideUp 0.3s ease'
   },
   modalHeader: {

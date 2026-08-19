@@ -1,6 +1,6 @@
 // LowStockPage.jsx
 import React, { useEffect, useState } from "react";
-import { 
+import {
   Download, RefreshCw, ArrowLeft, AlertTriangle, Truck,
   ChevronLeft, ChevronRight, Search, X
 } from "lucide-react";
@@ -32,12 +32,12 @@ export default function LowStockPage() {
   const [message, setMessage] = useState({ type: "", text: "" });
   const [lowStockThreshold] = useState(5);
   const [searchTerm, setSearchTerm] = useState("");
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
-  
+
   // Order modal state
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [orderItems, setOrderItems] = useState([]);
@@ -54,7 +54,7 @@ export default function LowStockPage() {
       setFilteredItems(items);
     } else {
       const term = searchTerm.toLowerCase();
-      const filtered = items.filter(item => 
+      const filtered = items.filter(item =>
         (item.id && item.id.toString().includes(term)) ||
         (item.name && item.name.toLowerCase().includes(term)) ||
         (item.model && item.model.toLowerCase().includes(term)) ||
@@ -84,13 +84,13 @@ export default function LowStockPage() {
     try {
       // Fetch all products first (since we need to filter by quantity)
       const res = await api.get(`${API_URL}?page=${page}&per_page=100`); // Get more items per page
-      
+
       const data = res.data;
-      
+
       // Handle different response formats
       let productsArray = [];
       let totalCount = 0;
-      
+
       if (Array.isArray(data)) {
         productsArray = data;
         totalCount = data.length;
@@ -105,15 +105,15 @@ export default function LowStockPage() {
         productsArray = [];
         totalCount = 0;
       }
-      
+
       // Calculate values and filter low stock items (quantity <= 5)
       const processedItems = productsArray
         .map(item => calculateValues({ ...item, id: item.id }))
         .filter(item => item.quantity <= lowStockThreshold); // Changed to <= to be more inclusive
-      
+
       setItems(processedItems);
       setFilteredItems(processedItems);
-      
+
       if (processedItems.length === 0) {
         showMessage("info", "No items with quantity less than 5 found");
       }
@@ -132,8 +132,8 @@ export default function LowStockPage() {
 
     const amount = (sell * qty).toFixed(2);
 
-    return { 
-      ...item, 
+    return {
+      ...item,
       amount,
       buyPrice: buy,
       sellPrice: sell,
@@ -188,11 +188,11 @@ export default function LowStockPage() {
     setProcessingOrder(true);
     try {
       let updatedItems = [...items];
-      
+
       for (const orderItem of selectedItems) {
         const item = items.find(i => i.id === orderItem.id);
         const newQty = (item?.quantity || 0) + orderItem.quantity;
-        
+
         // Update in backend
         await api.put(`${API_URL}/${orderItem.id}`, {
           name: item?.name || item?.description || "Product",
@@ -214,13 +214,13 @@ export default function LowStockPage() {
       const newLowStockItems = updatedItems.filter(i => i.quantity <= lowStockThreshold);
       setItems(newLowStockItems);
       setFilteredItems(newLowStockItems);
-      
+
       setShowOrderModal(false);
       showMessage("success", `Order placed successfully for ${selectedItems.length} items!`);
-      
+
       // Refresh products
       await loadProducts();
-      
+
     } catch (err) {
       console.error("Error placing order:", err);
       showMessage("error", `Failed to place order: ${err.response?.data?.error || err.message}`);
@@ -238,7 +238,7 @@ export default function LowStockPage() {
         'Product ID': item.productCode || item.id || '',
         'Description': item.name || '',
         'Tax': item.tax || 0,
-        'Unit': item.unit || 'PCS',        'Unit': item.unit || 'PCS',
+        'Unit': item.unit || 'PCS', 'Unit': item.unit || 'PCS',
         'Qty': item.quantity || 0,
         'Status': item.quantity === 0 ? 'OUT OF STOCK' : 'LOW STOCK',
         'Required': item.quantity === 0 ? lowStockThreshold : Math.max(0, lowStockThreshold - item.quantity),
@@ -272,7 +272,7 @@ export default function LowStockPage() {
 
       const date = new Date().toISOString().split('T')[0];
       saveAs(file, `Low_Stock_Alert_${date}.xlsx`);
-      
+
       showMessage("success", "Export successful!");
     } catch (err) {
       console.error("Export error:", err);
@@ -309,7 +309,7 @@ export default function LowStockPage() {
   const getPageNumbers = () => {
     const pageNumbers = [];
     const maxVisiblePages = 5;
-    
+
     if (totalPageCount <= maxVisiblePages) {
       for (let i = 1; i <= totalPageCount; i++) {
         pageNumbers.push(i);
@@ -317,16 +317,16 @@ export default function LowStockPage() {
     } else {
       let startPage = Math.max(1, currentPage - 2);
       let endPage = Math.min(totalPageCount, startPage + maxVisiblePages - 1);
-      
+
       if (endPage - startPage < maxVisiblePages - 1) {
         startPage = Math.max(1, endPage - maxVisiblePages + 1);
       }
-      
+
       for (let i = startPage; i <= endPage; i++) {
         pageNumbers.push(i);
       }
     }
-    
+
     return pageNumbers;
   };
 
@@ -686,7 +686,7 @@ export default function LowStockPage() {
                 <Truck size={20} style={{ marginRight: '8px' }} />
                 Place Order for Low Stock Items
               </h2>
-              <button 
+              <button
                 style={styles.closeButton}
                 onClick={() => setShowOrderModal(false)}
               >
@@ -709,29 +709,29 @@ export default function LowStockPage() {
                 <tbody>
                   {orderItems.map((item) => (
                     <tr key={item.id}>
-                    <td style={styles.modalTd}>{item.productCode || item.id}</td>
-                    <td style={styles.modalTd}>{item.name}</td>
-                    <td style={styles.modalTd}>
-                      <span style={{ 
-                        color: item.quantity === 0 ? '#ffffff' : '#f87171', 
-                        fontWeight: '600',
-                        backgroundColor: item.quantity === 0 ? 'rgba(0,0,0,0.5)' : 'transparent',
-                        padding: item.quantity === 0 ? '2px 6px' : '0',
-                        borderRadius: item.quantity === 0 ? '4px' : '0'
-                      }}>
-                        {item.quantity}
-                      </span>
-                    </td>
-                    <td style={styles.modalTd}>
-                      <span style={item.quantity === 0 ? styles.outOfStockIndicator : styles.lowStockIndicator}>
-                        {item.quantity === 0 ? 'OUT OF STOCK' : 'LOW STOCK'}
-                      </span>
-                    </td>
-                    <td style={styles.modalTd}>
-                      <span style={{ color: '#4ade80', fontWeight: '500' }}>
-                        {item.quantity === 0 ? lowStockThreshold : Math.max(0, lowStockThreshold - item.quantity)}
-                      </span>
-                    </td>
+                      <td style={styles.modalTd}>{item.productCode || item.id}</td>
+                      <td style={styles.modalTd}>{item.name}</td>
+                      <td style={styles.modalTd}>
+                        <span style={{
+                          color: item.quantity === 0 ? '#ffffff' : '#f87171',
+                          fontWeight: '600',
+                          backgroundColor: item.quantity === 0 ? 'rgba(0,0,0,0.5)' : 'transparent',
+                          padding: item.quantity === 0 ? '2px 6px' : '0',
+                          borderRadius: item.quantity === 0 ? '4px' : '0'
+                        }}>
+                          {item.quantity}
+                        </span>
+                      </td>
+                      <td style={styles.modalTd}>
+                        <span style={item.quantity === 0 ? styles.outOfStockIndicator : styles.lowStockIndicator}>
+                          {item.quantity === 0 ? 'OUT OF STOCK' : 'LOW STOCK'}
+                        </span>
+                      </td>
+                      <td style={styles.modalTd}>
+                        <span style={{ color: '#4ade80', fontWeight: '500' }}>
+                          {item.quantity === 0 ? lowStockThreshold : Math.max(0, lowStockThreshold - item.quantity)}
+                        </span>
+                      </td>
                       <td style={styles.modalTd}>
                         <input
                           type="number"
@@ -754,14 +754,14 @@ export default function LowStockPage() {
                 <span style={styles.totalAmount}>₹{calculateOrderTotal().toFixed(2)}</span>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button 
+                <button
                   style={styles.button}
                   onClick={() => setShowOrderModal(false)}
                 >
                   Cancel
                 </button>
-                <button 
-                  style={{...styles.button, ...styles.primaryButton}}
+                <button
+                  style={{ ...styles.button, ...styles.primaryButton }}
                   onClick={handlePlaceOrder}
                   disabled={processingOrder}
                 >
@@ -776,7 +776,7 @@ export default function LowStockPage() {
       {/* Header */}
       <div style={styles.header}>
         <div style={styles.headerTitle}>
-          <button 
+          <button
             style={styles.backButton}
             onClick={() => navigate('/items')}
             title="Back to Inventory"
@@ -787,7 +787,7 @@ export default function LowStockPage() {
             <AlertTriangle color="#f87171" size={28} />
             Low Stock Alert (Qty ≤ {lowStockThreshold})
           </h1>
-          <button 
+          <button
             style={styles.refreshButton}
             onClick={() => loadProducts(1)}
             title="Refresh"
@@ -809,9 +809,9 @@ export default function LowStockPage() {
       {message.text && (
         <div style={{
           ...styles.message,
-          ...(message.type === "success" ? styles.successMessage : 
-             message.type === "error" ? styles.errorMessage : 
-             styles.infoMessage)
+          ...(message.type === "success" ? styles.successMessage :
+            message.type === "error" ? styles.errorMessage :
+              styles.infoMessage)
         }}>
           {message.text}
         </div>
@@ -842,13 +842,13 @@ export default function LowStockPage() {
           <div style={styles.emptyState}>
             <AlertTriangle size={48} style={{ marginBottom: '20px', opacity: 0.5 }} />
             <div>
-              {searchTerm 
-                ? "No items match your search" 
+              {searchTerm
+                ? "No items match your search"
                 : "No items with quantity less than 5 found"}
             </div>
             <div style={{ fontSize: '14px', marginTop: '10px', color: '#6b7280' }}>
-              {searchTerm 
-                ? "Try adjusting your search terms" 
+              {searchTerm
+                ? "Try adjusting your search terms"
                 : "All items have sufficient stock (quantity ≥ 5)"}
             </div>
           </div>
@@ -869,9 +869,9 @@ export default function LowStockPage() {
             <tbody>
               {currentItems.map((item, idx) => {
                 const required = item.quantity === 0 ? lowStockThreshold : Math.max(0, lowStockThreshold - item.quantity);
-                const profit = (item.mrp || 0) - (item.buyPrice || 0);
+                const profit = (item.sellPrice || item.mrp || 0) - (item.buyPrice || 0);
                 const amount = (item.sellPrice || item.mrp || 0) * item.quantity;
-                
+
                 return (
                   <tr key={item.id}>
                     <td style={styles.td}>{indexOfFirstItem + idx + 1}</td>
@@ -879,15 +879,15 @@ export default function LowStockPage() {
                     <td style={{ ...styles.td, fontWeight: 500 }}>{item.name}</td>
                     <td style={styles.td}>{item.tax || 0}</td>
                     <td style={styles.td}>
-                      <span style={{ 
-                        backgroundColor: '#374151', 
-                        padding: '2px 8px', 
+                      <span style={{
+                        backgroundColor: '#374151',
+                        padding: '2px 8px',
                         borderRadius: '12px',
                         fontSize: '11px'
                       }}>{item.unit || 'PCS'}</span>
                     </td>
                     <td style={{
-                      ...styles.td, 
+                      ...styles.td,
                       ...(item.quantity === 0 ? styles.zeroQuantityCell : styles.quantityCell)
                     }}>
                       {item.quantity}
@@ -897,7 +897,7 @@ export default function LowStockPage() {
                         {item.quantity === 0 ? 'OUT OF STOCK' : 'LOW STOCK'}
                       </span>
                     </td>
-                    <td style={{...styles.td, ...styles.requiredCell}}>{required}</td>
+                    <td style={{ ...styles.td, ...styles.requiredCell }}>{required}</td>
                   </tr>
                 );
               })}
@@ -919,7 +919,7 @@ export default function LowStockPage() {
           >
             <ChevronLeft size={16} />
           </button>
-          
+
           {getPageNumbers().map(number => (
             <button
               key={number}
@@ -932,7 +932,7 @@ export default function LowStockPage() {
               {number}
             </button>
           ))}
-          
+
           <button
             style={{
               ...styles.paginationButton,
@@ -943,9 +943,9 @@ export default function LowStockPage() {
           >
             <ChevronRight size={16} />
           </button>
-          
+
           <span style={styles.paginationInfo}>
-            Page {currentPage} of {totalPageCount} 
+            Page {currentPage} of {totalPageCount}
             {filteredItems.length > 0 && (
               <> (Showing {currentItems.length} of {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'})</>
             )}

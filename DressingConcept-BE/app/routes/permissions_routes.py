@@ -35,6 +35,8 @@ MODULES_JSON = {
       "submodules": [
         { "id": "create_bill", "name": "Create Bill" },
         { "id": "bill_reports", "name": "Bill Reports" },
+        { "id": "ledger_book", "name": "Ledger Book" },
+        { "id": "sale_return", "name": "Sale Return" },
         { "id": "bill_number_edit", "name": "Edit Bill Number" },
         { "id": "profit_visibility", "name": "Show/Hide Profit Container" },
         { "id": "sales_visibility", "name": "Show/Hide SALES Box" },

@@ -52,7 +52,7 @@ const InvoicePage = () => {
     address: "88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082",
     phone: "98848 58576",
     email: "hiprintsolutions@gmail.com",
-    gstin: "33ABCDE1234F1Z5"
+    gstin: "33BQEPD0068G1ZD"
   };
 
   // State for invoices list

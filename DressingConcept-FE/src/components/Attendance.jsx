@@ -38,6 +38,23 @@ const Attendance = () => {
   const [toast, setToast] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June", 
+    "July", "August", "September", "October", "November", "December"
+  ];
+  const years = [2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030];
+
+  const handleMonthChange = (e) => {
+    const newMonth = parseInt(e.target.value);
+    setSelectedMonth(newMonth);
+    setSelectedDate(new Date(selectedYear, newMonth - 1, 1));
+  };
+
+  const handleYearChange = (e) => {
+    const newYear = parseInt(e.target.value);
+    setSelectedYear(newYear);
+    setSelectedDate(new Date(newYear, selectedMonth - 1, 1));
+  };
 
   useEffect(() => {
     fetchAttendance(format(selectedDate, "yyyy-MM-dd"));
@@ -134,10 +151,10 @@ const Attendance = () => {
   const styles = {
     container: {
       padding: "24px",
-      backgroundColor: "#f8f9fa",
+      backgroundColor: "#0f172a",
       minHeight: "100vh",
       fontFamily: "'Inter', sans-serif",
-      color: "#333"
+      color: "#f8fafc"
     },
     header: {
       display: "flex",
@@ -154,11 +171,11 @@ const Attendance = () => {
       fontSize: "24px",
       fontWeight: "700",
       margin: 0,
-      color: "#1a1a1a"
+      color: "#f8fafc"
     },
     subtitle: {
       fontSize: "14px",
-      color: "#666"
+      color: "#94a3b8"
     },
     controls: {
       display: "flex",
@@ -168,8 +185,9 @@ const Attendance = () => {
     select: {
       padding: "8px 16px",
       borderRadius: "8px",
-      border: "1px solid #ddd",
-      backgroundColor: "#fff",
+      border: "1px solid #334155",
+      backgroundColor: "#1e293b",
+      color: "#f8fafc",
       fontSize: "14px",
       fontWeight: "500",
       cursor: "pointer",
@@ -178,8 +196,9 @@ const Attendance = () => {
     searchInput: {
       padding: "8px 16px",
       borderRadius: "8px",
-      border: "1px solid #ddd",
-      backgroundColor: "#fff",
+      border: "1px solid #334155",
+      backgroundColor: "#1e293b",
+      color: "#f8fafc",
       fontSize: "14px",
       outline: "none",
       width: "250px"
@@ -187,8 +206,9 @@ const Attendance = () => {
     exportBtn: {
       padding: "8px 16px",
       borderRadius: "8px",
-      border: "1px solid #ddd",
-      backgroundColor: "#fff",
+      border: "1px solid #334155",
+      backgroundColor: "#1e293b",
+      color: "#f8fafc",
       fontSize: "14px",
       fontWeight: "500",
       display: "flex",
@@ -214,7 +234,7 @@ const Attendance = () => {
     statLabel: {
       fontSize: "13px",
       fontWeight: "600",
-      color: "#666"
+      color: "#94a3b8"
     },
     statValue: (color) => ({
       fontSize: "28px",
@@ -222,10 +242,9 @@ const Attendance = () => {
       color: color.text
     }),
     mainCard: {
-      backgroundColor: "#fff",
-      borderRadius: "16px",
-      border: "1px solid #eee",
-      boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+      backgroundColor: "#1e293b",
+      borderRadius: "12px",
+      border: "1px solid #334155",
       padding: "24px",
       marginBottom: "24px"
     },
@@ -235,13 +254,14 @@ const Attendance = () => {
       marginBottom: "20px",
       display: "flex",
       justifyContent: "space-between",
-      alignItems: "center"
+      alignItems: "center",
+      color: "#f8fafc"
     },
     adminTip: {
       fontSize: "12px",
       fontWeight: "500",
-      backgroundColor: "#fff3e0",
-      color: "#e65100",
+      backgroundColor: "rgba(245, 158, 11, 0.15)",
+      color: "#fbbf24",
       padding: "6px 12px",
       borderRadius: "6px"
     },
@@ -254,21 +274,23 @@ const Attendance = () => {
       padding: "12px",
       fontSize: "13px",
       fontWeight: "600",
-      color: "#888",
-      borderBottom: "1px solid #eee"
+      color: "#94a3b8",
+      backgroundColor: "#0f172a",
+      borderBottom: "1px solid #334155"
     },
     td: {
       padding: "12px",
       fontSize: "14px",
-      borderBottom: "1px solid #f5f5f5",
+      borderBottom: "1px solid #334155",
+      color: "#f8fafc",
       verticalAlign: "middle"
     },
     avatar: {
       width: "32px",
       height: "32px",
       borderRadius: "50%",
-      backgroundColor: "#e3f2fd",
-      color: "#1976d2",
+      backgroundColor: "rgba(99, 102, 241, 0.2)",
+      color: "#818cf8",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -277,11 +299,11 @@ const Attendance = () => {
     },
     statusBadge: (status) => {
       const config = {
-        present: { bg: "#e8f5e9", text: "#2e7d32" },
-        leave: { bg: "#ffebee", text: "#c62828" },
-        paid_leave: { bg: "#e3f2fd", text: "#1565c0" },
-        half_day: { bg: "#fff3e0", text: "#ef6c00" },
-        absent: { bg: "#fafafa", text: "#757575" }
+        present: { bg: "rgba(16, 185, 129, 0.15)", text: "#34d399" },
+        leave: { bg: "rgba(245, 158, 11, 0.15)", text: "#fbbf24" },
+        paid_leave: { bg: "rgba(59, 130, 246, 0.15)", text: "#60a5fa" },
+        half_day: { bg: "rgba(139, 92, 246, 0.15)", text: "#a78bfa" },
+        absent: { bg: "rgba(239, 68, 68, 0.15)", text: "#f87171" }
       };
       const theme = config[status] || config.present;
       return {
@@ -296,8 +318,9 @@ const Attendance = () => {
     dropdown: {
       padding: "8px 12px",
       borderRadius: "8px",
-      border: "1px solid #ddd",
-      backgroundColor: "#fff",
+      border: "1px solid #334155",
+      backgroundColor: "#0f172a",
+      color: "#f8fafc",
       fontSize: "14px",
       fontWeight: "600",
       width: "140px",
@@ -310,22 +333,23 @@ const Attendance = () => {
       right: "24px",
       padding: "12px 24px",
       borderRadius: "12px",
-      backgroundColor: "#333",
+      backgroundColor: "#1e293b",
+      border: "1px solid #334155",
       color: "#fff",
       fontSize: "14px",
       fontWeight: "600",
-      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
       zIndex: 1000
     }
   };
 
   const statColors = {
-    working: { bg: "#f5f5f5", border: "#eee", text: "#333" },
-    present: { bg: "#f1f8e9", border: "#dcedc8", text: "#2e7d32" },
-    leave: { bg: "#fff3e0", border: "#ffe0b2", text: "#e65100" },
-    paid: { bg: "#e3f2fd", border: "#bbdefb", text: "#1565c0" },
-    half: { bg: "#f3e5f5", border: "#e1bee7", text: "#7b1fa2" },
-    absent: { bg: "#f5f5f5", border: "#e0e0e0", text: "#616161" }
+    working: { bg: "rgba(99, 102, 241, 0.1)", border: "rgba(99, 102, 241, 0.3)", text: "#818cf8" },
+    present: { bg: "rgba(16, 185, 129, 0.1)", border: "rgba(16, 185, 129, 0.3)", text: "#34d399" },
+    leave: { bg: "rgba(245, 158, 11, 0.1)", border: "rgba(245, 158, 11, 0.3)", text: "#fbbf24" },
+    paid: { bg: "rgba(59, 130, 246, 0.1)", border: "rgba(59, 130, 246, 0.3)", text: "#60a5fa" },
+    half: { bg: "rgba(139, 92, 246, 0.1)", border: "rgba(139, 92, 246, 0.3)", text: "#a78bfa" },
+    absent: { bg: "rgba(239, 68, 68, 0.1)", border: "rgba(239, 68, 68, 0.3)", text: "#f87171" }
   };
 
   return (
@@ -343,8 +367,23 @@ const Attendance = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <select style={styles.select} value={`${selectedYear}-${selectedMonth}`}>
-            <option value="2026-5">May 2026</option>
+          <select 
+            style={styles.select} 
+            value={selectedMonth}
+            onChange={handleMonthChange}
+          >
+            {monthNames.map((m, idx) => (
+              <option key={idx + 1} value={idx + 1}>{m}</option>
+            ))}
+          </select>
+          <select 
+            style={styles.select} 
+            value={selectedYear}
+            onChange={handleYearChange}
+          >
+            {years.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
           </select>
           <button style={styles.exportBtn}>
             <FaFileExport /> Export
@@ -398,7 +437,31 @@ const Attendance = () => {
 
       <div style={styles.mainCard}>
         <div style={styles.cardTitle}>
-          <span>Daily attendance — {format(selectedDate, "dd MMM yyyy")}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span>Daily attendance — {format(selectedDate, "dd MMM yyyy")}</span>
+            <input 
+              type="date"
+              value={format(selectedDate, "yyyy-MM-dd")}
+              onChange={(e) => {
+                if (e.target.value) {
+                  const d = new Date(e.target.value + "T00:00:00");
+                  setSelectedDate(d);
+                  setSelectedMonth(d.getMonth() + 1);
+                  setSelectedYear(d.getFullYear());
+                }
+              }}
+              style={{
+                backgroundColor: "#0f172a",
+                color: "#f8fafc",
+                border: "1px solid #334155",
+                borderRadius: "6px",
+                padding: "4px 8px",
+                fontSize: "13px",
+                outline: "none",
+                cursor: "pointer"
+              }}
+            />
+          </div>
           <span style={styles.adminTip}>Admin: change dropdown to override auto-marked status</span>
         </div>
         <table style={styles.table}>
@@ -471,11 +534,11 @@ const Attendance = () => {
                     <span style={{ fontWeight: "600" }}>{emp.employee_name}</span>
                   </div>
                 </td>
-                <td style={styles.td}><span style={{ backgroundColor: "#e8f5e9", color: "#2e7d32", padding: "2px 8px", borderRadius: "10px", fontSize: "12px", fontWeight: "700" }}>{emp.present}</span></td>
-                <td style={styles.td}><span style={{ backgroundColor: "#fff3e0", color: "#e65100", padding: "2px 8px", borderRadius: "10px", fontSize: "12px", fontWeight: "700" }}>{emp.leave}</span></td>
-                <td style={styles.td}><span style={{ backgroundColor: "#e3f2fd", color: "#1565c0", padding: "2px 8px", borderRadius: "10px", fontSize: "12px", fontWeight: "700" }}>{emp.paid_leave}</span></td>
-                <td style={styles.td}><span style={{ backgroundColor: "#f3e5f5", color: "#7b1fa2", padding: "2px 8px", borderRadius: "10px", fontSize: "12px", fontWeight: "700" }}>{emp.half_day}</span></td>
-                <td style={styles.td}><span style={{ backgroundColor: "#ffebee", color: "#c62828", padding: "2px 8px", borderRadius: "10px", fontSize: "12px", fontWeight: "700" }}>{emp.absent}</span></td>
+                <td style={styles.td}><span style={{ backgroundColor: "rgba(16, 185, 129, 0.15)", color: "#34d399", border: "1px solid rgba(16, 185, 129, 0.3)", padding: "2px 8px", borderRadius: "10px", fontSize: "12px", fontWeight: "700" }}>{emp.present}</span></td>
+                <td style={styles.td}><span style={{ backgroundColor: "rgba(245, 158, 11, 0.15)", color: "#fbbf24", border: "1px solid rgba(245, 158, 11, 0.3)", padding: "2px 8px", borderRadius: "10px", fontSize: "12px", fontWeight: "700" }}>{emp.leave}</span></td>
+                <td style={styles.td}><span style={{ backgroundColor: "rgba(59, 130, 246, 0.15)", color: "#60a5fa", border: "1px solid rgba(59, 130, 246, 0.3)", padding: "2px 8px", borderRadius: "10px", fontSize: "12px", fontWeight: "700" }}>{emp.paid_leave}</span></td>
+                <td style={styles.td}><span style={{ backgroundColor: "rgba(139, 92, 246, 0.15)", color: "#a78bfa", border: "1px solid rgba(139, 92, 246, 0.3)", padding: "2px 8px", borderRadius: "10px", fontSize: "12px", fontWeight: "700" }}>{emp.half_day}</span></td>
+                <td style={styles.td}><span style={{ backgroundColor: "rgba(239, 68, 68, 0.15)", color: "#f87171", border: "1px solid rgba(239, 68, 68, 0.3)", padding: "2px 8px", borderRadius: "10px", fontSize: "12px", fontWeight: "700" }}>{emp.absent}</span></td>
                 <td style={styles.td}><span style={{ fontWeight: "700" }}>{emp.effective_days}</span></td>
               </tr>
             ))}

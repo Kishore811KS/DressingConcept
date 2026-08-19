@@ -56,7 +56,11 @@ const calculateProduct = (product) => {
     ? Math.round((discountAmount / mrp) * 10000) / 100
     : toNumber(product.discountPercent);
 
-  const normalProfit = mrp - purchaseRate;
+  const sellPrice = (product.sellPrice !== undefined && product.sellPrice !== "" && product.sellPrice !== null && product.sellPrice !== 0)
+    ? toNumber(product.sellPrice)
+    : (toNumber(product.discountAmount) > 0 ? toNumber(product.discountAmount) : mrp);
+
+  const normalProfit = sellPrice - purchaseRate;
   const classicProfit = classicPrice > 0 ? (classicPrice - purchaseRate) : 0;
 
   return {
@@ -84,6 +88,7 @@ export default function Products() {
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [importDuplicatesModal, setImportDuplicatesModal] = useState(null);
 
   const searchInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -107,7 +112,7 @@ export default function Products() {
   const stats = useMemo(() => {
     const totalProducts = items.length;
     const totalUnits = items.reduce((sum, item) => sum + (toNumber(item.quantity) || 0), 0);
-    const lowStockCount = items.filter(item => toNumber(item.quantity) < 10).length;
+    const lowStockCount = items.filter(item => toNumber(item.quantity) <= 5).length;
     return { totalProducts, totalUnits, lowStockCount };
   }, [items]);
 
@@ -430,6 +435,8 @@ export default function Products() {
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(worksheet);
 
+        const parsedProductsMap = new Map();
+
         for (const row of rows) {
           const product = calculateProduct({
             productCode: row.Product_Id || row["Product ID"] || "",
@@ -443,13 +450,58 @@ export default function Products() {
             classicCustomer: row.Classic_Customer || row["Classic Customer"] || 0,
             quantity: row.Quantity || 0,
           });
-          if (!product.name) continue;
 
-          await api.post(API_URL, buildPayload(product));
+          if (!product.name?.trim()) continue;
+
+          const key = product.name.trim().toLowerCase();
+          if (parsedProductsMap.has(key)) {
+            const existingParsed = parsedProductsMap.get(key);
+            existingParsed.quantity = (parseInt(existingParsed.quantity, 10) || 0) + (parseInt(product.quantity, 10) || 0);
+          } else {
+            parsedProductsMap.set(key, product);
+          }
         }
 
-        showMessage("success", "Import completed");
-        await loadProducts();
+        const parsedProductsList = Array.from(parsedProductsMap.values());
+        if (parsedProductsList.length === 0) {
+          showMessage("error", "No valid products found in the imported file");
+          return;
+        }
+
+        const newProducts = [];
+        const duplicateProducts = [];
+
+        for (const importedProduct of parsedProductsList) {
+          const key = importedProduct.name.trim().toLowerCase();
+          const existingItem = items.find(item => item.name?.trim().toLowerCase() === key);
+
+          if (existingItem) {
+            duplicateProducts.push({
+              id: `dup-${duplicateProducts.length}`,
+              existingProduct: existingItem,
+              importedProduct: importedProduct,
+              newQuantity: (parseInt(existingItem.quantity, 10) || 0) + (parseInt(importedProduct.quantity, 10) || 0),
+              selected: true
+            });
+          } else {
+            newProducts.push(importedProduct);
+          }
+        }
+
+        if (duplicateProducts.length > 0) {
+          setImportDuplicatesModal({
+            newProducts,
+            duplicateProducts
+          });
+        } else {
+          setSaving(true);
+          for (const product of newProducts) {
+            await api.post(API_URL, buildPayload(product));
+          }
+          showMessage("success", "Import completed successfully");
+          await loadProducts();
+          setSaving(false);
+        }
       } catch (error) {
         showMessage("error", error.message || "Failed to import products");
       } finally {
@@ -457,6 +509,62 @@ export default function Products() {
       }
     };
     reader.readAsArrayBuffer(file);
+  };
+
+  const toggleSelectDuplicateItem = (id) => {
+    if (!importDuplicatesModal) return;
+    setImportDuplicatesModal(prev => ({
+      ...prev,
+      duplicateProducts: prev.duplicateProducts.map(item =>
+        item.id === id ? { ...item, selected: !item.selected } : item
+      )
+    }));
+  };
+
+  const toggleSelectAllDuplicates = () => {
+    if (!importDuplicatesModal) return;
+    const allSelected = importDuplicatesModal.duplicateProducts.every(item => item.selected);
+    setImportDuplicatesModal(prev => ({
+      ...prev,
+      duplicateProducts: prev.duplicateProducts.map(item => ({ ...item, selected: !allSelected }))
+    }));
+  };
+
+  const processImportAgreement = async () => {
+    if (!importDuplicatesModal) return;
+    setSaving(true);
+    try {
+      const selectedDuplicates = importDuplicatesModal.duplicateProducts.filter(d => d.selected);
+
+      for (const dup of selectedDuplicates) {
+        const updatedQty = (parseInt(dup.existingProduct.quantity, 10) || 0) + (parseInt(dup.importedProduct.quantity, 10) || 0);
+        const payload = {
+          ...buildPayload(dup.existingProduct),
+          quantity: updatedQty
+        };
+        await api.put(`${API_URL}/${dup.existingProduct.id}`, payload);
+      }
+
+      for (const product of importDuplicatesModal.newProducts) {
+        await api.post(API_URL, buildPayload(product));
+      }
+
+      const msg = selectedDuplicates.length > 0
+        ? `Import completed! Quantities updated for ${selectedDuplicates.length} duplicate product(s).`
+        : `Import completed! New products added.`;
+      showMessage("success", msg);
+      setImportDuplicatesModal(null);
+      await loadProducts();
+    } catch (error) {
+      showMessage("error", error.response?.data?.error || error.message || "Failed to complete import");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelImport = () => {
+    setImportDuplicatesModal(null);
+    showMessage("info", "Import cancelled.");
   };
 
   return (
@@ -470,9 +578,9 @@ export default function Products() {
             <button style={styles.iconButton} onClick={loadProducts} title="Refresh"><RefreshCw size={18} /></button>
           </div>
           <div style={styles.buttonGroup}>
-            <button ref={exportButtonRef} style={styles.button} onClick={handleExport} title="Export (Ctrl+E)"><Download size={16} /> Export</button>
+            <button ref={exportButtonRef} style={styles.button} onClick={handleExport} title="Export (Ctrl+E)"><Upload size={16} /> Export</button>
             <label style={styles.button} title="Import (Ctrl+I)">
-              <Upload size={16} /> Import
+              <Download size={16} /> Import
               <input ref={fileInputRef} type="file" hidden accept=".xlsx,.xls,.csv" onChange={handleImport} />
             </label>
             {!isEmployee && (
@@ -679,6 +787,104 @@ export default function Products() {
                 >
                   {saving ? "Saving..." : "Print"}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {importDuplicatesModal && (
+          <div style={styles.overlayModal}>
+            <div style={{ ...styles.modal, maxWidth: "750px" }}>
+              <div style={styles.modalHeader}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", color: "#f59e0b" }}>
+                  <AlertTriangle size={24} />
+                  <h2 style={{ fontSize: "18px", fontWeight: "700", margin: 0, color: "#f8fafc" }}>
+                    Duplicate Product Description Detected
+                  </h2>
+                </div>
+                <button style={styles.closeButton} onClick={cancelImport}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <p style={{ fontSize: "14px", color: "#94a3b8", marginBottom: "16px", lineHeight: "1.5" }}>
+                The following imported product(s) match existing items in your inventory. Select individual duplicate products to add their quantity, or deselect to skip merging:
+              </p>
+
+              <div style={{ maxHeight: "280px", overflowY: "auto", marginBottom: "20px", borderRadius: "8px", border: "1px solid #334155" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ backgroundColor: "#0f172a", color: "#94a3b8", textAlign: "left" }}>
+                      <th style={{ padding: "10px 12px", width: "40px", textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={importDuplicatesModal.duplicateProducts.length > 0 && importDuplicatesModal.duplicateProducts.every(d => d.selected)}
+                          onChange={toggleSelectAllDuplicates}
+                          title="Select / Deselect All"
+                          style={{ cursor: "pointer", accentColor: "#10b981" }}
+                        />
+                      </th>
+                      <th style={{ padding: "10px 12px" }}>Product Description</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center" }}>Current Qty</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center" }}>Imported Qty</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center", color: "#34d399" }}>New Total Qty</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center" }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importDuplicatesModal.duplicateProducts.map((dup) => (
+                      <tr key={dup.id} style={{ borderBottom: "1px solid #1e293b", backgroundColor: dup.selected ? "rgba(16, 185, 129, 0.05)" : "transparent" }}>
+                        <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={dup.selected}
+                            onChange={() => toggleSelectDuplicateItem(dup.id)}
+                            style={{ cursor: "pointer", accentColor: "#10b981" }}
+                          />
+                        </td>
+                        <td style={{ padding: "10px 12px", color: "#f8fafc", fontWeight: "500" }}>{dup.existingProduct.name}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", color: "#94a3b8" }}>{dup.existingProduct.quantity}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", color: "#fbbf24", fontWeight: "600" }}>+{dup.importedProduct.quantity}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", color: dup.selected ? "#34d399" : "#94a3b8", fontWeight: "700" }}>
+                          {dup.selected ? dup.newQuantity : dup.existingProduct.quantity}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                          {dup.selected ? (
+                            <span style={{ fontSize: "11px", fontWeight: "600", color: "#10b981", backgroundColor: "rgba(16, 185, 129, 0.15)", padding: "2px 8px", borderRadius: "4px" }}>
+                              Add Qty
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: "11px", fontWeight: "600", color: "#94a3b8", backgroundColor: "rgba(148, 163, 184, 0.15)", padding: "2px 8px", borderRadius: "4px" }}>
+                              Skip
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: "flex", gap: "12px", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "13px", color: "#94a3b8" }}>
+                  Selected: <strong style={{ color: "#10b981" }}>{importDuplicatesModal.duplicateProducts.filter(d => d.selected).length}</strong> of {importDuplicatesModal.duplicateProducts.length} duplicate product(s)
+                </span>
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <button
+                    style={{ ...styles.button }}
+                    onClick={cancelImport}
+                    disabled={saving}
+                  >
+                    Cancel Import
+                  </button>
+                  <button
+                    style={{ ...styles.button, ...styles.primaryButton, backgroundColor: "#10b981", borderColor: "#10b981" }}
+                    onClick={processImportAgreement}
+                    disabled={saving}
+                  >
+                    {saving ? "Updating..." : `Agree & Add Selected (${importDuplicatesModal.duplicateProducts.filter(d => d.selected).length})`}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -16,20 +16,20 @@ const api = axios.create({
 const ROLE_TEMPLATES = {
   admin: [
     "dashboard", "employee_dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
-    "warranty", "create_bill", "bill_reports", "ledger_book", "bill_number_edit", "profit_visibility", "date_filter_visibility",
+    "warranty", "create_bill", "bill_reports", "ledger_book", "sale_return", "bill_number_edit", "profit_visibility", "date_filter_visibility",
     "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount",
     "add_supplier", "supplier_list", "payment_tracking", "employee", "user_type", "attendance", "salary",
     "company", "enquiries", "customer_details", "usersettings"
   ],
   manager: [
     "dashboard", "employee_dashboard", "products", "category", "stock_in", "stock_out", "low_stock",
-    "warranty", "create_bill", "bill_reports", "ledger_book", "bill_number_edit", "profit_visibility", "date_filter_visibility",
+    "warranty", "create_bill", "bill_reports", "ledger_book", "sale_return", "bill_number_edit", "profit_visibility", "date_filter_visibility",
     "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount",
     "add_supplier", "supplier_list", "payment_tracking", "employee", "attendance", "salary", "company",
     "enquiries", "customer_details"
   ],
   staff: [
-    "employee_dashboard", "products", "stock_in", "stock_out", "create_bill",
+    "employee_dashboard", "products", "stock_in", "stock_out", "create_bill", "ledger_book", "sale_return",
     "service_bill", "service_bills", "sales_bills", "warranty"
   ],
   hr: [
@@ -151,10 +151,11 @@ const UserSetting = () => {
         const identifier = `role-${ut.name}`;
         const roleMatrix = matrix[identifier] || {};
         const permissionsArray = [];
+        const isAdmin = ut.name.toLowerCase() === "admin";
 
         modules.forEach(mod => {
           mod.submodules.forEach(sub => {
-            const isView = roleMatrix[`${mod.id}_${sub.id}`] || false;
+            const isView = isAdmin ? true : (roleMatrix[`${mod.id}_${sub.id}`] || false);
             permissionsArray.push({
               user_type: ut.name,
               module_id: mod.id,
@@ -190,6 +191,16 @@ const UserSetting = () => {
       });
 
       await api.post(`/bulk-save-permissions`, bulkData);
+
+      // Sync active logged-in user's permissions in localStorage if updated
+      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const currentUserType = currentUser?.user_type || "";
+      if (currentUserType && bulkData[`role-${currentUserType}`]) {
+        const updatedUserPerms = bulkData[`role-${currentUserType}`];
+        const updatedUser = { ...currentUser, permissions: updatedUserPerms };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+      }
+
       toast.success("Security policies updated successfully!");
     } catch (error) {
       console.error("Save error:", error);
@@ -263,37 +274,22 @@ const UserSetting = () => {
   const filteredEntities = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
 
-    // Convert roles to a standard format
+    // Convert user types (roles) to a standard format
     const roles = userTypes.map(ut => ({
-      id: `role-${ut.id}`,
+      id: `role-${ut.name}`,
       originalId: ut.id,
       name: ut.name,
       userTypeName: ut.name,
       isRole: true
     }));
 
-    // Convert employees to a standard format
-    const emps = employees.map(emp => ({
-      id: `emp-${emp.id}`,
-      originalId: emp.id,
-      name: emp.full_name,
-      userTypeName: emp.user_type,
-      isEmployee: true,
-      email: emp.email,
-      department: emp.department
-    }));
+    if (!term) return roles;
 
-    const combined = [...roles, ...emps];
-
-    if (!term) return combined;
-
-    return combined.filter(item =>
+    return roles.filter(item =>
       item.name.toLowerCase().includes(term) ||
-      (item.userTypeName || "").toLowerCase().includes(term) ||
-      (item.email || "").toLowerCase().includes(term) ||
-      (item.department || "").toLowerCase().includes(term)
+      (item.userTypeName || "").toLowerCase().includes(term)
     );
-  }, [userTypes, employees, searchTerm]);
+  }, [userTypes, searchTerm]);
 
   const allSubmodules = useMemo(() => {
     const list = [];
@@ -575,7 +571,7 @@ const UserSetting = () => {
         <FaSearch color="#94a3b8" />
         <input
           style={styles.searchInput}
-          placeholder="Search by Employee name, Role, Department or Email..."
+          placeholder="Search User Type / Role..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />

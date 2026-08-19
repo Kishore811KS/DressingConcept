@@ -53,7 +53,11 @@ const calculateProduct = (product) => {
     discountAmount = Math.round((mrp * (discountPercent / 100)) * 100) / 100;
   }
 
-  const normalProfit = mrp - purchaseRate;
+  const sellPrice = (product.sellPrice !== undefined && product.sellPrice !== "" && product.sellPrice !== null && product.sellPrice !== 0)
+    ? toNumber(product.sellPrice)
+    : (toNumber(product.discountAmount) > 0 ? toNumber(product.discountAmount) : mrp);
+
+  const normalProfit = sellPrice - purchaseRate;
   const classicProfit = classicPrice > 0 ? (classicPrice - purchaseRate) : 0;
 
   return {
@@ -98,7 +102,7 @@ export default function EmployeeProduct() {
   const stats = useMemo(() => {
     const totalProducts = items.length;
     const totalUnits = items.reduce((sum, item) => sum + (toNumber(item.quantity) || 0), 0);
-    const lowStockCount = items.filter(item => toNumber(item.quantity) < 10).length;
+    const lowStockCount = items.filter(item => toNumber(item.quantity) <= 5).length;
     return { totalProducts, totalUnits, lowStockCount };
   }, [items]);
 

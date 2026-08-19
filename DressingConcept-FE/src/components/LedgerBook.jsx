@@ -22,7 +22,8 @@ import {
   CreditCard,
   DollarSign,
   Wallet,
-  RotateCcw
+  RotateCcw,
+  Printer
 } from "lucide-react";
 
 const BASE_URL = "http://localhost:5000";
@@ -139,6 +140,216 @@ const LedgerBook = () => {
     } catch (err) {
       console.error("Error fetching bill details:", err);
     }
+  };
+
+  const handlePrintBill = (bill) => {
+    if (!bill) return;
+
+    const formattedBillNo = formatBillNo(bill.billNumber || bill.bill_number || bill.rawBillNumber);
+    const customerName = bill.customer_name || bill.customerName || bill.customer?.name || "Walk-in Customer";
+    const customerPhone = bill.customer_phone || bill.customerPhone || bill.customer?.phone || "";
+    const customerAddress = bill.customer_address || bill.customerAddress || bill.address || "";
+    
+    const createdDate = bill.created_at || bill.createdAt ? new Date(bill.created_at || bill.createdAt) : new Date();
+    const dateStr = isNaN(createdDate.getTime()) ? '' : createdDate.toLocaleDateString("en-GB");
+    const timeStr = isNaN(createdDate.getTime()) ? '' : createdDate.toLocaleTimeString("en-GB", { hour: '2-digit', minute: '2-digit', hour12: true });
+    const dateTimeStr = `${dateStr} ${timeStr}`.trim();
+    
+    const paymentMethod = String(bill.payment_method || bill.paymentMethod || bill.payment?.method || "Cash").toLowerCase();
+    const isCard = paymentMethod.includes('card');
+    const isCash = paymentMethod.includes('cash');
+    const isUpi = paymentMethod.includes('upi');
+    const isOnline = paymentMethod.includes('online');
+
+    const items = bill.items || [];
+    const totalPieces = items.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+    const total = Number(bill.summary?.total ?? bill.total ?? bill.grandTotal ?? 0);
+    const subtotal = Number(bill.summary?.subtotal ?? bill.subtotal ?? total);
+    const mrpTotal = items.reduce((sum, item) => sum + ((Number(item.mrp) || Number(item.sellPrice) || 0) * (Number(item.quantity) || 1)), 0) || subtotal || total;
+    const taxTotal = Number(bill.summary?.tax ?? bill.tax ?? 0);
+    const taxableTotal = Math.max(0, total - taxTotal);
+    const paid = Number(bill.payment?.paidAmount ?? bill.paidAmount ?? bill.paid_amount ?? (bill.payments && bill.payments.length > 0 ? bill.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0) : total));
+    const due = Math.max(0, total - paid);
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Thermal Receipt #${formattedBillNo}</title>
+          <style>
+            @page {
+              size: 80mm auto;
+              margin: 0;
+            }
+            body {
+              margin: 0;
+              padding: 3mm 2mm 5mm;
+              background: #fff;
+              color: #000;
+              font-family: 'Courier New', Courier, monospace, monospace;
+              font-size: 11px;
+              line-height: 1.3;
+              width: 76mm;
+              box-sizing: border-box;
+            }
+            .receipt { width: 100%; max-width: 76mm; margin: 0 auto; }
+            .receipt-header { text-align: center; margin-bottom: 4px; }
+            .receipt-logo { text-align: center; margin-bottom: 4px; }
+            .receipt-logo-img { width: 120px; height: auto; object-fit: contain; display: inline-block; }
+            .receipt-shop { font-size: 15px; font-weight: 900; letter-spacing: 0.5px; text-align: center; margin-bottom: 2px; text-transform: uppercase; }
+            .receipt-addr { font-size: 11px; font-weight: 700; text-align: center; line-height: 1.25; }
+            .receipt-info-left { text-align: left; font-size: 11px; font-weight: 700; margin-top: 6px; }
+
+            .receipt-meta { margin: 6px 0; font-size: 11px; font-weight: 700; }
+            .receipt-meta-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+
+            .receipt-line { border-top: 1px solid #000; margin: 5px 0; }
+            .receipt-line-dashed { border-top: 1px dashed #000; margin: 5px 0; }
+
+            .receipt-table { width: 100%; border-collapse: collapse; margin: 4px 0; table-layout: fixed; }
+            .receipt-table th { font-weight: 800; font-size: 11px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 1px; text-align: right; }
+            .receipt-table td { padding: 4px 1px; font-size: 11px; font-weight: 600; vertical-align: top; text-align: right; }
+            .receipt-table th.r-desc, .receipt-table td.r-desc { text-align: left; width: 38%; word-break: break-word; }
+            .receipt-table th.r-tax, .receipt-table td.r-tax { text-align: left !important; width: 14%; }
+            .r-qty { text-align: right; width: 14%; }
+            .r-rate { text-align: right; width: 17%; }
+            .r-amt { text-align: right; width: 17%; }
+            .r-num { text-align: right; }
+
+            .receipt-pay-amount {
+              text-align: center;
+              font-size: 15px;
+              font-weight: 900;
+              padding: 5px 0;
+              border-top: 1px solid #000;
+              border-bottom: 1px solid #000;
+              margin: 5px 0;
+            }
+
+            .receipt-summary-block { margin: 4px 0; font-size: 11px; font-weight: 700; }
+            .receipt-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+
+            .receipt-customer { margin: 4px 0; }
+            .receipt-cust-title { font-weight: 800; text-decoration: underline; margin-bottom: 2px; font-size: 11px; }
+            .receipt-cust-name { font-weight: 800; font-size: 11px; text-transform: uppercase; }
+            .receipt-cust-phone { font-weight: 700; font-size: 11px; }
+
+            .receipt-footer-msg { text-align: center; margin-top: 6px; }
+            .receipt-visit { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+            .receipt-thankyou { font-size: 13px; font-weight: 800; margin-top: 2px; }
+          </style>
+        </head>
+        <body>
+          <div class="receipt">
+            <div class="receipt-header">
+              <div class="receipt-logo">
+                <img src="/Dressing_Concept.png" alt="Dressing Concepts" class="receipt-logo-img" onerror="this.style.display='none'" />
+              </div>
+              <div class="receipt-shop">DRESSING CONCEPTS</div>
+              <div class="receipt-addr">NO.88/70 S.R.P KOVIL STREET,</div>
+              <div class="receipt-addr">AGARAM,PERAMBUR,</div>
+              <div class="receipt-addr">CHENNAI-600 082.</div>
+              <div class="receipt-info-left">
+                <div>PH: 9840669687</div>
+                <div>GSTIN: 33BQEPD0068G1ZD</div>
+              </div>
+            </div>
+
+            <div class="receipt-meta">
+              <div class="receipt-meta-row">
+                <span>Bill No:${formattedBillNo}</span>
+                <span>${dateTimeStr}</span>
+              </div>
+              <div class="receipt-meta-row">
+                <span>${bill.counter || ''}</span>
+                <span>User: ${bill.createdBy || bill.salesPerson || 'Admin'}</span>
+              </div>
+            </div>
+
+            <div class="receipt-line"></div>
+
+            <table class="receipt-table">
+              <thead>
+                <tr>
+                  <th class="r-desc">Description</th>
+                  <th class="r-tax">Tax %</th>
+                  <th class="r-qty r-num">Qty</th>
+                  <th class="r-rate r-num">Rate</th>
+                  <th class="r-amt r-num">Amt</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items.length > 0 ? items.map(item => {
+                  const pName = String(item.product_name || item.productName || item.name || 'ITEM').toUpperCase();
+                  const qty = Number(item.quantity) || 1;
+                  const rate = Number(item.sell_price || item.sellPrice || item.mrp || 0);
+                  const amt = Number(item.total || (rate * qty));
+                  const taxPct = Number(item.tax || item.taxPct || 5);
+                  return `
+                    <tr>
+                      <td class="r-desc">${pName}</td>
+                      <td class="r-tax">${taxPct}%</td>
+                      <td class="r-qty r-num">${qty.toFixed(2)}</td>
+                      <td class="r-rate r-num">${rate.toFixed(2)}</td>
+                      <td class="r-amt r-num">${amt.toFixed(2)}</td>
+                    </tr>
+                  `;
+                }).join('') : `<tr><td colspan="5" style="text-align:center;">No items listed</td></tr>`}
+              </tbody>
+            </table>
+
+            <div class="receipt-pay-amount">
+              Pay Amount: ${Math.round(total)}/-
+              <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; margin-top: 1px;">(Tax inc.)</div>
+            </div>
+
+            <div class="receipt-summary-block">
+              <div class="receipt-row"><span>Total Pieces: ${totalPieces}</span></div>
+              <div class="receipt-row"><span>MRP Total: ${Math.round(mrpTotal)}</span></div>
+              <div class="receipt-row"><span>Taxable Amt (Excl. GST):</span><span>₹${taxableTotal.toFixed(2)}</span></div>
+              <div class="receipt-row" style="font-weight: bold;"><span>GST Inclusive Amt:</span><span>₹${total.toFixed(2)}</span></div>
+            </div>
+
+            <div class="receipt-summary-block">
+              ${isCard ? `<div class="receipt-row"><span>Card Amt: ${Math.round(paid)}</span></div>` : ''}
+              ${isCash ? `<div class="receipt-row"><span>Cash Amt: ${Math.round(paid)}</span></div>` : ''}
+              ${isUpi ? `<div class="receipt-row"><span>UPI Amt: ${Math.round(paid)}</span></div>` : ''}
+              ${isOnline ? `<div class="receipt-row"><span>Online Amt: ${Math.round(paid)}</span></div>` : ''}
+              ${due > 0 ? `<div class="receipt-row" style="color:red;"><span>Due Amt: ${Math.round(due)}</span></div>` : ''}
+            </div>
+
+            <div class="receipt-line"></div>
+
+            <div class="receipt-customer">
+              <div class="receipt-cust-title">Customer Details:</div>
+              <div class="receipt-cust-name">${String(customerName).toUpperCase()}</div>
+              ${customerPhone && customerPhone !== "N/A" ? `<div class="receipt-cust-phone">PH: ${customerPhone}</div>` : ''}
+              ${customerAddress ? `<div class="receipt-cust-phone">ADDR: ${customerAddress}</div>` : ''}
+            </div>
+
+            <div class="receipt-line"></div>
+
+            <div class="receipt-footer-msg">
+              <div class="receipt-visit">Visit Again</div>
+              <div class="receipt-thankyou">Thank You &hearts;</div>
+            </div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                window.close();
+              }, 300);
+            };
+          <\/script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const handleClearFilters = () => {
@@ -450,7 +661,7 @@ const LedgerBook = () => {
                   <th style={styles.th}>#</th>
                   <th style={styles.th}>Bill Number</th>
                   <th style={styles.th}>FY</th>
-                  <th style={styles.th}>Date & Time</th>
+                  <th style={styles.th}>Date</th>
                   <th style={styles.th}>Customer</th>
                   <th style={styles.th}>Type</th>
                   <th style={styles.th}>Payment Method</th>
@@ -519,13 +730,29 @@ const LedgerBook = () => {
                         ₹{Number(bill.total).toLocaleString()}
                       </td>
                       <td style={styles.td}>
-                        <button
-                          style={styles.viewBtn}
-                          onClick={() => handleViewBillDetails(bill.id)}
-                          title="View Bill Details"
-                        >
-                          <Eye size={13} /> View
-                        </button>
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          <button
+                            style={styles.viewBtn}
+                            onClick={() => handleViewBillDetails(bill.id)}
+                            title="View Bill Details"
+                          >
+                            <Eye size={13} /> View
+                          </button>
+                          <button
+                            style={{ ...styles.viewBtn, backgroundColor: "#059669" }}
+                            onClick={async () => {
+                              try {
+                                const res = await api.get(`/billing/bills/${bill.id}`);
+                                handlePrintBill(res.data?.bill || res.data || bill);
+                              } catch (err) {
+                                handlePrintBill(bill);
+                              }
+                            }}
+                            title="Print Bill Receipt"
+                          >
+                            <Printer size={13} /> Print
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -578,10 +805,32 @@ const LedgerBook = () => {
               <X size={18} />
             </button>
 
-            <h3 style={styles.modalTitle}>
-              <Receipt size={20} color="#6366f1" />
-              Bill Details - #{formatBillNo(selectedBill.billNumber || selectedBill.bill_number)}
-            </h3>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "18px", paddingRight: "36px" }}>
+              <h3 style={{ ...styles.modalTitle, marginBottom: 0 }}>
+                <Receipt size={20} color="#6366f1" />
+                Bill Details - #{formatBillNo(selectedBill.billNumber || selectedBill.bill_number)}
+              </h3>
+              <button
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  backgroundColor: "#059669",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "7px 14px",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(5, 150, 105, 0.3)"
+                }}
+                onClick={() => handlePrintBill(selectedBill)}
+                title="Print Bill Receipt"
+              >
+                <Printer size={15} /> Print Bill
+              </button>
+            </div>
 
             {(() => {
               const billTotal = Number(
@@ -614,7 +863,7 @@ const LedgerBook = () => {
                       </div>
                       <div>
                         <p style={styles.modalText}>
-                          <strong>Date:</strong> {selectedBill.created_at || selectedBill.createdAt ? new Date(selectedBill.created_at || selectedBill.createdAt).toLocaleString() : "-"}
+                          <strong>Date:</strong> {selectedBill.created_at || selectedBill.createdAt ? new Date(selectedBill.created_at || selectedBill.createdAt).toLocaleDateString("en-GB") : "-"}
                         </p>
                         <p style={styles.modalText}>
                           <strong>Payment Method:</strong> {(selectedBill.payment?.method || selectedBill.payment_method || selectedBill.paymentMethod || "Cash").toUpperCase()}
@@ -659,6 +908,28 @@ const LedgerBook = () => {
                     <div style={{ fontSize: "18px", fontWeight: "bold", color: "#10b981" }}>
                       Total Paid: ₹{billPaid.toLocaleString()}
                     </div>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
+                    <button
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        backgroundColor: "#059669",
+                        color: "#ffffff",
+                        border: "none",
+                        padding: "9px 18px",
+                        borderRadius: "6px",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        boxShadow: "0 4px 12px rgba(5, 150, 105, 0.3)"
+                      }}
+                      onClick={() => handlePrintBill(selectedBill)}
+                    >
+                      <Printer size={16} /> Print Bill Receipt
+                    </button>
                   </div>
                 </>
               );

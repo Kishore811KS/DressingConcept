@@ -12,6 +12,7 @@ class Salary(db.Model):
     basic_salary = db.Column(db.Float, default=0.0)
     calculated_salary = db.Column(db.Float, default=0.0)
     advance_amount = db.Column(db.Float, default=0.0)
+    incentive_amount = db.Column(db.Float, default=0.0)
     
     status = db.Column(db.String(20), default='pending')  # paid, pending
     payment_date = db.Column(db.DateTime, nullable=True)
@@ -25,7 +26,8 @@ class Salary(db.Model):
     def to_dict(self):
         calc = self.calculated_salary or 0.0
         adv = self.advance_amount or 0.0
-        net = max(0.0, calc - adv)
+        inc = self.incentive_amount or 0.0
+        net = max(0.0, calc + inc - adv)
         return {
             'id': self.id,
             'employee_id': self.employee_id,
@@ -35,6 +37,7 @@ class Salary(db.Model):
             'basic_salary': self.basic_salary,
             'calculated_salary': calc,
             'advance_amount': adv,
+            'incentive_amount': inc,
             'net_salary': net,
             'status': self.status,
             'payment_date': self.payment_date.isoformat() if self.payment_date else None,

@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FaUndo, FaSearch, FaPrint, FaEye, FaCalendarAlt, FaReceipt, FaBoxOpen, FaExclamationCircle, FaTrashAlt } from 'react-icons/fa';
+import { FaUndo, FaSearch, FaPrint, FaEye, FaCalendarAlt, FaReceipt, FaBoxOpen, FaExclamationCircle, FaTrashAlt, FaFileExcel, FaFilePdf } from 'react-icons/fa';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const BASE_URL = 'http://localhost:5000';
 const API_BASE_URL = `${BASE_URL}/api`;
@@ -39,7 +43,7 @@ export default function SaleReturn() {
     setTrashReturns(updatedTrash);
     try {
       localStorage.setItem("trashSaleReturnsData", JSON.stringify(updatedTrash));
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const handleRestoreFromTrash = (retId) => {
@@ -47,7 +51,7 @@ export default function SaleReturn() {
     setTrashReturns(updatedTrash);
     try {
       localStorage.setItem("trashSaleReturnsData", JSON.stringify(updatedTrash));
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const handleRemoveFromTrash = async (ret) => {
@@ -62,7 +66,7 @@ export default function SaleReturn() {
       setTrashReturns(updatedTrash);
       try {
         localStorage.setItem("trashSaleReturnsData", JSON.stringify(updatedTrash));
-      } catch (_) {}
+      } catch (_) { }
       fetchSaleReturns();
     } catch (err) {
       console.error("Error deleting sale return from database:", err);
@@ -70,7 +74,7 @@ export default function SaleReturn() {
       setTrashReturns(updatedTrash);
       try {
         localStorage.setItem("trashSaleReturnsData", JSON.stringify(updatedTrash));
-      } catch (_) {}
+      } catch (_) { }
       fetchSaleReturns();
     }
   };
@@ -91,7 +95,7 @@ export default function SaleReturn() {
     setTrashReturns([]);
     try {
       localStorage.removeItem("trashSaleReturnsData");
-    } catch (_) {}
+    } catch (_) { }
     fetchSaleReturns();
   };
 
@@ -180,10 +184,14 @@ export default function SaleReturn() {
             .receipt-line { border-top: 1px solid #000; margin: 5px 0; }
             .receipt-line-dashed { border-top: 1px dashed #000; margin: 5px 0; }
 
-            .receipt-table { width: 100%; border-collapse: collapse; margin: 4px 0; }
-            .receipt-table th { font-weight: 800; font-size: 11px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 0; text-align: left; }
-            .receipt-table td { padding: 4px 0; font-size: 11px; font-weight: 600; vertical-align: top; }
-            .r-desc { text-align: left; width: 45%; }
+            .receipt-table { width: 100%; border-collapse: collapse; margin: 4px 0; table-layout: fixed; }
+            .receipt-table th { font-weight: 800; font-size: 11px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 1px; text-align: right; }
+            .receipt-table td { padding: 4px 1px; font-size: 11px; font-weight: 600; vertical-align: top; text-align: right; }
+            .receipt-table th.r-desc, .receipt-table td.r-desc { text-align: left; width: 38%; word-break: break-word; }
+            .receipt-table th.r-tax, .receipt-table td.r-tax { text-align: left !important; width: 14%; }
+            .r-qty { text-align: right; width: 14%; }
+            .r-rate { text-align: right; width: 17%; }
+            .r-amt { text-align: right; width: 17%; }
             .r-num { text-align: right; }
 
             .receipt-pay-amount {
@@ -226,7 +234,7 @@ export default function SaleReturn() {
               <div class="receipt-addr">CHENNAI-600 082.</div>
               <div class="receipt-info-left">
                 <div>PH: 9840669687</div>
-                <div>GSTIN:</div>
+                <div>GSTIN: 33BQEPD0068G1ZD</div>
               </div>
             </div>
 
@@ -249,10 +257,10 @@ export default function SaleReturn() {
               <thead>
                 <tr>
                   <th class="r-desc">Description</th>
-                  <th class="r-num">Tax %</th>
-                  <th class="r-num">Qty</th>
-                  <th class="r-num">Rate</th>
-                  <th class="r-num">Amt</th>
+                  <th class="r-tax">Tax %</th>
+                  <th class="r-qty r-num">Qty</th>
+                  <th class="r-rate r-num">Rate</th>
+                  <th class="r-amt r-num">Amt</th>
                 </tr>
               </thead>
               <tbody>
@@ -262,11 +270,13 @@ export default function SaleReturn() {
 
             <div class="receipt-pay-amount">
               Refund Amount: ${Math.round(r.totalReturnAmount)}/-
+              <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; margin-top: 1px;">(Tax inc.)</div>
             </div>
 
             <div class="receipt-summary-block">
               <div class="receipt-row"><span>Total Pieces: ${totalQty}</span></div>
               <div class="receipt-row"><span>MRP Total: ${Math.round(r.subtotal || r.totalReturnAmount)}</span></div>
+              <div class="receipt-row" style="font-weight: bold;"><span>GST Inclusive Refund:</span><span>₹${Math.round(r.totalReturnAmount).toFixed(2)}</span></div>
             </div>
 
             <div class="receipt-line"></div>
@@ -278,18 +288,7 @@ export default function SaleReturn() {
               ${(r.customerAddress || (r.customer && r.customer.address)) ? `<div class="receipt-cust-phone">ADDR: ${r.customerAddress || (r.customer && r.customer.address)}</div>` : ''}
             </div>
 
-            <div class="receipt-line-dashed"></div>
 
-            <div class="receipt-qr">
-              <div class="receipt-qr-item">
-                <div class="receipt-qr-lbl">JOIN US</div>
-                <img src="/whatsapp-qr.png" alt="WhatsApp QR" class="receipt-qr-img" />
-              </div>
-              <div class="receipt-qr-item">
-                <div class="receipt-qr-lbl">VISIT US</div>
-                <img src="/instagram.png" alt="Instagram QR" class="receipt-qr-img" />
-              </div>
-            </div>
 
             <div class="receipt-footer-msg">
               <div class="receipt-visit">Visit Again</div>
@@ -311,39 +310,157 @@ export default function SaleReturn() {
     printWindow.document.close();
   };
 
+  const exportToExcel = () => {
+    try {
+      const exportData = visibleReturns.map((r, idx) => ({
+        "#": idx + 1,
+        "Return Number": r.returnNumber || "",
+        "Original Bill No": r.originalBillNumber || "",
+        "Date": r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "-",
+        "Time": r.createdAt ? new Date(r.createdAt).toLocaleTimeString("en-GB", { hour12: true }) : "-",
+        "Customer Name": r.customerName || "Walk-in Customer",
+        "Customer Phone": r.customerPhone || "-",
+        "Items Count": r.items ? r.items.length : (r.itemCount || 1),
+        "Refund Amount (₹)": Number(r.totalReturnAmount || 0).toFixed(2),
+        "Processed By": r.processedByName || r.createdByName || "Admin"
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Sale_Returns");
+
+      const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      const file = new Blob([excelBuffer], { type: "application/octet-stream" });
+      saveAs(file, `Sale_Returns_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
+    } catch (err) {
+      console.error("Excel Export Error:", err);
+      alert("Failed to export Excel report.");
+    }
+  };
+
+  const exportToPDF = () => {
+    try {
+      const doc = new jsPDF("p", "mm", "a4");
+
+      doc.setFontSize(18);
+      doc.setTextColor(239, 68, 68);
+      doc.text("Dressing Concept - Sale Return Report", 14, 18);
+
+      doc.setFontSize(9);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Generated Date: ${new Date().toLocaleString("en-GB")}`, 14, 25);
+      doc.text(`Total Returns: ${visibleReturns.length} | Total Refund Amount: Rs. ${totalReturnVal.toFixed(2)}`, 14, 30);
+
+      doc.setDrawColor(239, 68, 68);
+      doc.line(14, 34, 196, 34);
+
+      const tableRows = visibleReturns.map((r, idx) => [
+        idx + 1,
+        r.returnNumber || "",
+        `#${r.originalBillNumber || ""}`,
+        r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "-",
+        r.customerName || "Walk-in",
+        r.customerPhone || "-",
+        r.items ? r.items.length : (r.itemCount || 1),
+        `Rs. ${Number(r.totalReturnAmount || 0).toFixed(2)}`,
+        r.processedByName || "Admin"
+      ]);
+
+      const autoTableFn = typeof autoTable === "function" ? autoTable : doc.autoTable ? doc.autoTable.bind(doc) : null;
+
+      if (autoTableFn) {
+        autoTableFn(doc, {
+          startY: 38,
+          head: [["#", "Return No", "Orig Bill", "Date", "Customer", "Phone", "Items", "Refund Amt", "Processed By"]],
+          body: tableRows,
+          theme: "striped",
+          headStyles: { fillColor: [239, 68, 68], textColor: [255, 255, 255], fontStyle: "bold" },
+          styles: { fontSize: 8 }
+        });
+      }
+
+      doc.save(`Sale_Returns_Report_${new Date().toISOString().split("T")[0]}.pdf`);
+    } catch (err) {
+      console.error("PDF Export Error:", err);
+      alert("Failed to export PDF report.");
+    }
+  };
+
   const totalReturnVal = returns.reduce((acc, curr) => acc + (Number(curr.totalReturnAmount) || 0), 0);
 
   return (
     <div style={{ padding: '24px', backgroundColor: '#0f172a', minHeight: '100vh', color: '#f8fafc' }}>
       {/* Header Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', color: '#38bdf8' }}>
             <FaUndo style={{ color: '#ef4444' }} /> Sale Return Report & Management
           </h1>
           <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '4px' }}>
-            View, audit, and reprint all Sale Return transactions linked to original bills.
+            View, audit, export, and reprint all Sale Return transactions linked to original bills.
           </p>
         </div>
-        <button
-          onClick={() => window.location.href = '/bill'}
-          style={{
-            backgroundColor: '#ef4444',
-            color: '#fff',
-            border: 'none',
-            padding: '10px 18px',
-            borderRadius: '8px',
-            fontWeight: 'bold',
-            fontSize: '14px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
-          }}
-        >
-          <FaUndo /> Process New Sale Return
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={exportToExcel}
+            style={{
+              backgroundColor: '#10b981',
+              color: '#fff',
+              border: 'none',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              fontSize: '14px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+            }}
+            title="Export Sale Returns to Excel (.xlsx)"
+          >
+            <FaFileExcel /> Export Excel
+          </button>
+          <button
+            onClick={exportToPDF}
+            style={{
+              backgroundColor: '#3b82f6',
+              color: '#fff',
+              border: 'none',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              fontSize: '14px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
+            }}
+            title="Export Sale Returns Report to PDF"
+          >
+            <FaFilePdf /> Export PDF
+          </button>
+          <button
+            onClick={() => window.location.href = '/bill'}
+            style={{
+              backgroundColor: '#ef4444',
+              color: '#fff',
+              border: 'none',
+              padding: '10px 18px',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              fontSize: '14px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
+            }}
+          >
+            <FaUndo /> Process New Sale Return
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}

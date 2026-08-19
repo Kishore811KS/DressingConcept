@@ -284,8 +284,8 @@ const Sidebar = ({ isOpen }) => {
               <div style={styles.sectionTitle}>Billing</div>
               {hasPermission("create_bill") && renderLink("/bill", <FaReceipt style={styles.icon} />, "Create Bill")}
               {hasPermission("bill_reports") && renderLink("/billreport", <FaChartLine style={styles.icon} />, "Bill Reports")}
-              {(hasPermission("bill_reports") || hasPermission("ledger_book")) && renderLink("/ledger-book", <FaBook style={styles.icon} />, "Ledger Book")}
               {(hasPermission("bill_reports") || hasPermission("sale_return")) && renderLink("/salereturn", <FaUndo style={styles.icon} />, "Sale Return")}
+              {(hasPermission("bill_reports") || hasPermission("ledger_book")) && renderLink("/ledger-book", <FaBook style={styles.icon} />, "Ledger Book")}
               {hasPermission("service_bill") && renderLink("/service", <FaShoppingCart style={styles.icon} />, "Service Bill")}
               {hasPermission("service_bills") && renderLink("/serviceBillView", <FaFileContract style={styles.icon} />, "Service Bills")}
               {/* {hasPermission("sales_bills") && renderLink("/employeebill", <FaUserCircle style={styles.icon} />, "SalesBill(emp)")} */}

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import {
   Search,
   Eye,
@@ -105,17 +105,17 @@ const BillItemsPage = () => {
           if (detailedBill.items && Array.isArray(detailedBill.items)) {
             const itemsWithBillInfo = detailedBill.items.map(item => ({
               id: item.id,
-              product_id: item.product_id,
-              product_code: (item.productCode || '').replace(/^DEL-/, ''),
-              product_name: (item.productName || item.product_name || '').replace(/^___DELETED___/, ''),
-              product_model: item.productModel || item.product_model,
-              product_type: item.productType || item.product_type,
-              sell_price: item.sellPrice || item.sell_price,
-              quantity: item.quantity,
-              total: item.total,
-              billNumber: detailedBill.billNumber,
+              product_id: item.product_id || item.productId,
+              product_code: (item.productCode || item.product_code || '').replace(/^DEL-/, ''),
+              product_name: (item.productName || item.product_name || item.name || item.description || '').replace(/^___DELETED___/, ''),
+              product_model: item.productModel || item.product_model || item.model,
+              product_type: item.productType || item.product_type || item.type,
+              sell_price: item.sellPrice ?? item.sell_price ?? item.unitPrice ?? item.unit_price ?? item.price ?? 0,
+              quantity: item.quantity || 0,
+              total: item.total ?? ((item.quantity || 0) * (item.sellPrice || item.sell_price || 0)),
+              billNumber: detailedBill.billNumber || detailedBill.bill_number,
               billId: detailedBill.id,
-              billDate: detailedBill.createdAt
+              billDate: detailedBill.createdAt || detailedBill.created_at
             }));
             allItems = [...allItems, ...itemsWithBillInfo];
           }
@@ -141,20 +141,40 @@ const BillItemsPage = () => {
       const response = await api.get(`/billing/bills/${billId}`);
       const bill = response.data;
 
-      const item = bill.items?.find(i => i.id === itemId);
-      if (item) {
-        setSelectedItem({
-          ...item,
-          billNumber: bill.billNumber,
-          billDate: bill.createdAt
-        });
+      const rawItem = bill.items?.find(i => i.id === itemId || String(i.id) === String(itemId));
+      if (rawItem) {
+        const normalizedItem = {
+          ...rawItem,
+          product_name: (rawItem.productName || rawItem.product_name || rawItem.name || rawItem.description || '').replace(/^___DELETED___/, ''),
+          product_code: (rawItem.productCode || rawItem.product_code || rawItem.code || '').replace(/^DEL-/, ''),
+          product_model: rawItem.productModel || rawItem.product_model || rawItem.model || '',
+          product_type: rawItem.productType || rawItem.product_type || rawItem.type || '',
+          sell_price: rawItem.sellPrice ?? rawItem.sell_price ?? rawItem.unitPrice ?? rawItem.unit_price ?? rawItem.price ?? 0,
+          quantity: rawItem.quantity || 0,
+          total: rawItem.total ?? ((rawItem.quantity || 0) * (rawItem.sellPrice || rawItem.sell_price || 0)),
+          billNumber: bill.billNumber || bill.bill_number || '',
+          billDate: bill.createdAt || bill.created_at || bill.date
+        };
+        setSelectedItem(normalizedItem);
         setShowItemModal(true);
       } else {
-        showMessage("error", "Item not found");
+        const tableItem = items.find(i => i.id === itemId && i.billId === billId);
+        if (tableItem) {
+          setSelectedItem(tableItem);
+          setShowItemModal(true);
+        } else {
+          showMessage("error", "Item not found");
+        }
       }
     } catch (err) {
       console.error('Error fetching item details:', err);
-      showMessage("error", "Failed to load item details");
+      const tableItem = items.find(i => i.id === itemId);
+      if (tableItem) {
+        setSelectedItem(tableItem);
+        setShowItemModal(true);
+      } else {
+        showMessage("error", "Failed to load item details");
+      }
     }
   };
 
@@ -242,7 +262,7 @@ const BillItemsPage = () => {
 
       doc.setFontSize(18);
       doc.setTextColor(0, 0, 0);
-      doc.text('Items List', 14, 22);
+      doc.text('Items List (Stock Out)', 14, 22);
 
       doc.setFontSize(10);
       doc.setTextColor(100, 100, 100);
@@ -253,32 +273,44 @@ const BillItemsPage = () => {
       doc.text(`Total Items: ${filteredItems.length}`, 14, 40);
 
       const tableColumn = [
-        'ID', 'Date & Time', 'Product', 'Qty', 'Price'
+        'ID', 'Date & Time', 'Product Name', 'Qty', 'Price'
       ];
 
       const tableRows = filteredItems.map(item => [
         item.product_code || item.product_id || '',
-        item.billDate ? new Date(item.billDate).toLocaleString() : '',
-        item.product_name || '',
+        item.billDate ? new Date(item.billDate).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '',
+        item.product_name || item.productName || item.name || '',
         item.quantity || 0,
-        `₹${item.sell_price || 0}`
+        `Rs. ${item.sell_price ?? item.sellPrice ?? item.price ?? 0}`
       ]);
 
-      doc.autoTable({
-        head: [tableColumn],
-        body: tableRows,
-        startY: 50,
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255] },
-        alternateRowStyles: { fillColor: [240, 240, 240] },
-      });
+      const autoTableFn = typeof autoTable === 'function' ? autoTable : (doc.autoTable ? doc.autoTable.bind(doc) : null);
+      if (autoTableFn) {
+        autoTableFn(doc, {
+          head: [tableColumn],
+          body: tableRows,
+          startY: 50,
+          styles: { fontSize: 8, cellPadding: 3, valign: 'middle' },
+          headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+          alternateRowStyles: { fillColor: [240, 240, 240] },
+          columnStyles: {
+            0: { halign: 'left', cellWidth: 30 },
+            1: { halign: 'center', cellWidth: 45 }, // Date & Time centered alignment
+            2: { halign: 'left' },
+            3: { halign: 'center', cellWidth: 20 },
+            4: { halign: 'right', cellWidth: 30 }
+          }
+        });
+      } else {
+        throw new Error("PDF table generator (autoTable) is unavailable.");
+      }
 
       const date = new Date().toISOString().split('T')[0];
       doc.save(`Items_List_${date}.pdf`);
       showMessage("success", "PDF export successful!");
     } catch (err) {
       console.error("PDF export error:", err);
-      showMessage("error", "Failed to export to PDF");
+      showMessage("error", "Failed to export to PDF: " + (err.message || "Unknown error"));
     }
   };
 
@@ -858,30 +890,30 @@ const BillItemsPage = () => {
 
             <div style={styles.modalSection}>
               <div style={styles.modalLabel}>Product Name</div>
-              <div style={styles.modalValue}>{selectedItem.product_name}</div>
+              <div style={styles.modalValue}>{selectedItem.product_name || selectedItem.productName || selectedItem.name || '-'}</div>
 
-              {selectedItem.product_model && (
+              {(selectedItem.product_model || selectedItem.productModel) && (
                 <>
                   <div style={styles.modalLabel}>Model</div>
-                  <div style={styles.modalValue}>{selectedItem.product_model}</div>
+                  <div style={styles.modalValue}>{selectedItem.product_model || selectedItem.productModel}</div>
                 </>
               )}
 
-              {selectedItem.product_type && (
+              {(selectedItem.product_type || selectedItem.productType) && (
                 <>
                   <div style={styles.modalLabel}>Type</div>
-                  <div style={styles.modalValue}>{selectedItem.product_type}</div>
+                  <div style={styles.modalValue}>{selectedItem.product_type || selectedItem.productType}</div>
                 </>
               )}
 
               <div style={styles.modalLabel}>Price per Unit</div>
-              <div style={styles.modalValue}>₹{selectedItem.sell_price}</div>
+              <div style={styles.modalValue}>₹{selectedItem.sell_price ?? selectedItem.sellPrice ?? selectedItem.unitPrice ?? selectedItem.price ?? 0}</div>
 
               <div style={styles.modalLabel}>Quantity</div>
-              <div style={styles.modalValue}>{selectedItem.quantity}</div>
+              <div style={styles.modalValue}>{selectedItem.quantity || 0}</div>
 
               <div style={styles.modalLabel}>Total Amount</div>
-              <div style={styles.modalValue}><strong>₹{selectedItem.total}</strong></div>
+              <div style={styles.modalValue}><strong>₹{selectedItem.total ?? ((selectedItem.quantity || 0) * (selectedItem.sell_price || selectedItem.sellPrice || 0))}</strong></div>
             </div>
           </div>
         </div>

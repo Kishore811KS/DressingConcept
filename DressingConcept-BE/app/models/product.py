@@ -49,8 +49,9 @@ class Product(db.Model):
         discount = self.discount_percent or 0
         self.net_price = round((self.sell_price or 0) - ((self.sell_price or 0) * discount / 100), 2)
 
-        # Normal Profit = MRP - Buy Price
-        self.normal_profit = round((self.mrp or 0) - (self.buy_price or 0), 2)
+        # Normal Profit = Selling Price - Buy Price
+        sell_price_val = self.sell_price if (self.sell_price is not None and self.sell_price > 0) else (self.discount_amount if (self.discount_amount is not None and self.discount_amount > 0) else (self.mrp or 0))
+        self.normal_profit = round((sell_price_val or 0) - (self.buy_price or 0), 2)
         
         # Classic Customer Profit = Classic Customer Price - Buy Price
         try:
@@ -61,7 +62,7 @@ class Product(db.Model):
         self.classic_profit = round(classic_price - (self.buy_price or 0), 2) if classic_price > 0 else 0
         
         # Original profit logic for backward compatibility if needed
-        profit_base = classic_price if classic_price > 0 else (self.mrp or 0)
+        profit_base = classic_price if classic_price > 0 else sell_price_val
         self.profit = round(profit_base - (self.buy_price or 0), 2)
 
         if self.buy_price and self.buy_price > 0:
@@ -85,6 +86,8 @@ class Product(db.Model):
             base_price = self.mrp or self.sell_price or 0
             disc_amt = round(base_price * ((self.discount_percent or 0) / 100), 2)
 
+        sell_price_val = self.sell_price if (self.sell_price is not None and self.sell_price > 0) else (disc_amt if disc_amt > 0 else (self.mrp or 0))
+
         return {
             "id": self.id,
             "productCode": self.product_code,
@@ -104,8 +107,8 @@ class Product(db.Model):
             "buyPrice": self.buy_price,
             "sellPrice": self.sell_price,
             "quantity": self.quantity,
-            "profit": getattr(self, 'profit', round((classic_price if classic_price > 0 else (self.mrp or 0)) - (self.buy_price or 0), 2)),
-            "normalProfit": getattr(self, 'normal_profit', round((self.mrp or 0) - (self.buy_price or 0), 2)),
+            "profit": getattr(self, 'profit', round((classic_price if classic_price > 0 else (sell_price_val or 0)) - (self.buy_price or 0), 2)),
+            "normalProfit": getattr(self, 'normal_profit', round((sell_price_val or 0) - (self.buy_price or 0), 2)),
             "classicProfit": getattr(self, 'classic_profit', round((classic_price - (self.buy_price or 0)) if classic_price > 0 else 0, 2)),
             "profitPercent": self.profit_percent,
             "amount": self.amount,

@@ -21,16 +21,49 @@ const DEFAULT_UNIT = "PCS";
 const pad = (value) => String(value).padStart(2, "0");
 
 const formatBillNo = (val, type = 'N') => {
-  if (val === null || val === undefined || val === "") return type === 'R' ? "1R" : "1N";
+  if (val === null || val === undefined || val === "") return type === 'R' ? "B0001R" : "B0001N";
   const str = String(val).trim();
   const rawSeq = str.includes('/') ? str.split('/').pop() : str;
   const cleanDigits = rawSeq.replace(/\D/g, "");
   if (!cleanDigits) return str;
   const num = parseInt(cleanDigits, 10);
+  if (isNaN(num)) return str;
+
+  const paddedNum = String(num).padStart(cleanDigits.length, "0");
+  const lastIndex = rawSeq.lastIndexOf(cleanDigits);
+  if (lastIndex !== -1) {
+    const prefix = rawSeq.slice(0, lastIndex);
+    const suffix = rawSeq.slice(lastIndex + cleanDigits.length);
+    const updatedSeq = `${prefix}${paddedNum}${suffix}`;
+    return str.includes('/') ? `${str.slice(0, str.lastIndexOf('/') + 1)}${updatedSeq}` : updatedSeq;
+  }
+  return str;
+};
+
+const incrementBillNo = (val, type = 'N') => {
+  if (val === null || val === undefined || val === "") return type === 'R' ? "B0001R" : "B0001N";
+  const str = String(val).trim();
+  const rawSeq = str.includes('/') ? str.split('/').pop() : str;
+  const cleanDigits = rawSeq.replace(/\D/g, "");
+  if (!cleanDigits) return str;
+  const num = parseInt(cleanDigits, 10);
+  if (isNaN(num)) return str;
+
+  const nextNum = num + 1;
+  const paddedNext = String(nextNum).padStart(cleanDigits.length, "0");
+
+  const lastIndex = rawSeq.lastIndexOf(cleanDigits);
+  if (lastIndex !== -1) {
+    const prefix = rawSeq.slice(0, lastIndex);
+    const suffix = rawSeq.slice(lastIndex + cleanDigits.length);
+    const updatedSeq = `${prefix}${paddedNext}${suffix}`;
+    return str.includes('/') ? `${str.slice(0, str.lastIndexOf('/') + 1)}${updatedSeq}` : updatedSeq;
+  }
+
   let suffix = type === 'R' ? 'R' : 'N';
   if (rawSeq.toUpperCase().endsWith('R')) suffix = 'R';
   else if (rawSeq.toUpperCase().endsWith('N')) suffix = 'N';
-  return isNaN(num) ? str : `${num}${suffix}`;
+  return `${paddedNext}${suffix}`;
 };
 
 const formatDate = (date) => {
@@ -104,48 +137,116 @@ export default function Bill() {
     return defaultValue;
   };
 
-  const [rows, setRows] = useState(() => getSavedState("rows", [{
-    productId: "",
-    description: "",
-    tax: "",
-    unit: "",
-    mrp: "",
-    discountPercent: "",
-    netPrice: "",
-    quantity: "",
+  const getTodayDateStr = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const createTabInitialData = (tabNumber = 1, currentBillNo = "") => ({
+    rows: [{
+      productId: "",
+      description: "",
+      tax: "",
+      unit: "",
+      mrp: "",
+      discountPercent: "",
+      netPrice: "",
+      quantity: "",
+      salesPerson: "",
+    }],
+    billDate: getTodayDateStr(),
+    billNo: currentBillNo || billNo || "",
+    counter: "counter_1",
+    customerName: "",
+    memberId: "",
+    mobileNumber: "",
     salesPerson: "",
-  }]));
-  const [billNo, setBillNo] = useState(() => getSavedState("billNo", ""));
-  const [counter, setCounter] = useState(() => getSavedState("counter", "counter_1"));
-  const [customerName, setCustomerName] = useState(() => getSavedState("customerName", ""));
-  const [memberId, setMemberId] = useState(() => getSavedState("memberId", ""));
-  const [mobileNumber, setMobileNumber] = useState(() => getSavedState("mobileNumber", ""));
-  const [salesPerson, setSalesPerson] = useState(() => getSavedState("salesPerson", ""));
-  const [address, setAddress] = useState(() => getSavedState("address", ""));
-  const [saleReturn, setSaleReturn] = useState(() => getSavedState("saleReturn", false));
+    address: "",
+    saleReturn: false,
+    redeemedPoints: 0,
+    classicCustomer: false,
+    cashReceived: "",
+    upiAmount: "",
+    cardAmount: "",
+    cardNumber: "",
+    discountPercent: "",
+    discountAmount: "",
+    onlineAmount: "",
+    onlinePhone: "",
+    onlineRef: "",
+    paidBefore: "",
+    contactNumber: "",
+    salesReturnAmount: "",
+    isEmployeeCustomer: false,
+  });
+
+  const getSavedTabsState = () => {
+    try {
+      const saved = localStorage.getItem("billing_multi_tabs_v2");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.tabs) && parsed.tabs.length > 0 && parsed.activeTabId) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error("Error loading multi-tabs state", e);
+    }
+    const initialId = `tab-${Date.now()}`;
+    return {
+      tabs: [{
+        id: initialId,
+        title: "Bill #1",
+        data: createTabInitialData(1)
+      }],
+      activeTabId: initialId,
+      tabCounter: 1
+    };
+  };
+
+  const savedTabsConfig = useMemo(() => getSavedTabsState(), []);
+  const [billTabs, setBillTabs] = useState(savedTabsConfig.tabs);
+  const [activeTabId, setActiveTabId] = useState(savedTabsConfig.activeTabId);
+  const [tabCounter, setTabCounter] = useState(savedTabsConfig.tabCounter || 1);
+
+  const initialActiveData = savedTabsConfig.tabs.find(t => t.id === savedTabsConfig.activeTabId)?.data || createTabInitialData(1);
+
+  const [rows, setRows] = useState(initialActiveData.rows);
+  const [billDate, setBillDate] = useState(initialActiveData.billDate);
+  const [billNo, setBillNo] = useState(initialActiveData.billNo);
+  const [counter, setCounter] = useState(initialActiveData.counter);
+  const [customerName, setCustomerName] = useState(initialActiveData.customerName);
+  const [memberId, setMemberId] = useState(initialActiveData.memberId);
+  const [mobileNumber, setMobileNumber] = useState(initialActiveData.mobileNumber);
+  const [salesPerson, setSalesPerson] = useState(initialActiveData.salesPerson);
+  const [address, setAddress] = useState(initialActiveData.address);
+  const [saleReturn, setSaleReturn] = useState(initialActiveData.saleReturn);
   const [showSaleReturnModal, setShowSaleReturnModal] = useState(false);
   const [saleReturnBillInput, setSaleReturnBillInput] = useState("");
   const [isSaleReturnMode, setIsSaleReturnMode] = useState(false);
   const [originalBillNumber, setOriginalBillNumber] = useState("");
   const saleReturnBillInputRef = useRef(null);
-  const [redeemedPoints, setRedeemedPoints] = useState(() => getSavedState("redeemedPoints", 0));
+  const [redeemedPoints, setRedeemedPoints] = useState(initialActiveData.redeemedPoints);
   const [showPointsModal, setShowPointsModal] = useState(false);
   const [pointsInput, setPointsInput] = useState("");
   const [pointsError, setPointsError] = useState("");
-  const [classicCustomer, setClassicCustomer] = useState(() => getSavedState("classicCustomer", false));
-  const [cashReceived, setCashReceived] = useState(() => getSavedState("cashReceived", ""));
-  const [upiAmount, setUpiAmount] = useState(() => getSavedState("upiAmount", ""));
-  const [cardAmount, setCardAmount] = useState(() => getSavedState("cardAmount", ""));
-  const [cardNumber, setCardNumber] = useState(() => getSavedState("cardNumber", ""));
-  const [discountPercent, setDiscountPercent] = useState(() => getSavedState("discountPercent", ""));
-  const [discountAmount, setDiscountAmount] = useState(() => getSavedState("discountAmount", ""));
-  const [onlineAmount, setOnlineAmount] = useState(() => getSavedState("onlineAmount", ""));
-  const [onlinePhone, setOnlinePhone] = useState(() => getSavedState("onlinePhone", ""));
-  const [onlineRef, setOnlineRef] = useState(() => getSavedState("onlineRef", ""));
-  const [paidBefore, setPaidBefore] = useState(() => getSavedState("paidBefore", ""));
-  const [contactNumber, setContactNumber] = useState(() => getSavedState("contactNumber", ""));
-  const [salesReturnAmount, setSalesReturnAmount] = useState(() => getSavedState("salesReturnAmount", ""));
-  const [isEmployeeCustomer, setIsEmployeeCustomer] = useState(() => getSavedState("isEmployeeCustomer", false));
+  const [classicCustomer, setClassicCustomer] = useState(initialActiveData.classicCustomer);
+  const [cashReceived, setCashReceived] = useState(initialActiveData.cashReceived);
+  const [upiAmount, setUpiAmount] = useState(initialActiveData.upiAmount);
+  const [cardAmount, setCardAmount] = useState(initialActiveData.cardAmount);
+  const [cardNumber, setCardNumber] = useState(initialActiveData.cardNumber);
+  const [discountPercent, setDiscountPercent] = useState(initialActiveData.discountPercent);
+  const [discountAmount, setDiscountAmount] = useState(initialActiveData.discountAmount);
+  const [onlineAmount, setOnlineAmount] = useState(initialActiveData.onlineAmount);
+  const [onlinePhone, setOnlinePhone] = useState(initialActiveData.onlinePhone);
+  const [onlineRef, setOnlineRef] = useState(initialActiveData.onlineRef);
+  const [paidBefore, setPaidBefore] = useState(initialActiveData.paidBefore);
+  const [contactNumber, setContactNumber] = useState(initialActiveData.contactNumber);
+  const [salesReturnAmount, setSalesReturnAmount] = useState(initialActiveData.salesReturnAmount);
+  const [isEmployeeCustomer, setIsEmployeeCustomer] = useState(initialActiveData.isEmployeeCustomer);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -189,12 +290,22 @@ export default function Bill() {
   const [customerNameSuggestions, setCustomerNameSuggestions] = useState([]);
   const [showCustomerNameSuggestions, setShowCustomerNameSuggestions] = useState(false);
   const [highlightedCustomerNameIndex, setHighlightedCustomerNameIndex] = useState(0);
+  const [headerSPSuggestions, setHeaderSPSuggestions] = useState([]);
+  const [showHeaderSPSuggestions, setShowHeaderSPSuggestions] = useState(false);
+  const [highlightedHeaderSPIndex, setHighlightedHeaderSPIndex] = useState(0);
   const [availablePoints, setAvailablePoints] = useState(() => getSavedState("availablePoints", 0));
   const [billNumberSuggestions, setBillNumberSuggestions] = useState([]);
   const [showBillNumberSuggestions, setShowBillNumberSuggestions] = useState(false);
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [isReprintMode, setIsReprintMode] = useState(false);
+  const [godownStockMap, setGodownStockMap] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("godownStockMap") || "{}");
+    } catch {
+      return {};
+    }
+  });
 
   // ── Permissions Check for Edit Bill Number ──
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -224,7 +335,295 @@ export default function Bill() {
     return perm ? (perm.view === true || perm.edit === true) : false;
   }, [userType, permissions]);
 
-  // ── Member Registration Form State ──
+  // ── Active Product Stock calculation for focused row ──
+  const activeRowProduct = useMemo(() => {
+    if (!rows || activeRowIndex < 0 || activeRowIndex >= rows.length) return null;
+    const currRow = rows[activeRowIndex];
+    if (!currRow) return null;
+
+    const pid = String(currRow.productId || "").trim().toLowerCase();
+    const desc = String(currRow.description || "").trim().toLowerCase();
+    const rowDbId = currRow._dbId;
+
+    if (!pid && !desc && !rowDbId) return null;
+
+    let matched = null;
+
+    // 1. Exact DB ID match
+    if (rowDbId) {
+      matched = (products || []).find((p) => String(p.id) === String(rowDbId));
+    }
+
+    // 2. Exact match on Product ID, productCode, barcode, or ID
+    if (!matched && pid) {
+      matched = (products || []).find((p) => {
+        const pId = String(p.id || p.product_id || "").toLowerCase();
+        const pCode = String(p.productCode || p.product_code || p.barcode || p.code || p.item_code || "").toLowerCase();
+        return pId === pid || pCode === pid;
+      });
+    }
+
+    // 3. Match on description
+    if (!matched && desc) {
+      matched = (products || []).find((p) => {
+        const pName = String(p.name || p.productName || p.description || "").toLowerCase();
+        return pName === desc || pName.includes(desc);
+      });
+    }
+
+    // 4. Prefix match while typing
+    if (!matched && pid) {
+      matched = (products || []).find((p) => {
+        const pId = String(p.id || p.product_id || "").toLowerCase();
+        const pCode = String(p.productCode || p.product_code || p.barcode || p.code || p.item_code || "").toLowerCase();
+        return pId.startsWith(pid) || pCode.startsWith(pid);
+      });
+    }
+
+    let storeStock = null;
+    if (matched) {
+      storeStock = matched.quantity ?? matched.stock ?? matched.stock_quantity ?? matched.stockQuantity;
+    }
+    if (storeStock === null || storeStock === undefined) {
+      if (currRow.stock !== undefined && currRow.stock !== null && !isNaN(Number(currRow.stock))) {
+        storeStock = currRow.stock;
+      }
+    }
+
+    const stockNumber = storeStock !== null && storeStock !== undefined && !isNaN(Number(storeStock)) ? Number(storeStock) : null;
+    const title = (matched ? (matched.name || matched.description) : currRow.description) || currRow.productId || "";
+
+    return {
+      ...(matched || currRow),
+      inStockCount: stockNumber,
+      itemLabel: title
+    };
+  }, [rows, activeRowIndex, products]);
+
+  const activeProductStock = useMemo(() => {
+    if (!activeRowProduct) return null;
+    if (activeRowProduct.inStockCount !== undefined && activeRowProduct.inStockCount !== null && !isNaN(activeRowProduct.inStockCount)) {
+      return activeRowProduct.inStockCount;
+    }
+    return null;
+  }, [activeRowProduct]);
+
+  // Apply data object into React state
+  const applyTabDataToState = useCallback((data) => {
+    if (!data) return;
+    setRows(data.rows || [{ productId: "", description: "", tax: "", unit: "", mrp: "", discountPercent: "", netPrice: "", quantity: "", salesPerson: "" }]);
+    setBillDate(data.billDate || getTodayDateStr());
+    if (data.billNo) {
+      setBillNo(data.billNo);
+    }
+    setCounter(data.counter || "counter_1");
+    setCustomerName(data.customerName || "");
+    setMemberId(data.memberId || "");
+    setMobileNumber(data.mobileNumber || "");
+    setSalesPerson(data.salesPerson || "");
+    setAddress(data.address || "");
+    setSaleReturn(data.saleReturn || false);
+    setRedeemedPoints(data.redeemedPoints || 0);
+    setClassicCustomer(data.classicCustomer || false);
+    setCashReceived(data.cashReceived || "");
+    setUpiAmount(data.upiAmount || "");
+    setCardAmount(data.cardAmount || "");
+    setCardNumber(data.cardNumber || "");
+    setDiscountPercent(data.discountPercent || "");
+    setDiscountAmount(data.discountAmount || "");
+    setOnlineAmount(data.onlineAmount || "");
+    setOnlinePhone(data.onlinePhone || "");
+    setOnlineRef(data.onlineRef || "");
+    setPaidBefore(data.paidBefore || "");
+    setContactNumber(data.contactNumber || "");
+    setSalesReturnAmount(data.salesReturnAmount || "");
+    setIsEmployeeCustomer(data.isEmployeeCustomer || false);
+  }, []);
+
+  // Get current React input state data
+  const getCurrentStateData = useCallback(() => ({
+    rows,
+    billDate,
+    billNo,
+    counter,
+    customerName,
+    memberId,
+    mobileNumber,
+    salesPerson,
+    address,
+    saleReturn,
+    redeemedPoints,
+    classicCustomer,
+    cashReceived,
+    upiAmount,
+    cardAmount,
+    cardNumber,
+    discountPercent,
+    discountAmount,
+    onlineAmount,
+    onlinePhone,
+    onlineRef,
+    paidBefore,
+    contactNumber,
+    salesReturnAmount,
+    isEmployeeCustomer,
+  }), [
+    rows, billDate, billNo, counter, customerName, memberId, mobileNumber, salesPerson, address,
+    saleReturn, redeemedPoints, classicCustomer, cashReceived, upiAmount, cardAmount, cardNumber,
+    discountPercent, discountAmount, onlineAmount, onlinePhone, onlineRef, paidBefore, contactNumber,
+    salesReturnAmount, isEmployeeCustomer
+  ]);
+
+  // Sync active tab state
+  useEffect(() => {
+    const currentData = getCurrentStateData();
+    setBillTabs((prevTabs) => {
+      const updated = prevTabs.map((t) => (t.id === activeTabId ? { ...t, data: currentData } : t));
+      try {
+        localStorage.setItem("billing_multi_tabs_v2", JSON.stringify({
+          tabs: updated,
+          activeTabId,
+          tabCounter
+        }));
+      } catch (_) { }
+      return updated;
+    });
+  }, [getCurrentStateData, activeTabId, tabCounter]);
+
+  // Tab Action Handlers
+  const handleSwitchTab = useCallback((targetTabId) => {
+    if (targetTabId === activeTabId) return;
+    const targetTab = billTabs.find(t => t.id === targetTabId);
+    if (targetTab) {
+      applyTabDataToState(targetTab.data);
+      setActiveTabId(targetTabId);
+      setTimeout(() => {
+        requestFullScreen();
+      }, 50);
+    }
+  }, [activeTabId, billTabs, applyTabDataToState]);
+
+  const handleCreateNewTab = useCallback(() => {
+    setBillTabs((currentTabs) => {
+      const nextNum = currentTabs.length + 1;
+      const lastTab = currentTabs[currentTabs.length - 1];
+      const lastBillNo = lastTab?.data?.billNo || billNo;
+      const nextBillNo = incrementBillNo(lastBillNo, isSaleReturnMode ? 'R' : 'N');
+      const newId = `tab-${Date.now()}`;
+      const newTab = {
+        id: newId,
+        title: `Bill #${nextNum}`,
+        data: createTabInitialData(nextNum, nextBillNo)
+      };
+      const newTabsList = [...currentTabs, newTab];
+      setTabCounter(nextNum);
+      applyTabDataToState(newTab.data);
+      setActiveTabId(newId);
+      setTimeout(() => {
+        requestFullScreen();
+      }, 50);
+      return newTabsList;
+    });
+  }, [billNo, isSaleReturnMode, applyTabDataToState]);
+
+  const handleCloseTab = useCallback((tabIdToClose) => {
+    const remainingTabs = billTabs.filter(t => t.id !== tabIdToClose);
+
+    // When closing extra tabs leaves only 1 tab (the permanent Bill #1 tab), keep Bill #1 untouched and reset tabCounter to 1
+    if (remainingTabs.length <= 1) {
+      const rootTab = remainingTabs[0] || billTabs[0] || {
+        id: `tab-${Date.now()}`,
+        title: "Bill #1",
+        data: createTabInitialData(1, billNo)
+      };
+
+      setTabCounter(1);
+      setBillTabs([rootTab]);
+      setActiveTabId(rootTab.id);
+      applyTabDataToState(rootTab.data);
+      return;
+    }
+
+    // Multiple tabs still remain
+    let nextActiveId = activeTabId;
+    if (tabIdToClose === activeTabId) {
+      const currentIndex = billTabs.findIndex(t => t.id === tabIdToClose);
+      const nextTab = billTabs[currentIndex + 1] || billTabs[currentIndex - 1];
+      if (nextTab) {
+        nextActiveId = nextTab.id;
+        applyTabDataToState(nextTab.data);
+      }
+    }
+    setBillTabs(remainingTabs);
+    setActiveTabId(nextActiveId);
+  }, [billTabs, activeTabId, applyTabDataToState]);
+
+  const billTabsRef = useRef(billTabs);
+  useEffect(() => { billTabsRef.current = billTabs; }, [billTabs]);
+
+  const activeTabIdRef = useRef(activeTabId);
+  useEffect(() => { activeTabIdRef.current = activeTabId; }, [activeTabId]);
+
+  const applyTabDataToStateRef = useRef(applyTabDataToState);
+  useEffect(() => { applyTabDataToStateRef.current = applyTabDataToState; }, [applyTabDataToState]);
+
+  const handleCreateNewTabRef = useRef(handleCreateNewTab);
+  useEffect(() => { handleCreateNewTabRef.current = handleCreateNewTab; }, [handleCreateNewTab]);
+
+  // Keyboard Shortcuts Listener for 'B', 'ArrowRight', and 'ArrowLeft'
+  useEffect(() => {
+    const handleGlobalTabKeys = (e) => {
+      const activeElem = document.activeElement;
+      const isInput = activeElem && (
+        activeElem.tagName === 'INPUT' ||
+        activeElem.tagName === 'TEXTAREA' ||
+        activeElem.tagName === 'SELECT' ||
+        activeElem.isContentEditable
+      );
+
+      // 1. Right Arrow or Left Arrow (or Shift+Alt) -> Switch tabs
+      const isRightArrow = (e.key === 'ArrowRight' || e.code === 'ArrowRight');
+      const isLeftArrow = (e.key === 'ArrowLeft' || e.code === 'ArrowLeft');
+      const isShiftAlt = (e.shiftKey && e.altKey);
+
+      if ((!isInput && (isRightArrow || isLeftArrow)) || isShiftAlt) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const currentTabs = billTabsRef.current;
+        if (!currentTabs || currentTabs.length <= 1) return;
+
+        const currentActiveId = activeTabIdRef.current;
+        const idx = currentTabs.findIndex((t) => t.id === currentActiveId);
+        const baseIdx = idx >= 0 ? idx : 0;
+        const nextIdx = isLeftArrow
+          ? (baseIdx - 1 + currentTabs.length) % currentTabs.length
+          : (baseIdx + 1) % currentTabs.length;
+
+        const nextTab = currentTabs[nextIdx];
+        if (nextTab && nextTab.id !== currentActiveId) {
+          activeTabIdRef.current = nextTab.id;
+          setActiveTabId(nextTab.id);
+          applyTabDataToStateRef.current(nextTab.data);
+          setTimeout(() => {
+            requestFullScreen();
+          }, 50);
+        }
+        return;
+      }
+
+      // 2. 'B' key (or 'b') -> Create new tab (ONLY when outside text inputs)
+      if (e.key === 'b' || e.key === 'B') {
+        if (!isInput && !e.ctrlKey && !e.altKey && !e.metaKey) {
+          e.preventDefault();
+          handleCreateNewTabRef.current();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalTabKeys);
+    return () => window.removeEventListener('keydown', handleGlobalTabKeys);
+  }, []);
   const [regName, setRegName] = useState("");
   const [regPhone, setRegPhone] = useState("");
   const [regAddress, setRegAddress] = useState("");
@@ -304,6 +703,29 @@ export default function Bill() {
     setShowMemberIdSuggestions(false);
     setShowMemberModal(true);
   };
+  const focusAfterCustomer = useCallback(() => {
+    setTimeout(() => {
+      if (!salesPerson || String(salesPerson).trim() === "") {
+        if (salesPersonRef.current) {
+          salesPersonRef.current.focus();
+          salesPersonRef.current.select?.();
+        }
+      } else {
+        if (quickAddInputRef.current) {
+          quickAddInputRef.current.focus();
+        } else if (rowInputRefs.current[0]) {
+          rowInputRefs.current[0].focus();
+        }
+      }
+    }, 120);
+  }, [salesPerson]);
+
+  const focusAfterMemberId = focusAfterCustomer;
+
+  const closeMemberModalAndFocus = () => {
+    setShowMemberModal(false);
+    focusAfterCustomer();
+  };
 
   const filterCustomerNameSuggestions = (value) => {
     const query = String(value || "").trim().toLowerCase();
@@ -344,6 +766,7 @@ export default function Bill() {
     }
     setShowCustomerNameSuggestions(false);
     showTempMessage("success", `✅ Selected Customer: ${name} (${points} Pts${returnAmt > 0 ? `, Return: ₹${returnAmt}` : ''})`);
+    focusAfterCustomer();
   };
 
   const handleCustomerNameKeyDown = async (e) => {
@@ -402,6 +825,7 @@ export default function Bill() {
         selectCustomerNameSuggestion(matchedCust);
       } else {
         showTempMessage("info", `Customer Name set: ${query}`);
+        focusAfterCustomer();
       }
     }
   };
@@ -556,7 +980,7 @@ export default function Bill() {
         return exists ? prev : [...prev, newCust];
       });
 
-      setShowMemberModal(false);
+      closeMemberModalAndFocus();
       showTempMessage("success", `✅ Customer "${regName.trim()}" registered and linked to current bill!`);
     } catch (err) {
       console.error("Error registering new customer:", err);
@@ -566,9 +990,10 @@ export default function Bill() {
     }
   };
 
-  const fetchNextBillNumber = async (type = 'N') => {
+  const fetchNextBillNumber = async (type = 'N', customDate = null) => {
     try {
-      const response = await api.get(`/billing/next-bill-number?type=${type}`);
+      const targetDate = customDate || billDate || getTodayDateStr();
+      const response = await api.get(`/billing/next-bill-number?type=${type}&date=${targetDate}`);
       if (response.data?.nextBillNumber) {
         setBillNo(response.data.nextBillNumber);
         return response.data.nextBillNumber;
@@ -582,7 +1007,7 @@ export default function Bill() {
   };
 
   useEffect(() => {
-    fetchNextBillNumber();
+    fetchNextBillNumber('N', billDate);
     loadProducts();
     loadCustomers();
     loadEmployees();
@@ -602,7 +1027,7 @@ export default function Bill() {
 
   useEffect(() => {
     const state = {
-      rows, billNo, counter, customerName, memberId, mobileNumber, salesPerson,
+      rows, billNo, billDate, counter, customerName, memberId, mobileNumber, salesPerson,
       address, saleReturn, redeemedPoints, classicCustomer, cashReceived,
       upiAmount, cardAmount, cardNumber, discountPercent, discountAmount,
       onlineAmount, onlinePhone, onlineRef, paidBefore, contactNumber, salesReturnAmount,
@@ -610,7 +1035,7 @@ export default function Bill() {
     };
     localStorage.setItem("bill_draft", JSON.stringify(state));
   }, [
-    rows, billNo, counter, customerName, memberId, mobileNumber, salesPerson,
+    rows, billNo, billDate, counter, customerName, memberId, mobileNumber, salesPerson,
     address, saleReturn, redeemedPoints, classicCustomer, cashReceived,
     upiAmount, cardAmount, cardNumber, discountPercent, discountAmount,
     onlineAmount, onlinePhone, onlineRef, paidBefore, contactNumber, salesReturnAmount,
@@ -748,6 +1173,56 @@ export default function Bill() {
   const handleSalesPersonChange = (value) => {
     setSalesPerson(value);
     filterSPSuggestions(value, -1);
+  };
+
+  const filterHeaderSPSuggestions = (input) => {
+    const query = String(input || "").trim().toLowerCase();
+    const matches = employees.filter(emp =>
+      emp.full_name && (query === "" || emp.full_name.toLowerCase().includes(query))
+    );
+    setHeaderSPSuggestions(matches);
+    setShowHeaderSPSuggestions(matches.length > 0);
+    setHighlightedHeaderSPIndex(0);
+  };
+
+  const handleHeaderSPKeyDown = (e) => {
+    if (showHeaderSPSuggestions && headerSPSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHighlightedHeaderSPIndex((prev) => (prev + 1) % headerSPSuggestions.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlightedHeaderSPIndex((prev) => (prev - 1 + headerSPSuggestions.length) % headerSPSuggestions.length);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const emp = headerSPSuggestions[highlightedHeaderSPIndex];
+        if (emp) {
+          setSalesPerson(emp.full_name);
+        }
+        setShowHeaderSPSuggestions(false);
+        setTimeout(() => {
+          if (rowInputRefs.current[0]) {
+            rowInputRefs.current[0].focus();
+            rowInputRefs.current[0].select?.();
+          } else if (quickAddInputRef.current) {
+            quickAddInputRef.current.focus();
+          }
+        }, 100);
+      } else if (e.key === 'Escape') {
+        setShowHeaderSPSuggestions(false);
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      setShowHeaderSPSuggestions(false);
+      setTimeout(() => {
+        if (rowInputRefs.current[0]) {
+          rowInputRefs.current[0].focus();
+          rowInputRefs.current[0].select?.();
+        } else if (quickAddInputRef.current) {
+          quickAddInputRef.current.focus();
+        }
+      }, 100);
+    }
   };
 
   const handleMobileChangeWithSuggestions = (value) => {
@@ -1028,10 +1503,14 @@ export default function Bill() {
             .receipt-line { border-top: 1px solid #000; margin: 5px 0; }
             .receipt-line-dashed { border-top: 1px dashed #000; margin: 5px 0; }
 
-            .receipt-table { width: 100%; border-collapse: collapse; margin: 4px 0; }
-            .receipt-table th { font-weight: 800; font-size: 11px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 0; text-align: left; }
-            .receipt-table td { padding: 4px 0; font-size: 11px; font-weight: 600; vertical-align: top; }
-            .r-desc { text-align: left; width: 45%; }
+            .receipt-table { width: 100%; border-collapse: collapse; margin: 4px 0; table-layout: fixed; }
+            .receipt-table th { font-weight: 800; font-size: 11px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 1px; text-align: right; }
+            .receipt-table td { padding: 4px 1px; font-size: 11px; font-weight: 600; vertical-align: top; text-align: right; }
+            .receipt-table th.r-desc, .receipt-table td.r-desc { text-align: left; width: 38%; word-break: break-word; }
+            .receipt-table th.r-tax, .receipt-table td.r-tax { text-align: left !important; width: 14%; }
+            .r-qty { text-align: right; width: 14%; }
+            .r-rate { text-align: right; width: 17%; }
+            .r-amt { text-align: right; width: 17%; }
             .r-num { text-align: right; }
 
             .receipt-pay-amount {
@@ -1074,7 +1553,7 @@ export default function Bill() {
               <div class="receipt-addr">CHENNAI-600 082.</div>
               <div class="receipt-info-left">
                 <div>PH: 9840669687</div>
-                <div>GSTIN:</div>
+                <div>GSTIN: 33BQEPD0068G1ZD</div>
               </div>
             </div>
 
@@ -1097,10 +1576,10 @@ export default function Bill() {
               <thead>
                 <tr>
                   <th class="r-desc">Description</th>
-                  <th class="r-num">Tax %</th>
-                  <th class="r-num">Qty</th>
-                  <th class="r-num">Rate</th>
-                  <th class="r-num">Amt</th>
+                  <th class="r-tax">Tax %</th>
+                  <th class="r-qty r-num">Qty</th>
+                  <th class="r-rate r-num">Rate</th>
+                  <th class="r-amt r-num">Amt</th>
                 </tr>
               </thead>
               <tbody>
@@ -1110,11 +1589,13 @@ export default function Bill() {
 
             <div class="receipt-pay-amount">
               Refund Amount: ${Math.round(r.totalReturnAmount)}/-
+              <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; margin-top: 1px;">(Tax inc.)</div>
             </div>
 
             <div class="receipt-summary-block">
               <div class="receipt-row"><span>Total Pieces: ${totalQty}</span></div>
               <div class="receipt-row"><span>MRP Total: ${Math.round(r.subtotal || r.totalReturnAmount)}</span></div>
+              <div class="receipt-row" style="font-weight: bold;"><span>GST Inclusive Refund:</span><span>₹${Math.round(r.totalReturnAmount).toFixed(2)}</span></div>
             </div>
 
             <div class="receipt-line"></div>
@@ -1126,18 +1607,7 @@ export default function Bill() {
               ${(r.customerAddress || (r.customer && r.customer.address)) ? `<div class="receipt-cust-phone">ADDR: ${r.customerAddress || (r.customer && r.customer.address)}</div>` : ''}
             </div>
 
-            <div class="receipt-line-dashed"></div>
 
-            <div class="receipt-qr">
-              <div class="receipt-qr-item">
-                <div class="receipt-qr-lbl">JOIN US</div>
-                <img src="/whatsapp-qr.png" alt="WhatsApp QR" class="receipt-qr-img" />
-              </div>
-              <div class="receipt-qr-item">
-                <div class="receipt-qr-lbl">VISIT US</div>
-                <img src="/instagram.png" alt="Instagram QR" class="receipt-qr-img" />
-              </div>
-            </div>
 
             <div class="receipt-footer-msg">
               <div class="receipt-visit">Visit Again</div>
@@ -1648,6 +2118,7 @@ export default function Bill() {
   };
 
   const updateRow = (index, field, value) => {
+    setActiveRowIndex(index);
     const numericFields = ["mrp", "sellPrice", "baseNetPrice", "discountPercent", "netPrice", "quantity", "tax"];
 
     if (field === "productId") {
@@ -1725,6 +2196,7 @@ export default function Bill() {
 
   // ─── Focus qty field for a given row index ────────────────────────────────
   const focusQtyField = (index) => {
+    setActiveRowIndex(index);
     setTimeout(() => {
       const qtyInput = qtyInputRefs.current[index];
       if (qtyInput) {
@@ -1736,9 +2208,10 @@ export default function Bill() {
 
   // ─── After qty is confirmed, move to next row's product-id field ──────────
   const moveToNextRow = (currentIndex) => {
+    const nextIndex = currentIndex + 1;
+    setActiveRowIndex(nextIndex);
     setRows((current) => {
       // Ensure there is a blank row after the current one
-      const nextIndex = currentIndex + 1;
       if (nextIndex >= current.length) {
         const blank = {
           productId: "",
@@ -1893,6 +2366,8 @@ export default function Bill() {
 
       const payload = {
         billNumber: formatBillNo(billNo),
+        billDate: billDate || getTodayDateStr(),
+        billTime: new Date().toLocaleTimeString('en-GB'),
         customerName: customerName || "Walk-in Customer",
         customerPhone: mobileNumber || contactNumber || memberId || "",
         customerAddress: address || "",
@@ -1997,7 +2472,7 @@ export default function Bill() {
     setIsReprintMode(false);
     setIsSaleReturnMode(false);
     setOriginalBillNumber("");
-    fetchNextBillNumber();
+    fetchNextBillNumber(isSaleReturnMode ? 'R' : 'N', billDate);
     localStorage.removeItem("bill_draft");
     loadProducts();
     loadCustomers();
@@ -2386,6 +2861,91 @@ export default function Bill() {
           </div>
         </div>
 
+        {/* ── Multi-Tab Billing Bar ── */}
+        <div className="bill-tabs-bar no-print" style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          background: '#0f172a',
+          padding: '6px 12px',
+          borderBottom: '1px solid #1e293b',
+          overflowX: 'auto',
+          userSelect: 'none'
+        }}>
+          {billTabs.map((tab, idx) => {
+            const isActive = tab.id === activeTabId;
+            const itemCount = tab.data?.rows?.filter(r => r.productId || r.description)?.length || 0;
+            const custName = tab.data?.customerName || "";
+
+            return (
+              <div
+                key={tab.id}
+                onClick={() => handleSwitchTab(tab.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 14px',
+                  borderRadius: '8px 8px 0 0',
+                  background: isActive ? '#1e293b' : '#1e293b70',
+                  border: isActive ? '1px solid #0284c7' : '1px solid #334155',
+                  borderBottom: isActive ? '3px solid #38bdf8' : 'none',
+                  color: isActive ? '#ffffff' : '#94a3b8',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: isActive ? '700' : '500',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span>📄 {tab.title} {custName ? `(${custName})` : ''}</span>
+                {itemCount > 0 && (
+                  <span style={{
+                    background: isActive ? '#0284c7' : '#475569',
+                    color: '#fff',
+                    fontSize: '10px',
+                    padding: '1px 6px',
+                    borderRadius: '10px',
+                    fontWeight: 'bold'
+                  }}>
+                    {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                  </span>
+                )}
+                {idx > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCloseTab(tab.id);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#94a3b8',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      padding: '0 2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      borderRadius: '3px'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.color = '#ef4444'}
+                    onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}
+                    title="Close Tab"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            );
+          })}
+
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 'bold', background: '#0369a130', padding: '3px 10px', borderRadius: '4px', border: '1px solid #0284c740' }}>
+              ⌨️ Press <kbd style={{ background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '3px' }}>B</kbd> for New Tab | <kbd style={{ background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '3px' }}>◀ Left / Right Arrow ▶</kbd> to switch tabs
+            </span>
+          </div>
+        </div>
+
         {isSaleReturnMode && (
           <div style={{
             backgroundColor: '#dc2626',
@@ -2423,8 +2983,31 @@ export default function Bill() {
         <div className="sale-header">
           <div className="header-left">
             <div className="field-group">
-              <label>Date</label>
-              <input value={formatDate(now)} readOnly />
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <span>Date</span>
+                {billDate && (
+                  <span style={{ fontSize: '10px', color: '#0284c7', fontWeight: 'bold' }}>
+                    FY {(() => {
+                      const d = new Date(billDate);
+                      const yr = d.getFullYear();
+                      const m = d.getMonth() + 1;
+                      const start = m >= 4 ? yr : yr - 1;
+                      return `${String(start).slice(-2)}-${String(start + 1).slice(-2)}`;
+                    })()}
+                  </span>
+                )}
+              </label>
+              <input
+                type="date"
+                value={billDate}
+                onChange={(event) => {
+                  const newDate = event.target.value;
+                  setBillDate(newDate);
+                  fetchNextBillNumber(isSaleReturnMode ? 'R' : 'N', newDate);
+                }}
+                style={{ fontWeight: '600', cursor: 'pointer' }}
+                title="Select date to preview/generate bill number for that Financial Year"
+              />
             </div>
             <div className="field-group">
               <label>Counter</label>
@@ -2797,6 +3380,183 @@ export default function Bill() {
             <div className="customer-name" style={{ marginTop: '8px', padding: '6px 12px', background: '#1e293b', borderRadius: '6px', fontSize: '13px', color: '#94a3b8' }}>
               User: <strong style={{ color: '#fff' }}>{loggedInUserName}</strong>
             </div>
+            <div className="salesperson-select-container" style={{ position: 'relative', marginTop: '4px', padding: '4px 8px', background: '#1e293b', borderRadius: '5px', border: '1px solid #0284c7', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold', color: '#38bdf8', whiteSpace: 'nowrap' }}>
+                👤 Salesperson:
+              </label>
+              <div style={{ position: 'relative', flex: 1, maxWidth: '140px' }}>
+                <input
+                  ref={salesPersonRef}
+                  type="text"
+                  value={salesPerson}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSalesPerson(val);
+                    filterHeaderSPSuggestions(val);
+                  }}
+                  onFocus={(e) => {
+                    filterHeaderSPSuggestions(e.target.value);
+                  }}
+                  onKeyDown={handleHeaderSPKeyDown}
+                  onBlur={() => setTimeout(() => setShowHeaderSPSuggestions(false), 200)}
+                  placeholder="Type or select..."
+                  autoComplete="off"
+                  style={{
+                    padding: '2px 6px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    borderRadius: '4px',
+                    border: '1px solid #0369a1',
+                    backgroundColor: '#0f172a',
+                    color: '#ffffff',
+                    outline: 'none',
+                    width: '100%'
+                  }}
+                />
+                {showHeaderSPSuggestions && headerSPSuggestions.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    minWidth: '160px',
+                    zIndex: 2500,
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #38bdf8',
+                    borderRadius: '6px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                    marginTop: '2px',
+                    maxHeight: '180px',
+                    overflowY: 'auto'
+                  }}>
+                    {headerSPSuggestions.map((emp, idx) => (
+                      <div
+                        key={emp.id || emp.employee_id || idx}
+                        onClick={() => {
+                          setSalesPerson(emp.full_name);
+                          setShowHeaderSPSuggestions(false);
+                          setTimeout(() => {
+                            if (rowInputRefs.current[0]) {
+                              rowInputRefs.current[0].focus();
+                              rowInputRefs.current[0].select?.();
+                            }
+                          }, 100);
+                        }}
+                        style={{
+                          padding: '6px 10px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          color: idx === highlightedHeaderSPIndex ? '#ffffff' : '#cbd5e1',
+                          backgroundColor: idx === highlightedHeaderSPIndex ? '#0284c7' : 'transparent',
+                          borderBottom: '1px solid #334155'
+                        }}
+                      >
+                        {emp.full_name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Stock Display Bar (In-Stock & Godown Stock in same line with identical size) */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginTop: '4px',
+              flexWrap: 'wrap'
+            }}>
+              {/* In-Stock Items Display */}
+              <div className="instock-items-card" style={{
+                height: '24px',
+                padding: '2px 8px',
+                background: '#1e293b',
+                borderRadius: '5px',
+                border: '1px solid #0284c7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '6px',
+                width: '185px',
+                boxSizing: 'border-box'
+              }}>
+                <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#38bdf8', whiteSpace: 'nowrap' }}>
+                  📦 In-Stock:
+                </span>
+                {activeProductStock !== null ? (
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: '900',
+                    color: activeProductStock > 5 ? '#4ade80' : activeProductStock > 0 ? '#fbbf24' : '#ef4444',
+                    background: activeProductStock > 5 ? '#052e16' : activeProductStock > 0 ? '#451a03' : '#450a0a',
+                    padding: '0 6px',
+                    height: '18px',
+                    lineHeight: '16px',
+                    borderRadius: '4px',
+                    border: `1px solid ${activeProductStock > 5 ? '#22c55e' : activeProductStock > 0 ? '#f59e0b' : '#f87171'}`,
+                    whiteSpace: 'nowrap',
+                    boxSizing: 'border-box',
+                    display: 'inline-flex',
+                    alignItems: 'center'
+                  }}>
+                    {activeProductStock} {activeProductStock === 1 ? 'unit' : 'units'}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#64748b', whiteSpace: 'nowrap' }}>
+                    {activeRowProduct?.itemLabel ? 'Stock N/A' : 'Select Row'}
+                  </span>
+                )}
+              </div>
+
+              {/* Stock in Godown Display */}
+              <div className="godown-stock-card" style={{
+                height: '24px',
+                padding: '2px 8px',
+                background: '#1e293b',
+                borderRadius: '5px',
+                border: '1px solid #0284c7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '6px',
+                width: '185px',
+                boxSizing: 'border-box'
+              }}>
+                <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#38bdf8', whiteSpace: 'nowrap' }}>
+                  🏬 Stock in Godown:
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  value={godownStockMap[activeRowProduct?.productId || activeRowProduct?.id || 'global'] ?? ''}
+                  onChange={(e) => {
+                    const key = activeRowProduct?.productId || activeRowProduct?.id || 'global';
+                    const val = e.target.value;
+                    setGodownStockMap(prev => {
+                      const next = { ...prev, [key]: val };
+                      try { localStorage.setItem("godownStockMap", JSON.stringify(next)); } catch { }
+                      return next;
+                    });
+                  }}
+                  placeholder="Qty"
+                  style={{
+                    width: '55px',
+                    height: '18px',
+                    fontSize: '11px',
+                    fontWeight: '900',
+                    textAlign: 'right',
+                    color: '#4ade80',
+                    background: '#052e16',
+                    border: '1px solid #22c55e',
+                    borderRadius: '4px',
+                    padding: '0 4px',
+                    margin: 0,
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -3009,11 +3769,15 @@ export default function Bill() {
           <div className="footer-col">
             <div className="section-title">Bill & Discounts</div>
             <div className="info-row">
-              <span>Bill Amount</span>
+              <span>GST Inclusive Amt</span>
               <input value={totals.billValue} readOnly className={totals.billValue > 0 ? "amount-highlight" : ""} />
             </div>
             <div className="info-row">
-              <span style={{ color: '#60a5fa' }}>Total Tax</span>
+              <span style={{ color: '#a7f3d0' }}>Taxable Amt (Excl.)</span>
+              <input value={totals.taxableTotal.toFixed(2)} readOnly style={{ color: '#a7f3d0', fontWeight: 'bold' }} />
+            </div>
+            <div className="info-row">
+              <span style={{ color: '#60a5fa' }}>GST Amt (Incl.)</span>
               <input value={totals.taxTotal.toFixed(2)} readOnly style={{ color: '#60a5fa', fontWeight: 'bold' }} />
             </div>
             <div className="info-row">
@@ -3300,7 +4064,7 @@ export default function Bill() {
           <div className="receipt-addr">CHENNAI-600 082.</div>
           <div className="receipt-info-left">
             <div>PH: 9840669687</div>
-            <div>GSTIN:</div>
+            <div>GSTIN: 33BQEPD0068G1ZD</div>
           </div>
         </div>
 
@@ -3334,10 +4098,10 @@ export default function Bill() {
           <thead>
             <tr>
               <th className="r-desc">Description</th>
-              <th className="r-num">Tax %</th>
-              <th className="r-num">Qty</th>
-              <th className="r-num">Rate</th>
-              <th className="r-num">Amt</th>
+              <th className="r-tax">Tax %</th>
+              <th className="r-qty r-num">Qty</th>
+              <th className="r-rate r-num">Rate</th>
+              <th className="r-amt r-num">Amt</th>
             </tr>
           </thead>
           <tbody>
@@ -3349,10 +4113,10 @@ export default function Bill() {
               return (
                 <tr key={index}>
                   <td className="r-desc">{String(row.description || "").toUpperCase()}</td>
-                  <td className="r-num">{taxPct}%</td>
-                  <td className="r-num">{qty.toFixed(2)}</td>
-                  <td className="r-num">{rate.toFixed(2)}</td>
-                  <td className="r-num">{amt.toFixed(2)}</td>
+                  <td className="r-tax">{taxPct}%</td>
+                  <td className="r-qty r-num">{qty.toFixed(2)}</td>
+                  <td className="r-rate r-num">{rate.toFixed(2)}</td>
+                  <td className="r-amt r-num">{amt.toFixed(2)}</td>
                 </tr>
               );
             })}
@@ -3361,11 +4125,14 @@ export default function Bill() {
 
         <div className="receipt-pay-amount">
           {isSaleReturnMode ? `Refund Amount: ${Math.round(totals.billValue)}/-` : `Pay Amount: ${Math.round(totals.billValue)}/-`}
+          <div style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', marginTop: '1px' }}>(Tax inc.)</div>
         </div>
 
         <div className="receipt-summary-block">
           <div className="receipt-row"><span>Total Pieces: {totals.totalQuantity}</span></div>
           <div className="receipt-row"><span>MRP Total: {Math.round(totals.mrpTotal)}</span></div>
+          <div className="receipt-row"><span>Taxable Amt (Excl. GST):</span><span>₹{totals.taxableTotal.toFixed(2)}</span></div>
+          <div className="receipt-row" style={{ fontWeight: 'bold' }}><span>GST Inclusive Amt:</span><span>₹{totals.billValue.toFixed(2)}</span></div>
         </div>
 
         {!isSaleReturnMode && (
@@ -3408,23 +4175,12 @@ export default function Bill() {
                 {redeemedPoints > 0 && <div className="receipt-row"><span>Points Used:</span><span>{formatPts(redeemedPoints)} Pts</span></div>}
                 <div className="receipt-row" style={{ fontWeight: 'bold' }}><span>Points Available:</span><span>{formatPts(totalBalance)} Pts</span></div>
               </div>
+              <div className="receipt-line" />
             </>
           );
         })()}
 
-        <div className="receipt-line-dashed" />
 
-        {/* QR Codes Section: Instagram & WhatsApp */}
-        <div className="receipt-qr">
-          <div className="receipt-qr-item">
-            <div className="receipt-qr-lbl">JOIN US</div>
-            <img src="/whatsapp-qr.png" alt="WhatsApp QR" className="receipt-qr-img" />
-          </div>
-          <div className="receipt-qr-item">
-            <div className="receipt-qr-lbl">VISIT US</div>
-            <img src="/instagram.png" alt="Instagram QR" className="receipt-qr-img" />
-          </div>
-        </div>
 
         {/* Footer Messages: Visit Again & Thank You */}
         <div className="receipt-footer-msg">
@@ -3663,11 +4419,11 @@ export default function Bill() {
                 <button
                   className="member-modal-ok-btn"
                   autoFocus
-                  onClick={() => setShowMemberModal(false)}
+                  onClick={closeMemberModalAndFocus}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      setShowMemberModal(false);
+                      closeMemberModalAndFocus();
                     }
                   }}
                 >
@@ -4907,7 +5663,7 @@ const saleStyles = `
       padding: 0 !important;
       background: #fff !important;
     }
-    header, nav, .sidebar, .sale-titlebar, .sale-header, .quick-add, .grid-wrap, .footer-panel, .notice, .sp-suggestions, .modal-backdrop {
+    header, nav, .sidebar, .sale-titlebar, .sale-header, .bill-tabs-bar, .no-print, .quick-add, .grid-wrap, .footer-panel, .notice, .sp-suggestions, .modal-backdrop {
       display: none !important;
     }
     .sale-page, .sale-window {
@@ -4952,10 +5708,14 @@ const saleStyles = `
     .receipt-line { border-top: 1px solid #000; margin: 5px 0; }
     .receipt-line-dashed { border-top: 1px dashed #000; margin: 5px 0; }
 
-    .receipt-table { width: 100%; border-collapse: collapse; margin: 4px 0; }
-    .receipt-table th { font-weight: 800; font-size: 11px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 0; }
-    .receipt-table td { padding: 4px 0; font-size: 11px; font-weight: 600; vertical-align: top; }
-    .r-desc { text-align: left; width: 45%; }
+    .receipt-table { width: 100%; border-collapse: collapse; margin: 4px 0; table-layout: fixed; }
+    .receipt-table th { font-weight: 800; font-size: 11px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 1px; text-align: right; }
+    .receipt-table td { padding: 4px 1px; font-size: 11px; font-weight: 600; vertical-align: top; text-align: right; }
+    .receipt-table th.r-desc, .receipt-table td.r-desc { text-align: left; width: 38%; word-break: break-word; }
+    .receipt-table th.r-tax, .receipt-table td.r-tax { text-align: left !important; width: 14%; }
+    .r-qty { text-align: right; width: 14%; }
+    .r-rate { text-align: right; width: 17%; }
+    .r-amt { text-align: right; width: 17%; }
     .r-num { text-align: right; }
 
     .receipt-pay-amount {

@@ -7,7 +7,7 @@ from app.models.sale_return import SaleReturn
 from app import db
 from sqlalchemy import or_, and_, func, text
 from datetime import datetime, timedelta
-import traceback
+import traceback,re 
 import random
 import string
 from dateutil.relativedelta import relativedelta  # Add this import for warranty calculation
@@ -141,13 +141,23 @@ def get_next_bill_number_route():
         bill_type = request.args.get('type', 'N').strip().upper()
         if bill_type not in ['N', 'R']:
             bill_type = 'N'
-        next_num = generate_unique_bill_number(bill_type)
-        # Short display bill number for POS receipt e.g. "1N" or "1R"
-        display_num = next_num.split('/')[-1] if '/' in next_num else next_num
-        return jsonify({"nextBillNumber": display_num, "fullBillNumber": next_num, "displayBillNumber": display_num, "type": bill_type}), 200
+        
+        dt_str = request.args.get('date', '').strip()
+        dt = None
+        if dt_str:
+            try:
+                dt = datetime.strptime(dt_str, '%Y-%m-%d')
+            except Exception:
+                dt = None
+
+        next_num = generate_unique_bill_number(bill_type, dt=dt)
+        # Full bill number e.g. "B0021N" or "B0021R"
+        display_num = next_num
+        return jsonify({"nextBillNumber": next_num, "fullBillNumber": next_num, "displayBillNumber": display_num, "type": bill_type}), 200
     except Exception as e:
         print(f"Error generating next bill number: {str(e)}")
         return jsonify({"error": str(e)}), 400
+
 
 
 @billing_bp.route("/billing/bills/return-details/<path:bill_number>", methods=["GET"])
@@ -979,8 +989,43 @@ def create_bill():
         if len(data['items']) == 0:
             return jsonify({"error": "Bill must have at least one item"}), 400
         
+        # Check custom bill date and time if provided
+        bill_date_str = str(data.get('billDate', '')).strip()
+        bill_time_str = str(data.get('billTime', '')).strip()
+        now = datetime.now()
+        bill_dt = None
+
+        if bill_date_str:
+            # Check if bill_date_str contains a time component
+            has_time_component = (':' in bill_date_str) and not bill_date_str.endswith('00:00:00')
+            if has_time_component:
+                try:
+                    bill_dt = datetime.fromisoformat(bill_date_str.replace('Z', ''))
+                except Exception:
+                    bill_dt = None
+
+            if not bill_dt:
+                try:
+                    date_part = bill_date_str.split('T')[0].split(' ')[0]
+                    parsed_date = datetime.strptime(date_part, '%Y-%m-%d').date()
+                    parsed_time = now.time()
+                    if bill_time_str:
+                        for fmt in ('%H:%M:%S', '%H:%M', '%I:%M:%S %p', '%I:%M %p'):
+                            try:
+                                parsed_time = datetime.strptime(bill_time_str, fmt).time()
+                                break
+                            except Exception:
+                                pass
+                    bill_dt = datetime.combine(parsed_date, parsed_time)
+                except Exception:
+                    bill_dt = now
+        else:
+            bill_dt = now
+
         # Create new bill instance with unique number
         bill = Bill()
+        bill.created_at = bill_dt
+
         req_bill_no = str(data.get('billNumber', '')).strip()
         if req_bill_no:
             if re.match(r'^[A-Z]+\d+[NR]$', req_bill_no.upper()):
@@ -988,7 +1033,7 @@ def create_bill():
             elif '/' in req_bill_no:
                 bill.bill_number = req_bill_no.split('/')[-1].upper()
             else:
-                fy_letter = get_fy_letter()
+                fy_letter = get_fy_letter(bill_dt)
                 clean_no = req_bill_no.rstrip('N').rstrip('n').rstrip('R').rstrip('r')
                 clean_digits = re.sub(r'\D', '', clean_no)
                 suffix = 'R' if req_bill_no.upper().endswith('R') else 'N'
@@ -998,7 +1043,7 @@ def create_bill():
                 else:
                     bill.bill_number = req_bill_no.upper()
         else:
-            bill.bill_number = generate_unique_bill_number('N')
+            bill.bill_number = generate_unique_bill_number('N', dt=bill_dt)
         
         # Customer Information
         bill.customer_name = data.get('customerName', 'Walk-in Customer')
@@ -1095,8 +1140,8 @@ def create_bill():
                 # Classic Customer Profit = Classic Customer Price - Purchase Rate (buy_price)
                 profit_base = float(product.classic_customer or 0)
             else:
-                # Normal Profit = MRP - Purchase Rate (buy_price)
-                profit_base = float(product.mrp or 0)
+                # Normal Profit = Selling Price - Purchase Rate (buy_price)
+                profit_base = float(line_price or product.sell_price or product.mrp or 0)
             
             unit_profit = profit_base - (product.buy_price or 0)
             item_profit = unit_profit * quantity

@@ -31,8 +31,8 @@ const inputStyle = {
   color: '#fff', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box', colorScheme: 'dark'
 };
 const modalInputStyle = {
-  width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #d1d5db',
-  color: '#111', background: '#fff', boxSizing: 'border-box', fontSize: '13px'
+  width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #334155',
+  color: '#f8fafc', background: '#0f172a', boxSizing: 'border-box', fontSize: '13px'
 };
 const btnPrimary = {
   padding: '10px 20px', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
@@ -540,7 +540,7 @@ const CustomerDetailsPage = () => {
 
   /* ── Loading screen ── */
   if (loading) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#0f172a' }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ width: 60, height: 60, border: '4px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }} />
         <p style={{ marginTop: 20, color: '#fff', fontSize: 16 }}>Loading customer details...</p>
@@ -550,23 +550,23 @@ const CustomerDetailsPage = () => {
 
   /* ─────────────────────────────────── RENDER ──────────────────── */
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)', padding: '32px 24px' }}>
+    <div style={{ minHeight: '100vh', background: '#0f172a', padding: '32px 24px', fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
       <style>{`
         @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
         @keyframes fadeIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
         @keyframes slideIn { from { transform:translateX(-100%); } to { transform:translateX(0); } }
         .cust-row { transition: all .25s; }
-        .cust-row:hover { background: rgba(255,255,255,0.12) !important; transform: translateX(3px); }
+        .cust-row:hover { background: rgba(255,255,255,0.06) !important; transform: translateX(3px); }
         .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); backdrop-filter:blur(8px); display:flex; justify-content:center; align-items:center; z-index:1000; animation:fadeIn .3s ease; }
-        .modal-content { background:#fff; border-radius:20px; max-width:95%; width:1040px; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.3); }
+        .modal-content { background:#1e293b; color:#f8fafc; border:1px solid #334155; border-radius:16px; max-width:95%; width:1040px; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.5); }
         .modal-content::-webkit-scrollbar { width:7px; }
-        .modal-content::-webkit-scrollbar-thumb { background:#888; border-radius:10px; }
+        .modal-content::-webkit-scrollbar-thumb { background:#475569; border-radius:10px; }
         input:focus, select:focus { outline: none; }
         .btn-icon:hover { opacity: .85; transform: translateY(-1px); }
-        .bill-card { background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.16); border-radius:14px; overflow:hidden; margin-bottom:14px; animation:fadeIn .3s ease; }
-        .bill-card-hdr { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:13px 20px; background:rgba(0,0,0,0.2); border-bottom:1px solid rgba(255,255,255,0.1); }
-        .tbl-cell { padding: 12px 14px; white-space: nowrap; font-size: 13px; color: #fff; }
-        .tbl-hdr { padding: 14px 14px; font-size: 11px; fontWeight: 700; color: #e0e7ff; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.15); }
+        .bill-card { background:rgba(255,255,255,0.05); border:1px solid #334155; border-radius:14px; overflow:hidden; margin-bottom:14px; animation:fadeIn .3s ease; }
+        .bill-card-hdr { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:13px 20px; background:#0f172a; border-bottom:1px solid #334155; }
+        .tbl-cell { padding: 12px 14px; white-space: nowrap; font-size: 13px; color: #f8fafc; }
+        .tbl-hdr { padding: 14px 14px; font-size: 11px; fontWeight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; border-bottom: 1px solid #334155; }
       `}</style>
 
       <div style={{ maxWidth: 1400, margin: '0 auto' }}>
@@ -943,12 +943,12 @@ const CustomerDetailsPage = () => {
       {/* ── Import Result Summary Modal ── */}
       {showImportResultModal && importResult && (
         <div className="modal-overlay" onClick={() => setShowImportResultModal(false)}>
-          <div className="modal-content" style={{ maxWidth: 560, padding: 26, color: '#111' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: 560, padding: 26, color: '#f8fafc' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 'bold', color: '#111', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 'bold', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8 }}>
                 📥 Excel Import Summary
               </h2>
-              <button onClick={() => setShowImportResultModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>✕</button>
+              <button onClick={() => setShowImportResultModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#94a3b8' }}>✕</button>
             </div>
 
             {/* Metrics cards */}
@@ -995,21 +995,21 @@ const CustomerDetailsPage = () => {
       {/* ── Add Customer Modal ── */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal-content" style={{ maxWidth: 640, padding: 28, color: '#111827' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: 640, padding: 28, color: '#f8fafc' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 'bold', color: '#111' }}>Add New Customer</h2>
-              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>✕</button>
+              <h2 style={{ fontSize: 20, fontWeight: 'bold', color: '#f8fafc' }}>Add New Customer</h2>
+              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#94a3b8' }}>✕</button>
             </div>
             <form onSubmit={handleAddCustomerSubmit}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {/* First Name & Last Name */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>First Name</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>First Name</label>
                     <input type="text" value={newCustomer.firstName} onChange={e => setNewCustomer({ ...newCustomer, firstName: e.target.value })} style={modalInputStyle} placeholder="First Name" />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Last Name</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Last Name</label>
                     <input type="text" value={newCustomer.lastName} onChange={e => setNewCustomer({ ...newCustomer, lastName: e.target.value })} style={modalInputStyle} placeholder="Last Name" />
                   </div>
                 </div>
@@ -1017,11 +1017,11 @@ const CustomerDetailsPage = () => {
                 {/* Mobile Number & Email */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Mobile Number *</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Mobile Number *</label>
                     <input type="text" required value={newCustomer.customerPhone} onChange={e => setNewCustomer({ ...newCustomer, customerPhone: e.target.value })} style={modalInputStyle} placeholder="Mobile Number" />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Email ID</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Email ID</label>
                     <input type="email" value={newCustomer.customerEmail} onChange={e => setNewCustomer({ ...newCustomer, customerEmail: e.target.value })} style={modalInputStyle} placeholder="Email Address" />
                   </div>
                 </div>
@@ -1029,11 +1029,11 @@ const CustomerDetailsPage = () => {
                 {/* Date of Birth & Member ID */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Date of Birth</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Date of Birth</label>
                     <input type="date" value={newCustomer.dateOfBirth} onChange={e => setNewCustomer({ ...newCustomer, dateOfBirth: e.target.value })} style={modalInputStyle} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Member ID</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Member ID</label>
                     <input type="text" value={newCustomer.memberId} onChange={e => setNewCustomer({ ...newCustomer, memberId: e.target.value })} style={modalInputStyle} placeholder="Member ID" />
                   </div>
                 </div>
@@ -1041,40 +1041,40 @@ const CustomerDetailsPage = () => {
                 {/* Wedding Anniversary & Celebration Date */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Wedding Anniversary</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Wedding Anniversary</label>
                     <input type="date" value={newCustomer.weddingAnniversary} onChange={e => setNewCustomer({ ...newCustomer, weddingAnniversary: e.target.value })} style={modalInputStyle} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Celebration Date</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Celebration Date</label>
                     <input type="date" value={newCustomer.celebrationDate} onChange={e => setNewCustomer({ ...newCustomer, celebrationDate: e.target.value })} style={modalInputStyle} />
                   </div>
                 </div>
 
                 {/* Address */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Address</label>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Address</label>
                   <textarea rows={2} value={newCustomer.customerAddress} onChange={e => setNewCustomer({ ...newCustomer, customerAddress: e.target.value })} style={modalInputStyle} placeholder="Customer Address" />
                 </div>
 
                 {/* Classic Customer, Supplier, Supplier IGST */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, alignItems: 'center', background: '#f9fafb', padding: 12, borderRadius: 8 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, alignItems: 'center', background: '#0f172a', border: '1px solid #334155', padding: 12, borderRadius: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#94a3b8', cursor: 'pointer' }}>
                     <input type="checkbox" checked={newCustomer.isClassicCustomer} onChange={e => setNewCustomer({ ...newCustomer, isClassicCustomer: e.target.checked })} />
                     Classic Customer
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#94a3b8', cursor: 'pointer' }}>
                     <input type="checkbox" checked={newCustomer.isSupplier} onChange={e => setNewCustomer({ ...newCustomer, isSupplier: e.target.checked })} />
                     Supplier
                   </label>
                   <div>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 2, color: '#374151' }}>Supplier IGST (%)</label>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 2, color: '#94a3b8' }}>Supplier IGST (%)</label>
                     <input type="number" step="0.01" value={newCustomer.supplierIGST} onChange={e => setNewCustomer({ ...newCustomer, supplierIGST: e.target.value })} style={modalInputStyle} placeholder="0.00" />
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                  <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #d1d5db', background: '#f3f4f6', color: '#374151', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-                  <button type="submit" disabled={savingCustomer} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>{savingCustomer ? 'Saving…' : 'Save Customer'}</button>
+                  <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #334155', background: '#374151', color: '#f8fafc', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                  <button type="submit" disabled={savingCustomer} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#6366f1', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>{savingCustomer ? 'Saving…' : 'Save Customer'}</button>
                 </div>
               </div>
             </form>
@@ -1085,21 +1085,21 @@ const CustomerDetailsPage = () => {
       {/* ── Edit Customer Modal ── */}
       {showEditModal && (
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="modal-content" style={{ maxWidth: 640, padding: 28, color: '#111827' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: 640, padding: 28, color: '#f8fafc' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 'bold', color: '#111' }}>Edit Customer Details</h2>
-              <button onClick={() => setShowEditModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>✕</button>
+              <h2 style={{ fontSize: 20, fontWeight: 'bold', color: '#f8fafc' }}>Edit Customer Details</h2>
+              <button onClick={() => setShowEditModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#94a3b8' }}>✕</button>
             </div>
             <form onSubmit={handleEditCustomerSubmit}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {/* First Name & Last Name */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>First Name</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>First Name</label>
                     <input type="text" value={editCustomer.firstName} onChange={e => setEditCustomer({ ...editCustomer, firstName: e.target.value })} style={modalInputStyle} placeholder="First Name" />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Last Name</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Last Name</label>
                     <input type="text" value={editCustomer.lastName} onChange={e => setEditCustomer({ ...editCustomer, lastName: e.target.value })} style={modalInputStyle} placeholder="Last Name" />
                   </div>
                 </div>
@@ -1107,11 +1107,11 @@ const CustomerDetailsPage = () => {
                 {/* Mobile Number & Email */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Mobile Number *</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Mobile Number *</label>
                     <input type="text" required value={editCustomer.customerPhone} onChange={e => setEditCustomer({ ...editCustomer, customerPhone: e.target.value })} style={modalInputStyle} placeholder="Mobile Number" />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Email ID</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Email ID</label>
                     <input type="email" value={editCustomer.customerEmail} onChange={e => setEditCustomer({ ...editCustomer, customerEmail: e.target.value })} style={modalInputStyle} placeholder="Email Address" />
                   </div>
                 </div>
@@ -1119,11 +1119,11 @@ const CustomerDetailsPage = () => {
                 {/* Date of Birth & Member ID */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Date of Birth</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Date of Birth</label>
                     <input type="date" value={editCustomer.dateOfBirth} onChange={e => setEditCustomer({ ...editCustomer, dateOfBirth: e.target.value })} style={modalInputStyle} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Member ID</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Member ID</label>
                     <input type="text" value={editCustomer.memberId} onChange={e => setEditCustomer({ ...editCustomer, memberId: e.target.value })} style={modalInputStyle} placeholder="Member ID" />
                   </div>
                 </div>
@@ -1131,46 +1131,46 @@ const CustomerDetailsPage = () => {
                 {/* Wedding Anniversary & Celebration Date */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Wedding Anniversary</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Wedding Anniversary</label>
                     <input type="date" value={editCustomer.weddingAnniversary} onChange={e => setEditCustomer({ ...editCustomer, weddingAnniversary: e.target.value })} style={modalInputStyle} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Celebration Date</label>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Celebration Date</label>
                     <input type="date" value={editCustomer.celebrationDate} onChange={e => setEditCustomer({ ...editCustomer, celebrationDate: e.target.value })} style={modalInputStyle} />
                   </div>
                 </div>
 
                 {/* Reward Points */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Reward Points ⭐</label>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Reward Points ⭐</label>
                   <input type="number" step="0.01" value={editCustomer.rewardPoints} onChange={e => setEditCustomer({ ...editCustomer, rewardPoints: e.target.value })} style={modalInputStyle} placeholder="Reward Points" />
                 </div>
 
                 {/* Address */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#374151' }}>Address</label>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#94a3b8' }}>Address</label>
                   <textarea rows={2} value={editCustomer.customerAddress} onChange={e => setEditCustomer({ ...editCustomer, customerAddress: e.target.value })} style={modalInputStyle} placeholder="Customer Address" />
                 </div>
 
                 {/* Classic Customer, Supplier, Supplier IGST */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, alignItems: 'center', background: '#f9fafb', padding: 12, borderRadius: 8 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, alignItems: 'center', background: '#0f172a', border: '1px solid #334155', padding: 12, borderRadius: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#94a3b8', cursor: 'pointer' }}>
                     <input type="checkbox" checked={editCustomer.isClassicCustomer} onChange={e => setEditCustomer({ ...editCustomer, isClassicCustomer: e.target.checked })} />
                     Classic Customer
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#94a3b8', cursor: 'pointer' }}>
                     <input type="checkbox" checked={editCustomer.isSupplier} onChange={e => setEditCustomer({ ...editCustomer, isSupplier: e.target.checked })} />
                     Supplier
                   </label>
                   <div>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 2, color: '#374151' }}>Supplier IGST (%)</label>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 2, color: '#94a3b8' }}>Supplier IGST (%)</label>
                     <input type="number" step="0.01" value={editCustomer.supplierIGST} onChange={e => setEditCustomer({ ...editCustomer, supplierIGST: e.target.value })} style={modalInputStyle} placeholder="0.00" />
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                  <button type="button" onClick={() => setShowEditModal(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #d1d5db', background: '#f3f4f6', color: '#374151', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-                  <button type="submit" disabled={savingEdit} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#6366f1', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>{savingEdit ? 'Updating…' : 'Update Customer'}</button>
+                  <button type="button" onClick={() => setShowEditModal(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #334155', background: '#374151', color: '#f8fafc', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                  <button type="submit" disabled={savingCustomer} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#6366f1', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>{savingCustomer ? 'Updating…' : 'Update Customer'}</button>
                 </div>
               </div>
             </form>

@@ -90,6 +90,92 @@ const cleanBillNo = (numStr) => {
   return str.includes("/") ? str.split("/").pop() : str;
 };
 
+const parseBillDate = (dateInput, timeInput) => {
+  if (!dateInput && !timeInput) return new Date();
+  if (dateInput instanceof Date) return dateInput;
+
+  let str = String(dateInput || '').trim();
+  let timeStr = typeof timeInput === 'string' ? timeInput.trim() : '';
+
+  let datePart = '';
+  let timePart = '';
+
+  if (str.includes('T')) {
+    const parts = str.split('T');
+    datePart = parts[0];
+    timePart = parts[1] ? parts[1].split('.')[0].split('+')[0].replace('Z', '') : '';
+  } else if (str.includes(' ')) {
+    const parts = str.split(' ');
+    datePart = parts[0];
+    timePart = parts.slice(1).join(' ');
+  } else {
+    datePart = str;
+  }
+
+  // Handle DD-MM-YYYY or DD/MM/YYYY
+  if (/^\d{2}[-/]\d{2}[-/]\d{4}/.test(datePart)) {
+    const dParts = datePart.split(/[-/]/);
+    datePart = `${dParts[2]}-${dParts[1]}-${dParts[0]}`;
+  }
+
+  // Use timeStr if timePart is missing or 00:00:00
+  if (timeStr && (!timePart || timePart.startsWith('00:00'))) {
+    timePart = timeStr;
+  }
+
+  if (datePart && timePart) {
+    const dParts = datePart.split('-').map(Number);
+    const year = dParts[0];
+    const month = dParts[1];
+    const day = dParts[2];
+
+    let hours = 0, minutes = 0, seconds = 0;
+    const isPM = /pm/i.test(timePart);
+    const isAM = /am/i.test(timePart);
+    const cleanTime = timePart.replace(/[^\d:]/g, '');
+    const tParts = cleanTime.split(':').map(Number);
+
+    if (tParts.length >= 1) hours = tParts[0] || 0;
+    if (tParts.length >= 2) minutes = tParts[1] || 0;
+    if (tParts.length >= 3) seconds = tParts[2] || 0;
+
+    if (isPM && hours < 12) hours += 12;
+    if (isAM && hours === 12) hours = 0;
+
+    if (year && month && day) {
+      return new Date(year, month - 1, day, hours, minutes, seconds);
+    }
+  }
+
+  if (datePart) {
+    const dParts = datePart.split('-').map(Number);
+    const year = dParts[0];
+    const month = dParts[1];
+    const day = dParts[2];
+    if (year && month && day) {
+      return new Date(year, month - 1, day, 0, 0, 0);
+    }
+  }
+
+  const fallback = new Date(str.replace('T', ' '));
+  return !isNaN(fallback.getTime()) ? fallback : new Date();
+};
+
+const getBillTime = (bill) => {
+  if (!bill) return 0;
+  const rawDate = bill.billDateRaw || bill.createdAt || bill.created_at || bill.date;
+  const d = parseBillDate(rawDate, bill.billTime);
+  if (!isNaN(d.getTime()) && d.getTime() > 0) {
+    return d.getTime();
+  }
+  const rawNo = bill.billNumber || bill.bill_number || bill.id;
+  if (rawNo) {
+    const num = parseInt(String(rawNo).replace(/\D/g, ''), 10);
+    if (!isNaN(num)) return num;
+  }
+  return 0;
+};
+
 const getBillQuantity = (bill) => {
   if (!bill) return 0;
   if (Array.isArray(bill.items) && bill.items.length > 0) {
@@ -663,7 +749,8 @@ const VisitBillPage = () => {
           paidAmount: parseFloat(bill.paidAmount || bill.paid_amount || bill.paid || 0),
           changeAmount: parseFloat(bill.changeAmount || bill.change_amount || bill.change || 0),
           paymentMethod: bill.paymentMethod || bill.payment_method || bill.payment?.method || 'cash',
-          createdAt: bill.createdAt || bill.created_at || bill.date || new Date().toISOString(),
+          createdAt: bill.createdAt || bill.created_at || bill.billDateRaw || (bill.billDate && bill.billTime ? `${bill.billDate} ${bill.billTime}` : bill.billDate) || bill.date || new Date().toISOString(),
+          billTime: bill.billTime || bill.time || '',
           updatedAt: bill.updatedAt || bill.updated_at,
           createdBy: bill.createdBy || bill.created_by,
           items: Array.isArray(bill.items) ? bill.items.map(item => ({
@@ -696,6 +783,9 @@ const VisitBillPage = () => {
         bill.totalQuantity = getBillQuantity(bill);
         bill.dueAmount = bill.total - bill.paidAmount;
       });
+
+      // Sort newest bills to the top of the list
+      processedBills.sort((a, b) => getBillTime(b) - getBillTime(a));
 
       console.log('Processed Bills:', processedBills);
 
@@ -808,7 +898,8 @@ const VisitBillPage = () => {
         paidAmount: parseFloat(billData.paidAmount || billData.paid_amount || billData.paid || 0),
         changeAmount: parseFloat(billData.changeAmount || billData.change_amount || billData.change || 0),
         paymentMethod: billData.paymentMethod || billData.payment_method || billData.payment?.method || 'cash',
-        createdAt: billData.createdAt || billData.created_at || billData.date || new Date().toISOString(),
+        createdAt: billData.billDateRaw || billData.createdAt || billData.created_at || (billData.billDate && billData.billTime ? `${billData.billDate} ${billData.billTime}` : billData.billDate) || billData.date || new Date().toISOString(),
+        billTime: billData.billTime || billData.time || '',
         updatedAt: billData.updatedAt || billData.updated_at,
         createdBy: billData.createdBy || billData.created_by,
         items: Array.isArray(billData.items) ? billData.items.map(item => ({
@@ -858,7 +949,7 @@ const VisitBillPage = () => {
     }
   };
 
-  // Enhanced Print Bill with thermal receipt design including logo, thank you, and QR codes
+  // Thermal Receipt Print matching Create Bill section
   const handlePrintBill = (bill) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
@@ -876,307 +967,207 @@ const VisitBillPage = () => {
       total: parseFloat(bill.total) || 0,
       paidAmount: parseFloat(bill.paidAmount) || 0,
       changeAmount: parseFloat(bill.changeAmount) || 0,
-      dueAmount: (parseFloat(bill.total) || 0) - (parseFloat(bill.paidAmount) || 0)
+      dueAmount: Math.max(0, (parseFloat(bill.total) || 0) - (parseFloat(bill.paidAmount) || 0))
     };
 
-    let discountDisplay = '';
-    if (processedBill.discountType === 'percentage') {
-      discountDisplay = `${processedBill.discountValue}% (₹${processedBill.discountAmount.toFixed(2)})`;
-    } else {
-      discountDisplay = `₹${processedBill.discountAmount.toFixed(2)}`;
-    }
+    const cleanBillNo = (bNo) => {
+      if (!bNo) return '';
+      const str = String(bNo).trim();
+      return str.includes('/') ? str.split('/').pop() : str;
+    };
+
+    const formattedBillNo = cleanBillNo(processedBill.billNumber);
+    const createdDate = parseBillDate(processedBill.createdAt);
+    const dateStr = isNaN(createdDate.getTime()) ? '' : createdDate.toLocaleDateString('en-GB');
+    const timeStr = isNaN(createdDate.getTime()) ? '' : createdDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const dateTimeStr = `${dateStr} ${timeStr}`.trim();
+
+    const items = processedBill.items || [];
+    const totalPieces = items.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+    const mrpTotal = items.reduce((sum, item) => sum + ((Number(item.mrp) || Number(item.sellPrice) || 0) * (Number(item.quantity) || 1)), 0) || processedBill.subtotal || processedBill.total;
+    const taxTotal = processedBill.tax || 0;
+    const taxableTotal = Math.max(0, processedBill.total - taxTotal);
+
+    const paymentMethod = String(processedBill.paymentMethod || 'cash').toLowerCase();
+    const isCard = paymentMethod.includes('card');
+    const isCash = paymentMethod.includes('cash');
+    const isUpi = paymentMethod.includes('upi');
+    const isOnline = paymentMethod.includes('online');
+
+    const customerName = processedBill.customerName || 'Walk-in Customer';
+    const customerPhone = processedBill.customerPhone || processedBill.contact || '';
+    const customerAddress = processedBill.customerAddress || '';
 
     printWindow.document.write(`
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>Bill - ${processedBill.billNumber}</title>
+          <title>Thermal Receipt #${formattedBillNo}</title>
           <style>
             @page {
               size: 80mm auto;
               margin: 0;
             }
             body {
-              font-family: 'Courier New', monospace;
-              font-size: 12px;
-              width: 100%;
               margin: 0;
-              padding: 5mm 3mm;
-              background: white;
-              color: black;
-              box-sizing: border-box;
-            }
-            .receipt {
-              width: 100%;
-              max-width: 74mm;
-              margin: 0 auto;
-              padding: 0;
-              box-sizing: border-box;
-            }
-            .receipt-header {
-              text-align: center;
-              margin-bottom: 10px;
-            }
-            .receipt-logo {
-              text-align: center;
-              margin-bottom: 5px;
-            }
-            .receipt-logo-img {
-              width: 70px;
-              height: 70px;
-              object-fit: contain;
-            }
-            .receipt-shop {
-              font-size: 16px;
-              font-weight: bold;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-              margin: 2px 0;
-            }
-            .receipt-tagline {
-              font-size: 9px;
-              letter-spacing: 0.5px;
-              color: #666;
-              margin-bottom: 3px;
-            }
-            .receipt-addr {
-              font-size: 9px;
-              margin: 1px 0;
-              line-height: 1.2;
-            }
-            .receipt-divider-thin {
-              border-top: 1px dotted #000;
-              margin: 4px 0;
-            }
-            .receipt-dash {
-              border-top: 1px dashed #000;
-              margin: 6px 0;
-            }
-            .receipt-meta {
-              margin: 6px 0;
-            }
-            .receipt-meta-row {
-              display: flex;
-              justify-content: space-between;
-              font-size: 10px;
-              margin: 2px 0;
-            }
-            .receipt-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin: 8px 0;
-            }
-            .receipt-table th, .receipt-table td {
-              padding: 4px 2px;
-              font-size: 10px;
-            }
-            .receipt-table th {
-              border-bottom: 1px solid #000;
-              text-align: left;
-              font-weight: bold;
-            }
-            .r-desc {
-              text-align: left;
-              width: 50%;
-            }
-            .r-num {
-              text-align: right;
-            }
-            .receipt-pay {
-              display: flex;
-              justify-content: space-between;
-              margin: 10px 0;
-              font-weight: bold;
-              font-size: 14px;
-            }
-            .receipt-summary {
-              margin: 8px 0;
-            }
-            .receipt-row {
-              display: flex;
-              justify-content: space-between;
-              font-size: 10px;
-              margin: 3px 0;
-            }
-            .receipt-savings {
-              color: #059669;
-              font-weight: bold;
-            }
-            .receipt-customer {
-              margin: 8px 0;
-              padding: 5px;
-              background: #f5f5f5;
-              border: 1px solid #ddd;
-            }
-            .receipt-cust-title {
-              font-weight: bold;
-              font-size: 10px;
-              margin-bottom: 3px;
-            }
-            .receipt-cust-name, .receipt-cust-phone {
-              font-size: 9px;
-              margin: 2px 0;
-            }
-            .receipt-points {
-              margin: 8px 0;
-            }
-            .receipt-thankyou {
-              text-align: center;
-              margin-top: 10px;
-              font-weight: bold;
+              padding: 3mm 2mm 5mm;
+              background: #fff;
+              color: #000;
+              font-family: 'Courier New', Courier, monospace, monospace;
               font-size: 11px;
+              line-height: 1.3;
+              width: 76mm;
+              box-sizing: border-box;
             }
-            .receipt-visit {
+            .receipt { width: 100%; max-width: 76mm; margin: 0 auto; }
+            .receipt-header { text-align: center; margin-bottom: 4px; }
+            .receipt-logo { text-align: center; margin-bottom: 4px; }
+            .receipt-logo-img { width: 120px; height: auto; object-fit: contain; display: inline-block; }
+            .receipt-shop { font-size: 15px; font-weight: 900; letter-spacing: 0.5px; text-align: center; margin-bottom: 2px; text-transform: uppercase; }
+            .receipt-addr { font-size: 11px; font-weight: 700; text-align: center; line-height: 1.25; }
+            .receipt-info-left { text-align: left; font-size: 11px; font-weight: 700; margin-top: 6px; }
+
+            .receipt-meta { margin: 6px 0; font-size: 11px; font-weight: 700; }
+            .receipt-meta-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+
+            .receipt-line { border-top: 1px solid #000; margin: 5px 0; }
+            .receipt-line-dashed { border-top: 1px dashed #000; margin: 5px 0; }
+
+            .receipt-table { width: 100%; border-collapse: collapse; margin: 4px 0; table-layout: fixed; }
+            .receipt-table th { font-weight: 800; font-size: 11px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 1px; text-align: right; }
+            .receipt-table td { padding: 4px 1px; font-size: 11px; font-weight: 600; vertical-align: top; text-align: right; }
+            .receipt-table th.r-desc, .receipt-table td.r-desc { text-align: left; width: 38%; word-break: break-word; }
+            .receipt-table th.r-tax, .receipt-table td.r-tax { text-align: left !important; width: 14%; }
+            .r-qty { text-align: right; width: 14%; }
+            .r-rate { text-align: right; width: 17%; }
+            .r-amt { text-align: right; width: 17%; }
+            .r-num { text-align: right; }
+
+            .receipt-pay-amount {
               text-align: center;
-              font-size: 10px;
-              color: #666;
-              margin-top: 3px;
+              font-size: 15px;
+              font-weight: 900;
+              padding: 5px 0;
+              border-top: 1px solid #000;
+              border-bottom: 1px solid #000;
+              margin: 5px 0;
             }
-            .receipt-qr {
-              display: flex;
-              justify-content: space-around;
-              margin-top: 12px;
-            }
-            .receipt-qr-item {
-              text-align: center;
-            }
-            .receipt-qr-lbl {
-              font-size: 8px;
-              font-weight: bold;
-              margin-bottom: 5px;
-            }
-            .receipt-qr-item img {
-              width: 45px;
-              height: 45px;
-              object-fit: contain;
-            }
-            .text-center {
-              text-align: center;
-            }
+
+            .receipt-summary-block { margin: 4px 0; font-size: 11px; font-weight: 700; }
+            .receipt-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+
+            .receipt-customer { margin: 4px 0; }
+            .receipt-cust-title { font-weight: 800; text-decoration: underline; margin-bottom: 2px; font-size: 11px; }
+            .receipt-cust-name { font-weight: 800; font-size: 11px; text-transform: uppercase; }
+            .receipt-cust-phone { font-weight: 700; font-size: 11px; }
+
+            .receipt-footer-msg { text-align: center; margin-top: 6px; }
+            .receipt-visit { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+            .receipt-thankyou { font-size: 13px; font-weight: 800; margin-top: 2px; }
           </style>
         </head>
         <body>
           <div class="receipt">
-            <!-- Header with Logo -->
             <div class="receipt-header">
               <div class="receipt-logo">
                 <img src="/Dressing_Concept.png" alt="Dressing Concepts" class="receipt-logo-img" onerror="this.style.display='none'" />
               </div>
-              <div class="receipt-shop">${companyDetails.name || "DRESSING CONCEPTS"}</div>
-              <div class="receipt-tagline">Style · Quality · Value</div>
-              <div class="receipt-divider-thin"></div>
-              <div class="receipt-addr">${companyDetails.address || "NO.88/70 S.R.P KOVIL STREET, AGARAM, PERAMBUR"}</div>
-              <div class="receipt-addr">${companyDetails.city || "CHENNAI - 600 082"}</div>
-              <div class="receipt-addr">Ph: ${companyDetails.phone || "9840669687"}</div>
-              ${companyDetails.gst ? `<div class="receipt-addr">GSTIN: ${companyDetails.gst}</div>` : ''}
+              <div class="receipt-shop">DRESSING CONCEPTS</div>
+              <div class="receipt-addr">NO.88/70 S.R.P KOVIL STREET,</div>
+              <div class="receipt-addr">AGARAM,PERAMBUR,</div>
+              <div class="receipt-addr">CHENNAI-600 082.</div>
+              <div class="receipt-info-left">
+                <div>PH: 9840669687</div>
+                <div>GSTIN: 33BQEPD0068G1ZD</div>
+              </div>
             </div>
 
-            <div class="receipt-dash"></div>
+            ${processedBill.isSaleReturn ? `
+              <div style="text-align: center; font-weight: bold; font-size: 13px; border-top: 1px solid #000; border-bottom: 1px solid #000; margin: 4px 0; padding: 2px 0;">
+                *** SALE RETURN ***
+              </div>
+            ` : ''}
 
-            <!-- Bill Meta Info -->
             <div class="receipt-meta">
-              <div class="receipt-meta-row"><span>Bill No: ${processedBill.billNumber}</span><span>${new Date(processedBill.createdAt).toLocaleDateString()}</span></div>
-              <div class="receipt-meta-row"><span>Time: ${new Date(processedBill.createdAt).toLocaleTimeString()}</span><span>User: ${processedBill.createdBy || 'Admin'}</span></div>
-              ${processedBill.counter ? `<div class="receipt-meta-row"><span>Counter: ${processedBill.counter}</span><span></span></div>` : ''}
+              <div class="receipt-meta-row">
+                <span>Bill No:${formattedBillNo}</span>
+                <span>${dateTimeStr}</span>
+              </div>
+              <div class="receipt-meta-row">
+                <span>${processedBill.counter || ''}</span>
+                <span>User: ${processedBill.createdBy || processedBill.salesPerson || 'Admin'}</span>
+              </div>
             </div>
 
-            <div class="receipt-dash"></div>
+            <div class="receipt-line"></div>
 
-            <!-- Items Table -->
             <table class="receipt-table">
               <thead>
                 <tr>
                   <th class="r-desc">Description</th>
-                  <th class="r-num">Qty</th>
-                  <th class="r-num">Price</th>
-                  <th class="r-num">Amt</th>
+                  <th class="r-tax">Tax %</th>
+                  <th class="r-qty r-num">Qty</th>
+                  <th class="r-rate r-num">Rate</th>
+                  <th class="r-amt r-num">Amt</th>
                 </tr>
               </thead>
               <tbody>
-                ${processedBill.items && processedBill.items.length > 0 ? processedBill.items.map(item => {
-      const productName = item.productName || 'Unknown';
-      const sellPrice = parseFloat(item.sellPrice) || 0;
-      const quantity = item.quantity || 0;
-      const total = parseFloat(item.total) || 0;
-      return `
+                ${items.length > 0 ? items.map(item => {
+                  const pName = String(item.productName || item.product_name || item.name || 'ITEM').toUpperCase();
+                  const qty = Number(item.quantity) || 1;
+                  const rate = Number(item.sellPrice || item.sell_price || item.mrp || 0);
+                  const amt = Number(item.total || (rate * qty));
+                  const taxPct = Number(item.tax || item.taxPct || 5);
+                  return `
                     <tr>
-                      <td class="r-desc">${productName.substring(0, 20)}${productName.length > 20 ? '...' : ''}</td>
-                      <td class="r-num">${quantity}</td>
-                      <td class="r-num">₹${sellPrice.toFixed(2)}</td>
-                      <td class="r-num">₹${total.toFixed(2)}</td>
+                      <td class="r-desc">${pName}</td>
+                      <td class="r-tax">${taxPct}%</td>
+                      <td class="r-qty r-num">${qty.toFixed(2)}</td>
+                      <td class="r-rate r-num">${rate.toFixed(2)}</td>
+                      <td class="r-amt r-num">${amt.toFixed(2)}</td>
                     </tr>
                   `;
-    }).join('') : '<tr><td colspan="4" class="text-center">No items found</td></tr>'}
+                }).join('') : `<tr><td colspan="5" style="text-align:center;">No items</td></tr>`}
               </tbody>
             </table>
 
-            <div class="receipt-dash"></div>
-
-            <!-- Payment Summary -->
-            <div class="receipt-pay">
-              <span>Pay Amount</span>
-              <span>₹ ${processedBill.total.toFixed(2)}/-</span>
+            <div class="receipt-pay-amount">
+              ${processedBill.isSaleReturn ? `Refund Amount: ${Math.round(processedBill.total)}/-` : `Pay Amount: ${Math.round(processedBill.total)}/-`}
+              <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; margin-top: 1px;">(Tax inc.)</div>
             </div>
 
-            <div class="receipt-dash"></div>
-
-            <div class="receipt-summary">
-              <div class="receipt-row"><span>Total Pieces:</span><span>${processedBill.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0}</span></div>
-              <div class="receipt-row"><span>Subtotal:</span><span>₹ ${processedBill.subtotal.toFixed(2)}</span></div>
-              ${processedBill.discountAmount > 0 ? `<div class="receipt-row"><span>Discount:</span><span>- ₹ ${processedBill.discountAmount.toFixed(2)}</span></div>` : ''}
-              ${processedBill.tax > 0 ? `<div class="receipt-row"><span>Tax:</span><span>₹ ${processedBill.tax.toFixed(2)}</span></div>` : ''}
-              <div class="receipt-row receipt-savings"><span>You Saved:</span><span>₹ ${(processedBill.subtotal - processedBill.total).toFixed(2)}</span></div>
+            <div class="receipt-summary-block">
+              <div class="receipt-row"><span>Total Pieces: ${totalPieces}</span></div>
+              <div class="receipt-row"><span>MRP Total: ${Math.round(mrpTotal)}</span></div>
+              <div class="receipt-row"><span>Taxable Amt (Excl. GST):</span><span>₹${taxableTotal.toFixed(2)}</span></div>
+              <div class="receipt-row" style="font-weight: bold;"><span>GST Inclusive Amt:</span><span>₹${processedBill.total.toFixed(2)}</span></div>
             </div>
 
-            <div class="receipt-dash"></div>
+            <div class="receipt-summary-block">
+              ${isCard ? `<div class="receipt-row"><span>Card Amt: ${Math.round(processedBill.paidAmount || processedBill.total)}</span></div>` : ''}
+              ${isCash ? `<div class="receipt-row"><span>Cash Amt: ${Math.round(processedBill.paidAmount || processedBill.total)}</span></div>` : ''}
+              ${isUpi ? `<div class="receipt-row"><span>UPI Amt: ${Math.round(processedBill.paidAmount || processedBill.total)}</span></div>` : ''}
+              ${isOnline ? `<div class="receipt-row"><span>Online Amt: ${Math.round(processedBill.paidAmount || processedBill.total)}</span></div>` : ''}
+              ${processedBill.dueAmount > 0 ? `<div class="receipt-row" style="color:red;"><span>Due Amt: ${Math.round(processedBill.dueAmount)}</span></div>` : ''}
+            </div>
 
-            <!-- Customer Details -->
+            <div class="receipt-line"></div>
+
             <div class="receipt-customer">
-              <div class="receipt-cust-title">Customer Details</div>
-              <div class="receipt-cust-name">${processedBill.customerName || "Walk-in Customer"}</div>
-              ${processedBill.customerPhone ? `<div class="receipt-cust-phone">📱 ${processedBill.customerPhone}</div>` : ''}
-              ${processedBill.customerAddress ? `<div class="receipt-cust-phone">📍 ${processedBill.customerAddress.substring(0, 30)}</div>` : ''}
+              <div class="receipt-cust-title">Customer Details:</div>
+              <div class="receipt-cust-name">${String(customerName).toUpperCase()}</div>
+              ${customerPhone ? `<div class="receipt-cust-phone">PH: ${customerPhone}</div>` : ''}
+              ${customerAddress ? `<div class="receipt-cust-phone">ADDR: ${customerAddress}</div>` : ''}
             </div>
 
-            <div class="receipt-dash"></div>
+            <div class="receipt-line"></div>
 
-            <!-- Payment Details -->
-            <div class="receipt-summary">
-              <div class="receipt-row"><span>Amount Paid:</span><span>₹ ${processedBill.paidAmount.toFixed(2)}</span></div>
-              ${processedBill.dueAmount > 0 ? `<div class="receipt-row"><span>Due Amount:</span><span>₹ ${processedBill.dueAmount.toFixed(2)}</span></div>` : ''}
-              ${processedBill.changeAmount > 0 ? `<div class="receipt-row"><span>Change:</span><span>₹ ${processedBill.changeAmount.toFixed(2)}</span></div>` : ''}
-              <div class="receipt-row"><span>Payment Mode:</span><span>${(processedBill.paymentMethod || 'cash').toUpperCase()}</span></div>
+            <div class="receipt-footer-msg">
+              <div class="receipt-visit">Visit Again</div>
+              <div class="receipt-thankyou">Thank You &hearts;</div>
             </div>
-
-            <div class="receipt-dash"></div>
-
-            <!-- Rewards Points -->
-            <div class="receipt-points">
-              <div class="receipt-row"><span>Points Used:</span><span>0</span></div>
-              <div class="receipt-row"><span>Points Available:</span><span>${processedBill.rewardPointsAvailable || 0}</span></div>
-              <div class="receipt-row"><span>Points Earned:</span><span>${processedBill.noRewards ? "0" : Math.floor(processedBill.total * 0.01)}</span></div>
-            </div>
-
-            <div class="receipt-dash"></div>
-
-            <!-- Thank You Message -->
-            <div class="receipt-thankyou">Thank you for shopping with us!</div>
-            <div class="receipt-visit">Visit again ❤️</div>
-
-            <!-- QR Codes Section -->
-            <div class="receipt-qr">
-              <div class="receipt-qr-item">
-                <div class="receipt-qr-lbl">JOIN US</div>
-                <img src="/whatsapp-qr.png" alt="WhatsApp QR" onerror="this.style.display='none'" />
-              </div>
-              <div class="receipt-qr-item">
-                <div class="receipt-qr-lbl">VISIT US</div>
-                <img src="/instagram.png" alt="Instagram QR" onerror="this.style.display='none'" />
-              </div>
-            </div>
-
-            <div class="receipt-divider-thin"></div>
-            <div class="receipt-visit" style="font-size: 8px;">** Computer generated bill **</div>
           </div>
+
           <script>
             window.onload = function() {
               setTimeout(function() {
@@ -1189,9 +1180,6 @@ const VisitBillPage = () => {
       </html>
     `);
     printWindow.document.close();
-    setTimeout(() => {
-      navigate('/bill');
-    }, 500);
   };
 
   // Send Digital Bill via Messenger
@@ -1271,9 +1259,10 @@ const VisitBillPage = () => {
     message += `═══════════════════════\n`;
     message += `*BILL DETAILS*\n`;
     message += `═══════════════════════\n`;
+    const billDt = parseBillDate(bill.createdAt);
     message += `*Bill No:* ${String(bill.billNumber || '').split('/').pop()}\n`;
-    message += `*Date:* ${new Date(bill.createdAt).toLocaleDateString()}\n`;
-    message += `*Time:* ${new Date(bill.createdAt).toLocaleTimeString()}\n`;
+    message += `*Date:* ${billDt.toLocaleDateString('en-GB')}\n`;
+    message += `*Time:* ${billDt.toLocaleTimeString('en-GB')}\n`;
     message += `*Customer:* ${bill.customerName || 'Walk-in Customer'}\n`;
     message += `*Type:* ${(bill.customerType || 'external').toUpperCase()}\n`;
 
@@ -1377,7 +1366,7 @@ const VisitBillPage = () => {
       end.setHours(23, 59, 59, 999);
 
       filtered = filtered.filter(bill => {
-        const billDate = new Date(bill.createdAt);
+        const billDate = parseBillDate(bill.createdAt);
         return billDate >= start && billDate <= end;
       });
     }
@@ -1385,15 +1374,15 @@ const VisitBillPage = () => {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'newest':
-          return new Date(b.createdAt) - new Date(a.createdAt);
+          return getBillTime(b) - getBillTime(a);
         case 'oldest':
-          return new Date(a.createdAt) - new Date(b.createdAt);
+          return getBillTime(a) - getBillTime(b);
         case 'highest':
           return (b.total || 0) - (a.total || 0);
         case 'lowest':
           return (a.total || 0) - (b.total || 0);
         default:
-          return 0;
+          return getBillTime(b) - getBillTime(a);
       }
     });
 
@@ -1462,16 +1451,11 @@ const VisitBillPage = () => {
     try {
       const exportData = filteredBills.map(bill => {
         const totalQty = getBillQuantity(bill);
+        const billDt = parseBillDate(bill.createdAt);
         return {
           'Bill Number': cleanBillNo(bill.billNumber) || '',
-          'Date': (() => {
-            const d = new Date(bill.createdAt.includes('Z') || bill.createdAt.includes('+') ? bill.createdAt : bill.createdAt + 'Z');
-            return d.toLocaleDateString('en-GB');
-          })(),
-          'Time': (() => {
-            const d = new Date(bill.createdAt.includes('Z') || bill.createdAt.includes('+') ? bill.createdAt : bill.createdAt + 'Z');
-            return d.toLocaleTimeString('en-GB', { hour12: false });
-          })(),
+          'Date': billDt.toLocaleDateString('en-GB'),
+          'Time': billDt.toLocaleTimeString('en-GB', { hour12: false }),
           'Customer Name': bill.customerName || 'Walk-in Customer',
           'Customer Phone': bill.customerPhone || '',
           'Customer Email': bill.customerEmail || '',
@@ -1523,26 +1507,40 @@ const VisitBillPage = () => {
 
   const handleExportPDF = () => {
     try {
-      const doc = new jsPDF();
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
 
-      doc.setFontSize(20);
+      // Header Bar / Title
+      doc.setFontSize(18);
       doc.setTextColor(99, 102, 241);
-      doc.text('Bills Report', 14, 22);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Bills Report', 14, 18);
 
+      // Company info (Left Header)
+      doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
+      doc.setTextColor(100, 116, 139);
       const compName = companyDetails?.name || 'Dressing Concept';
       const compAddr = companyDetails?.address || '';
       const compCity = companyDetails?.city || '';
-      doc.text(`${compName}`, 14, 30);
-      doc.text(`${compAddr}${compCity ? ', ' + compCity : ''}`, 14, 35);
-      if (companyDetails?.phone) doc.text(`Ph: ${companyDetails.phone}`, 14, 40);
-      if (companyDetails?.gst) doc.text(`GST: ${companyDetails.gst}`, 14, 45);
+      doc.text(`${compName}`, 14, 24);
+      doc.text(`${compAddr}${compCity ? ', ' + compCity : ''}`, 14, 29);
+      if (companyDetails?.phone) doc.text(`Ph: ${companyDetails.phone}`, 14, 34);
+      if (companyDetails?.gst) doc.text(`GST: ${companyDetails.gst}`, 14, 39);
 
-      doc.setFontSize(10);
-      doc.text(`Generated: ${new Date().toLocaleString('en-GB')}`, 14, 52);
+      // Report Generation Date (Top Right Header Alignment)
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      const nowStr = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+      doc.text(`Generated: ${nowStr}`, 283, 18, { align: 'right' });
+      if (dateRange?.start && dateRange?.end) {
+        doc.text(`Date Range: ${dateRange.start} to ${dateRange.end}`, 283, 24, { align: 'right' });
+      }
 
-      let filterY = 59;
+      let filterY = 45;
       if (searchTerm) {
         doc.text(`Search: "${searchTerm}"`, 14, filterY);
         filterY += 5;
@@ -1555,23 +1553,16 @@ const VisitBillPage = () => {
         doc.text(`Customer Type: ${filterCustomerType}`, 14, filterY);
         filterY += 5;
       }
-      if (dateRange?.start && dateRange?.end) {
-        doc.text(`Date Range: ${dateRange.start} to ${dateRange.end}`, 14, filterY);
-        filterY += 5;
-      }
 
       const totalAmount = (filteredBills || []).reduce((sum, bill) => sum + (Number(bill?.total) || 0), 0);
       const totalPaid = (filteredBills || []).reduce((sum, bill) => sum + (Number(bill?.paidAmount) || 0), 0);
       const totalDue = totalAmount - totalPaid;
       const totalDiscount = (filteredBills || []).reduce((sum, bill) => sum + (Number(bill?.discountAmount) || 0), 0);
 
-      doc.setFontSize(11);
-      doc.setTextColor(0, 0, 0);
-      doc.text(`Total Bills: ${(filteredBills || []).length}`, 14, filterY + 5);
-      doc.text(`Total Amount: Rs. ${totalAmount.toFixed(2)}`, 14, filterY + 12);
-      doc.text(`Total Discount: Rs. ${totalDiscount.toFixed(2)}`, 14, filterY + 19);
-      doc.text(`Total Paid: Rs. ${totalPaid.toFixed(2)}`, 14, filterY + 26);
-      doc.text(`Total Due: Rs. ${totalDue.toFixed(2)}`, 14, filterY + 33);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Total Bills: ${(filteredBills || []).length}  |  Total Amount: Rs. ${totalAmount.toFixed(2)}  |  Total Discount: Rs. ${totalDiscount.toFixed(2)}  |  Total Paid: Rs. ${totalPaid.toFixed(2)}  |  Total Due: Rs. ${totalDue.toFixed(2)}`, 14, filterY + 4);
 
       const tableColumn = [
         'Bill No', 'Date', 'Customer', 'Type', 'Items', 'Total Qty', 'Discount', 'Tax',
@@ -1590,13 +1581,8 @@ const VisitBillPage = () => {
 
         let formattedDate = '';
         if (bill?.createdAt) {
-          try {
-            const rawStr = String(bill.createdAt);
-            const d = new Date(rawStr.includes('Z') || rawStr.includes('+') ? rawStr : rawStr + 'Z');
-            formattedDate = isNaN(d.getTime()) ? rawStr.split('T')[0] : d.toLocaleDateString('en-GB');
-          } catch (e) {
-            formattedDate = String(bill.createdAt);
-          }
+          const d = parseBillDate(bill.createdAt);
+          formattedDate = d.toLocaleDateString('en-GB');
         }
 
         const totalVal = Number(bill?.total) || 0;
@@ -1606,7 +1592,7 @@ const VisitBillPage = () => {
         return [
           cleanBillNo(bill?.billNumber) || '',
           formattedDate,
-          String(bill?.customerName || 'Walk-in').substring(0, 20),
+          String(bill?.customerName || 'Walk-in').substring(0, 22),
           String(bill?.customerType || 'ext').substring(0, 3).toUpperCase(),
           bill?.itemCount || 0,
           totalQty,
@@ -1619,7 +1605,7 @@ const VisitBillPage = () => {
         ];
       });
 
-      const startY = filterY + 42;
+      const startY = filterY + 10;
 
       const autoTableFn = typeof autoTable === 'function' ? autoTable : (doc.autoTable ? doc.autoTable.bind(doc) : null);
       if (autoTableFn) {
@@ -1627,9 +1613,23 @@ const VisitBillPage = () => {
           head: [tableColumn],
           body: tableRows,
           startY: startY,
-          styles: { fontSize: 8, cellPadding: 3 },
-          headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255] },
-          alternateRowStyles: { fillColor: [240, 240, 240] },
+          styles: { fontSize: 8, cellPadding: 2.5, valign: 'middle' },
+          headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          columnStyles: {
+            0: { halign: 'left', cellWidth: 26 },     // Bill No
+            1: { halign: 'center', cellWidth: 24 },   // Date
+            2: { halign: 'left', cellWidth: 36 },     // Customer
+            3: { halign: 'center', cellWidth: 16 },   // Type
+            4: { halign: 'center', cellWidth: 14 },   // Items
+            5: { halign: 'center', cellWidth: 18 },   // Total Qty
+            6: { halign: 'right', cellWidth: 20 },    // Discount
+            7: { halign: 'right', cellWidth: 18 },    // Tax
+            8: { halign: 'right', cellWidth: 24 },    // Total (Rs)
+            9: { halign: 'right', cellWidth: 24 },    // Paid (Rs)
+            10: { halign: 'right', cellWidth: 24 },   // Due (Rs)
+            11: { halign: 'center', cellWidth: 20 }   // Method
+          }
         });
       }
 
@@ -2603,7 +2603,6 @@ const VisitBillPage = () => {
               <th style={styles.th}>Date & Time</th>
               <th style={styles.th}>Customer</th>
               <th style={styles.th}>Type</th>
-              <th style={styles.th}>Member / Sales</th>
               <th style={styles.th}>Contact</th>
               <th style={styles.th}>Items</th>
               <th style={{ ...styles.th, textAlign: 'center' }}>Quantity</th>
@@ -2622,7 +2621,7 @@ const VisitBillPage = () => {
           <tbody>
             {currentBills.length === 0 ? (
               <tr>
-                <td colSpan={hasPermission('profit_visibility') ? "15" : "14"} style={styles.noData}>
+                <td colSpan={hasPermission('profit_visibility') ? "14" : "13"} style={styles.noData}>
                   {searchTerm || filterPaymentMethod !== 'all' || filterCustomerType !== 'all' || dateRange.start
                     ? <div>
                       <Filter size={30} style={{ marginBottom: '10px', opacity: 0.5 }} />
@@ -2676,16 +2675,20 @@ const VisitBillPage = () => {
                       </div>
                     </td>
                     <td style={styles.td}>
-                      <div>{(() => {
-                        const d = new Date(bill.createdAt.includes('Z') || bill.createdAt.includes('+') ? bill.createdAt : bill.createdAt + 'Z');
-                        return d.toLocaleDateString('en-GB');
-                      })()}</div>
-                      <small style={{ color: '#9ca3af', fontSize: '11px' }}>
-                        {(() => {
-                          const d = new Date(bill.createdAt.includes('Z') || bill.createdAt.includes('+') ? bill.createdAt : bill.createdAt + 'Z');
-                          return d.toLocaleTimeString('en-GB', { hour12: false });
-                        })()}
-                      </small>
+                      {(() => {
+                        const billObjDt = parseBillDate(bill.createdAt, bill.billTime);
+                        const isMidnightLegacy = billObjDt.getHours() === 0 && billObjDt.getMinutes() === 0 && billObjDt.getSeconds() === 0;
+                        return (
+                          <>
+                            <div>{billObjDt.toLocaleDateString('en-GB')}</div>
+                            {!isMidnightLegacy && (
+                              <small style={{ color: '#9ca3af', fontSize: '11px' }}>
+                                {billObjDt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                              </small>
+                            )}
+                          </>
+                        );
+                      })()}
                     </td>
                     <td style={styles.td}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -2708,10 +2711,6 @@ const VisitBillPage = () => {
                         {getCustomerTypeIcon(bill.customerType)}
                         <span style={{ textTransform: 'capitalize' }}>{bill.customerType || 'external'}</span>
                       </span>
-                    </td>
-                    <td style={styles.td}>
-                      <div style={{ fontWeight: '500' }}>{bill.salesPerson || '-'}</div>
-                      {bill.memberId && <small style={{ color: '#9ca3af', fontSize: '10px' }}>ID: {bill.memberId}</small>}
                     </td>
                     <td style={styles.td}>
                       {bill.contact && (
@@ -3008,16 +3007,10 @@ const VisitBillPage = () => {
                     <strong>Bill Number:</strong> {String(selectedBill.billNumber || '').split('/').pop()}
                   </p>
                   <p style={styles.modalText}>
-                    <strong>Date:</strong> {(() => {
-                      const d = new Date(selectedBill.createdAt.includes('Z') || selectedBill.createdAt.includes('+') ? selectedBill.createdAt : selectedBill.createdAt + 'Z');
-                      return d.toLocaleDateString('en-GB');
-                    })()}
+                    <strong>Date:</strong> {parseBillDate(selectedBill.createdAt, selectedBill.billTime).toLocaleDateString('en-GB')}
                   </p>
                   <p style={styles.modalText}>
-                    <strong>Time:</strong> {(() => {
-                      const d = new Date(selectedBill.createdAt.includes('Z') || selectedBill.createdAt.includes('+') ? selectedBill.createdAt : selectedBill.createdAt + 'Z');
-                      return d.toLocaleTimeString('en-GB', { hour12: false });
-                    })()}
+                    <strong>Time:</strong> {parseBillDate(selectedBill.createdAt, selectedBill.billTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}
                   </p>
                   <p style={styles.modalText}>
                     <strong>Customer Type:</strong>{' '}
@@ -3155,7 +3148,7 @@ const VisitBillPage = () => {
                       borderBottom: index < selectedBill.payments.length - 1 ? '1px solid #374151' : 'none'
                     }}>
                       <span style={{ color: '#d1d5db', fontSize: '12px' }}>
-                        {new Date(payment.createdAt).toLocaleTimeString()} - {payment.method?.toUpperCase()}
+                        {parseBillDate(payment.createdAt).toLocaleTimeString('en-GB')} - {payment.method?.toUpperCase()}
                       </span>
                       <span style={{ color: '#f9fafb', fontWeight: '500' }}>
                         ₹{payment.amount.toFixed(2)}
@@ -3312,7 +3305,7 @@ const VisitBillPage = () => {
                         <div>
                           <strong style={{ color: '#f87171', fontSize: '15px' }}>Bill #{tb.billNumber}</strong>
                           <span style={{ fontSize: '12px', color: '#94a3b8', marginLeft: '12px' }}>
-                            {tb.createdAt ? new Date(tb.createdAt.includes('Z') || tb.createdAt.includes('+') ? tb.createdAt : tb.createdAt + 'Z').toLocaleString('en-GB') : '-'}
+                            {tb.createdAt ? parseBillDate(tb.createdAt).toLocaleString('en-GB') : '-'}
                           </span>
                         </div>
                         <div style={{ display: 'flex', gap: '8px' }}>

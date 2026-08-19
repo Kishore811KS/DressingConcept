@@ -139,7 +139,7 @@ const Dashboard = () => {
 
       const allProducts = lowStockResponse.data.items || [];
       const lowStockProducts = allProducts
-        .filter(product => product.quantity < 10)
+        .filter(product => product.quantity <= 5)
         .sort((a, b) => a.quantity - b.quantity)
         .slice(0, 10);
 

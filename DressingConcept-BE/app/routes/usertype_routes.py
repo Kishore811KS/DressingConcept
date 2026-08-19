@@ -40,8 +40,12 @@ def create_user_type():
         if existing:
             return jsonify({'error': 'User type already exists'}), 400
         
+        base_template = data.get('base_template')
+        permissions = data.get('permissions')
+        permissions_json = json.dumps(permissions) if permissions is not None else None
+        
         # Create new user type
-        user_type = UserType(name=name)
+        user_type = UserType(name=name, base_template=base_template, permissions=permissions_json)
         db.session.add(user_type)
         db.session.commit()
         
@@ -83,6 +87,11 @@ def update_user_type(id):
         
         # Update user type
         user_type.name = name
+        if 'base_template' in data:
+            user_type.base_template = data['base_template']
+        if 'permissions' in data:
+            perms = data['permissions']
+            user_type.permissions = json.dumps(perms) if perms is not None else None
         db.session.commit()
         
         return jsonify(user_type.to_dict()), 200
