@@ -309,8 +309,6 @@ const LedgerBook = () => {
             <div class="receipt-summary-block">
               <div class="receipt-row"><span>Total Pieces: ${totalPieces}</span></div>
               <div class="receipt-row"><span>MRP Total: ${Math.round(mrpTotal)}</span></div>
-              <div class="receipt-row"><span>Taxable Amt (Excl. GST):</span><span>₹${taxableTotal.toFixed(2)}</span></div>
-              <div class="receipt-row" style="font-weight: bold;"><span>GST Inclusive Amt:</span><span>₹${total.toFixed(2)}</span></div>
             </div>
 
             <div class="receipt-summary-block">

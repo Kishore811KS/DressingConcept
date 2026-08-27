@@ -276,7 +276,6 @@ export default function SaleReturn() {
             <div class="receipt-summary-block">
               <div class="receipt-row"><span>Total Pieces: ${totalQty}</span></div>
               <div class="receipt-row"><span>MRP Total: ${Math.round(r.subtotal || r.totalReturnAmount)}</span></div>
-              <div class="receipt-row" style="font-weight: bold;"><span>GST Inclusive Refund:</span><span>₹${Math.round(r.totalReturnAmount).toFixed(2)}</span></div>
             </div>
 
             <div class="receipt-line"></div>

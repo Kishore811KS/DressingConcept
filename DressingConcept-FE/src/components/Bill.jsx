@@ -1595,7 +1595,6 @@ export default function Bill() {
             <div class="receipt-summary-block">
               <div class="receipt-row"><span>Total Pieces: ${totalQty}</span></div>
               <div class="receipt-row"><span>MRP Total: ${Math.round(r.subtotal || r.totalReturnAmount)}</span></div>
-              <div class="receipt-row" style="font-weight: bold;"><span>GST Inclusive Refund:</span><span>₹${Math.round(r.totalReturnAmount).toFixed(2)}</span></div>
             </div>
 
             <div class="receipt-line"></div>
@@ -4131,8 +4130,6 @@ export default function Bill() {
         <div className="receipt-summary-block">
           <div className="receipt-row"><span>Total Pieces: {totals.totalQuantity}</span></div>
           <div className="receipt-row"><span>MRP Total: {Math.round(totals.mrpTotal)}</span></div>
-          <div className="receipt-row"><span>Taxable Amt (Excl. GST):</span><span>₹{totals.taxableTotal.toFixed(2)}</span></div>
-          <div className="receipt-row" style={{ fontWeight: 'bold' }}><span>GST Inclusive Amt:</span><span>₹{totals.billValue.toFixed(2)}</span></div>
         </div>
 
         {!isSaleReturnMode && (
