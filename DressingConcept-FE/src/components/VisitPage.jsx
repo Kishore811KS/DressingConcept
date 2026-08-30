@@ -1113,12 +1113,12 @@ const VisitBillPage = () => {
               </thead>
               <tbody>
                 ${items.length > 0 ? items.map(item => {
-                  const pName = String(item.productName || item.product_name || item.name || 'ITEM').toUpperCase();
-                  const qty = Number(item.quantity) || 1;
-                  const rate = Number(item.sellPrice || item.sell_price || item.mrp || 0);
-                  const amt = Number(item.total || (rate * qty));
-                  const taxPct = Number(item.tax || item.taxPct || 5);
-                  return `
+      const pName = String(item.productName || item.product_name || item.name || 'ITEM').toUpperCase();
+      const qty = Number(item.quantity) || 1;
+      const rate = Number(item.sellPrice || item.sell_price || item.mrp || 0);
+      const amt = Number(item.total || (rate * qty));
+      const taxPct = Number(item.tax || item.taxPct || 5);
+      return `
                     <tr>
                       <td class="r-desc">${pName}</td>
                       <td class="r-tax">${taxPct}%</td>
@@ -1127,7 +1127,7 @@ const VisitBillPage = () => {
                       <td class="r-amt r-num">${amt.toFixed(2)}</td>
                     </tr>
                   `;
-                }).join('') : `<tr><td colspan="5" style="text-align:center;">No items</td></tr>`}
+    }).join('') : `<tr><td colspan="5" style="text-align:center;">No items</td></tr>`}
               </tbody>
             </table>
 

@@ -191,9 +191,9 @@ const BillItemsPage = () => {
 
         // Direct product ID / code / name matches
         const matchesProduct = productName.includes(searchLower) ||
-                               productCode.includes(searchLower) ||
-                               productId === searchLower ||
-                               productId.includes(searchLower);
+          productCode.includes(searchLower) ||
+          productId === searchLower ||
+          productId.includes(searchLower);
 
         // Bill number matching (only when query is 3+ chars or explicitly references BT)
         const matchesBill = searchLower.length >= 3 && billNumber.includes(searchLower);

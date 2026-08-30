@@ -17,7 +17,7 @@ const api = axios.create({
 
 const InvoicePage = () => {
   // Create axios instance with credentials
-  
+
 
   // Add request interceptor for debugging
   api.interceptors.request.use(request => {
