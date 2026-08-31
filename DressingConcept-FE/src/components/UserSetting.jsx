@@ -1,16 +1,20 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { FaSave, FaSyncAlt, FaUserCog, FaPlus, FaTrashAlt, FaEdit, FaTimes, FaSearch, FaUser, FaUsers } from "react-icons/fa";
+import { FaSave, FaSyncAlt, FaUserCog, FaPlus, FaTrashAlt, FaEdit, FaTimes, FaSearch, FaUser, FaUsers, FaShieldAlt } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import axios from 'axios';
 
 const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
 
 const api = axios.create({
   baseURL: `${BASE_URL}/api`,
   withCredentials: true,
-  headers: { 'Content-Type': 'application/json' }
+  headers: {
+    'Content-Type': 'application/json'
+  }
 });
 
 const ROLE_TEMPLATES = {
@@ -303,40 +307,42 @@ const UserSetting = () => {
 
   const styles = {
     wrapper: {
-      background: "#f5f7fa",
+      background: "#0b1329",
       padding: "24px",
       minHeight: "100vh",
-      fontFamily: "'Inter', system-ui, sans-serif",
-      color: "#1e293b"
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      color: "#f8fafc"
     },
     header: {
-      marginBottom: "28px",
+      marginBottom: "20px",
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      background: "#fff",
+      flexWrap: "wrap",
+      gap: "16px",
+      background: "#1e293b",
       padding: "20px 24px",
-      borderRadius: "16px",
-      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-      border: "1px solid #e2e8f0"
+      borderRadius: "12px",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+      border: "1px solid #334155"
     },
     title: {
-      fontSize: "22px",
-      fontWeight: "700",
-      color: "#1e293b",
+      fontSize: "20px",
+      fontWeight: "800",
+      color: "#f8fafc",
       display: "flex",
       alignItems: "center",
       gap: "12px",
       margin: 0
     },
     tableContainer: {
-      background: "#fff",
-      borderRadius: "16px",
-      boxShadow: "0 10px 25px rgba(0,0,0,0.03)",
+      background: "#1e293b",
+      borderRadius: "12px",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
       overflow: "auto",
-      maxHeight: "calc(100vh - 220px)",
+      maxHeight: "calc(100vh - 230px)",
       position: "relative",
-      border: "1px solid #e2e8f0"
+      border: "1px solid #334155"
     },
     table: {
       width: "100%",
@@ -345,13 +351,13 @@ const UserSetting = () => {
       fontSize: "13px"
     },
     thCategory: {
-      background: "#eff6ff",
-      color: "#1d4ed8",
-      padding: "14px",
-      fontWeight: "700",
+      background: "#0f172a",
+      color: "#38bdf8",
+      padding: "12px 14px",
+      fontWeight: "800",
       textAlign: "center",
-      borderBottom: "1px solid #dbeafe",
-      borderRight: "1px solid #dbeafe",
+      borderBottom: "1px solid #334155",
+      borderRight: "1px solid #334155",
       position: "sticky",
       top: 0,
       zIndex: 10,
@@ -360,28 +366,29 @@ const UserSetting = () => {
       fontSize: "11px"
     },
     thSubmodule: {
-      background: "#f8fafc",
-      color: "#64748b",
-      padding: "12px",
+      background: "#1e293b",
+      color: "#94a3b8",
+      padding: "10px 12px",
       fontWeight: "600",
       textAlign: "center",
-      borderBottom: "1px solid #e2e8f0",
-      borderRight: "1px solid #f1f5f9",
+      borderBottom: "1px solid #334155",
+      borderRight: "1px solid rgba(51, 65, 85, 0.5)",
       position: "sticky",
-      top: "43px",
+      top: "41px",
       zIndex: 10,
       fontSize: "12px"
     },
     stickyCol: {
       position: "sticky",
       left: 0,
-      background: "#fff",
+      background: "#1e293b",
       zIndex: 20,
-      borderRight: "2px solid #e2e8f0",
-      padding: "16px 24px",
-      minWidth: "220px",
+      borderRight: "2px solid #334155",
+      borderBottom: "1px solid rgba(51, 65, 85, 0.5)",
+      padding: "14px 20px",
+      minWidth: "240px",
       fontWeight: "600",
-      color: "#1e293b",
+      color: "#f8fafc",
       display: "flex",
       alignItems: "center",
       gap: "12px"
@@ -396,7 +403,6 @@ const UserSetting = () => {
       fontSize: "12px",
       fontWeight: "700",
       color: "#fff",
-      fontFamily: "monospace",
       flexShrink: 0
     },
     stickyHeaderCol: {
@@ -404,49 +410,53 @@ const UserSetting = () => {
       left: 0,
       top: 0,
       zIndex: 30,
-      background: "#fff",
-      borderRight: "2px solid #e2e8f0",
-      borderBottom: "1px solid #e2e8f0",
-      padding: "16px 24px",
+      background: "#0f172a",
+      borderRight: "2px solid #334155",
+      borderBottom: "1px solid #334155",
+      padding: "14px 20px",
       textAlign: "left",
-      color: "#64748b",
+      color: "#38bdf8",
       fontSize: "11px",
       textTransform: "uppercase",
-      fontWeight: "700"
+      fontWeight: "800",
+      letterSpacing: "0.5px"
     },
     td: {
-      padding: "12px",
+      padding: "10px",
       textAlign: "center",
-      borderBottom: "1px solid #f1f5f9",
-      borderRight: "1px solid #f1f5f9"
+      borderBottom: "1px solid rgba(51, 65, 85, 0.4)",
+      borderRight: "1px solid rgba(51, 65, 85, 0.4)",
+      background: "#1e293b"
     },
     checkbox: {
       width: "18px",
       height: "18px",
       cursor: "pointer",
-      accentColor: "#3b82f6"
+      accentColor: "#0284c7"
     },
     btnSave: {
-      background: "#3b82f6",
-      color: "#fff",
-      padding: "10px 24px",
-      borderRadius: "10px",
+      background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+      color: "#ffffff",
+      padding: "9px 20px",
+      borderRadius: "8px",
       border: "none",
-      fontWeight: "600",
+      fontWeight: "700",
+      fontSize: "13px",
       cursor: "pointer",
       display: "flex",
       alignItems: "center",
       gap: "8px",
-      boxShadow: "0 4px 12px rgba(59, 130, 246, 0.25)",
+      boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
       transition: "all 0.2s"
     },
     btnRefresh: {
-      background: "#fff",
-      color: "#64748b",
-      padding: "10px 24px",
-      borderRadius: "10px",
-      border: "1px solid #e2e8f0",
+      background: "#334155",
+      color: "#f8fafc",
+      padding: "9px 18px",
+      borderRadius: "8px",
+      border: "1px solid #475569",
       fontWeight: "600",
+      fontSize: "13px",
       cursor: "pointer",
       display: "flex",
       alignItems: "center",
@@ -454,12 +464,13 @@ const UserSetting = () => {
       transition: "all 0.2s"
     },
     btnSecondary: {
-      background: "#f1f5f9",
-      color: "#475569",
-      padding: "10px 20px",
-      borderRadius: "10px",
-      border: "none",
+      background: "#334155",
+      color: "#f8fafc",
+      padding: "9px 18px",
+      borderRadius: "8px",
+      border: "1px solid #475569",
       fontWeight: "600",
+      fontSize: "13px",
       cursor: "pointer",
       display: "flex",
       alignItems: "center",
@@ -468,7 +479,9 @@ const UserSetting = () => {
     },
     controls: {
       display: "flex",
-      gap: "12px"
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: "10px"
     },
     actionBtn: {
       padding: "6px",
@@ -479,31 +492,40 @@ const UserSetting = () => {
       alignItems: "center",
       justifyContent: "center",
       fontSize: "12px",
-      background: "transparent"
+      background: "#334155",
+      color: "#94a3b8",
+      transition: "all 0.2s"
     },
     searchContainer: {
       marginBottom: "16px",
       display: "flex",
       alignItems: "center",
       gap: "10px",
-      background: "#fff",
+      background: "#1e293b",
       padding: "10px 16px",
-      borderRadius: "12px",
-      border: "1px solid #e2e8f0",
-      boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+      borderRadius: "10px",
+      border: "1px solid #334155",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
     },
     searchInput: {
       flex: 1,
       border: "none",
       outline: "none",
-      fontSize: "14px",
-      color: "#1e293b",
+      fontSize: "13px",
+      color: "#ffffff",
       background: "transparent"
     }
   };
 
   const getAvatarColor = (name) => {
-    const colors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];
+    const colors = [
+      "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+      "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+      "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+      "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+      "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+      "linear-gradient(135deg, #ec4899 0%, #db2777 100%)"
+    ];
     const charCode = name.charCodeAt(0);
     return colors[charCode % colors.length];
   };
@@ -512,8 +534,8 @@ const UserSetting = () => {
     return (
       <div style={styles.wrapper}>
         <div style={{ textAlign: "center", padding: "100px" }}>
-          <FaSyncAlt className="spin" size={40} color="#3b82f6" />
-          <p style={{ marginTop: "20px", color: "#64748b", fontWeight: "500" }}>Loading Security Matrix...</p>
+          <FaSyncAlt className="spin" size={40} color="#38bdf8" />
+          <p style={{ marginTop: "20px", color: "#94a3b8", fontWeight: "600" }}>Loading Security Matrix...</p>
         </div>
       </div>
     );
@@ -521,54 +543,78 @@ const UserSetting = () => {
 
   return (
     <div className="us-root" style={styles.wrapper}>
-      <ToastContainer position="top-right" />
+      <ToastContainer position="top-right" theme="dark" />
       <div style={styles.header}>
         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
           <h1 style={styles.title}>
-            <FaUserCog color="#3b82f6" />
-            User Settings Matrix
+            <div style={{
+              background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+              padding: "8px",
+              borderRadius: "8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 4px 12px rgba(2,132,199,0.3)"
+            }}>
+              <FaShieldAlt size={18} color="#ffffff" />
+            </div>
+            User Settings & Permissions Matrix
           </h1>
-          <p style={{ fontSize: "13px", color: "#64748b", margin: 0 }}>Define granular access levels for all organizational roles</p>
+          <p style={{ fontSize: "12px", color: "#94a3b8", margin: 0 }}>
+            Configure and govern granular access privileges across all organizational roles
+          </p>
         </div>
         <div style={styles.controls}>
           {addingUser ? (
-            <div style={{ display: "flex", gap: "8px" }}>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <input
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 placeholder="New role name..."
-                style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid #334155",
+                  background: "#0f172a",
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  outline: "none"
+                }}
               />
               <button
                 style={{ ...styles.btnSave, padding: "8px 16px" }}
                 onClick={addUserType}
-              >Add</button>
+              >
+                Add
+              </button>
               <button
                 style={{ ...styles.btnSecondary, padding: "8px 16px" }}
                 onClick={() => setAddingUser(false)}
-              >Cancel</button>
+              >
+                Cancel
+              </button>
             </div>
           ) : (
             <button style={styles.btnSecondary} onClick={() => setAddingUser(true)}>
-              <FaPlus /> Add Role
+              <FaPlus size={12} /> Add Role
             </button>
           )}
 
           <button style={styles.btnRefresh} onClick={fetchInitialData}>
-            <FaSyncAlt /> Sync
+            <FaSyncAlt size={12} /> Sync
           </button>
           <button
             style={{ ...styles.btnSave, opacity: saving ? 0.7 : 1 }}
             onClick={handleSaveMatrix}
             disabled={saving}
           >
-            <FaSave /> {saving ? "Updating..." : "Save Changes"}
+            <FaSave size={13} /> {saving ? "Updating..." : "Save Changes"}
           </button>
         </div>
       </div>
 
       <div style={styles.searchContainer}>
-        <FaSearch color="#94a3b8" />
+        <FaSearch color="#64748b" />
         <input
           style={styles.searchInput}
           placeholder="Search User Type / Role..."
@@ -578,7 +624,7 @@ const UserSetting = () => {
         {searchTerm && (
           <FaTimes
             color="#94a3b8"
-            cursor="pointer"
+            style={{ cursor: "pointer" }}
             onClick={() => setSearchTerm("")}
           />
         )}
@@ -612,47 +658,86 @@ const UserSetting = () => {
               <tr key={entity.id}>
                 <td style={styles.stickyCol}>
                   <div style={{ ...styles.avatar, background: getAvatarColor(entity.name) }}>
-                    {entity.isEmployee ? <FaUser size={14} /> : <FaUsers size={14} />}
+                    {entity.isEmployee ? <FaUser size={13} /> : <FaUsers size={13} />}
                   </div>
                   <div style={{ flex: 1 }}>
                     {editingId === entity.originalId && entity.isRole ? (
-                      <div style={{ display: "flex", gap: "4px" }}>
+                      <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                         <input
                           value={editName}
                           onChange={e => setEditName(e.target.value)}
-                          style={{ width: "80px", fontSize: "12px", padding: "2px" }}
+                          style={{
+                            width: "90px",
+                            fontSize: "12px",
+                            padding: "4px 6px",
+                            background: "#0f172a",
+                            border: "1px solid #334155",
+                            color: "#ffffff",
+                            borderRadius: "4px",
+                            outline: "none"
+                          }}
                         />
-                        <FaSave color="#10b981" cursor="pointer" onClick={() => updateUserType(entity.originalId)} />
-                        <FaTimes color="#ef4444" cursor="pointer" onClick={cancelEdit} />
+                        <FaSave color="#34d399" style={{ cursor: "pointer" }} onClick={() => updateUserType(entity.originalId)} />
+                        <FaTimes color="#f87171" style={{ cursor: "pointer" }} onClick={cancelEdit} />
                       </div>
                     ) : (
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div>
-                          <div style={{ fontWeight: "600", fontSize: entity.isEmployee ? "13px" : "14px" }}>
+                          <div style={{ fontWeight: "700", fontSize: entity.isEmployee ? "13px" : "14px", color: "#f8fafc" }}>
                             {entity.name}
                           </div>
-                          <div style={{ fontSize: "10px", color: "#64748b", display: "flex", alignItems: "center", gap: "4px" }}>
+                          <div style={{ fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
                             {entity.isRole ? (
-                              <span style={{ color: "#3b82f6", fontWeight: "700" }}>ORGANIZATIONAL ROLE</span>
+                              <span style={{
+                                color: "#38bdf8",
+                                background: "rgba(2, 132, 199, 0.15)",
+                                border: "1px solid rgba(2, 132, 199, 0.3)",
+                                padding: "1px 6px",
+                                borderRadius: "4px",
+                                fontSize: "10px",
+                                fontWeight: "700"
+                              }}>
+                                ROLE
+                              </span>
                             ) : (
                               <>
-                                <span style={{ fontWeight: "600", color: "#6366f1" }}>{entity.userTypeName?.toUpperCase()}</span>
+                                <span style={{ fontWeight: "600", color: "#818cf8" }}>{entity.userTypeName?.toUpperCase()}</span>
                                 {entity.department && <span>• {entity.department}</span>}
                               </>
                             )}
                           </div>
                           {entity.name.toLowerCase() === "admin" && entity.isRole && (
-                            <span style={{ fontSize: "10px", color: "#10b981", fontWeight: "700" }}>SUPER ADMIN</span>
+                            <span style={{
+                              fontSize: "10px",
+                              color: "#34d399",
+                              background: "rgba(16, 185, 129, 0.15)",
+                              border: "1px solid rgba(16, 185, 129, 0.3)",
+                              padding: "1px 6px",
+                              borderRadius: "4px",
+                              fontWeight: "700",
+                              display: "inline-block",
+                              marginTop: "4px"
+                            }}>
+                              SUPER ADMIN
+                            </span>
                           )}
                         </div>
                         {/* Action buttons for Roles */}
                         {entity.isRole && entity.name.toLowerCase() !== "admin" && (
                           <div style={{ display: "flex", gap: "5px" }}>
-                            <button style={styles.actionBtn} title="Edit Name" onClick={() => startEdit({ id: entity.originalId, name: entity.name })}>
-                              <FaEdit color="#64748b" />
+                            <button
+                              style={styles.actionBtn}
+                              title="Edit Name"
+                              onClick={() => startEdit({ id: entity.originalId, name: entity.name })}
+                            >
+                              <FaEdit color="#94a3b8" />
                             </button>
-                            <button style={styles.actionBtn} title="Delete Role" onClick={() => deleteUserType(entity.originalId, entity.name)}>
-                              <FaTrashAlt color="#ef4444" />
+                            <button
+                              style={{ ...styles.actionBtn, background: "rgba(239, 68, 68, 0.15)" }}
+                              title="Delete Role"
+                              onClick={() => deleteUserType(entity.originalId, entity.name)}
+                            >
+                              <FaTrashAlt color="#f87171" />
                             </button>
                           </div>
                         )}
@@ -660,11 +745,11 @@ const UserSetting = () => {
                         {entity.isEmployee && (
                           <div style={{ display: "flex", gap: "5px" }}>
                             <button
-                              style={styles.actionBtn}
+                              style={{ ...styles.actionBtn, background: "rgba(239, 68, 68, 0.15)" }}
                               title="Delete Employee"
                               onClick={() => deleteEmployee(entity.originalId, entity.name)}
                             >
-                              <FaTrashAlt color="#ef4444" />
+                              <FaTrashAlt color="#f87171" />
                             </button>
                           </div>
                         )}
@@ -702,10 +787,11 @@ const UserSetting = () => {
       <style>{`
         .spin { animation: spin 1.5s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        tr:hover td { background-color: #f8fafc !important; }
-        .tbl-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-        .tbl-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
-        .tbl-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        tr:hover td { background-color: #0f172a !important; }
+        .tbl-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .tbl-scroll::-webkit-scrollbar-track { background: #0f172a; }
+        .tbl-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .tbl-scroll::-webkit-scrollbar-thumb:hover { background: #475569; }
       `}</style>
     </div>
   );

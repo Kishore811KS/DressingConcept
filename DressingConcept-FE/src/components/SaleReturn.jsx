@@ -343,7 +343,7 @@ export default function SaleReturn() {
 
       doc.setFontSize(18);
       doc.setTextColor(239, 68, 68);
-      doc.text("Dressing Concept - Sale Return Report", 14, 18);
+      doc.text("Dressing Concepts - Sale Return Report", 14, 18);
 
       doc.setFontSize(9);
       doc.setTextColor(148, 163, 184);

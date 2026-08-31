@@ -73,6 +73,9 @@ class Bill(db.Model):
     # Relationships
     items = db.relationship('BillItem', backref='bill', lazy=True, cascade='all, delete-orphan')
     
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+    
     def calculate_totals(self, is_tax_inclusive=True):
         """Calculate all bill totals"""
         if not self.subtotal:
@@ -200,6 +203,9 @@ class BillItem(db.Model):
     # Relationship
     product = db.relationship('Product')
     
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -233,6 +239,9 @@ class Payment(db.Model):
     
     # Relationship
     bill = db.relationship('Bill', backref='payments')
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
     
     def to_dict(self):
         return {

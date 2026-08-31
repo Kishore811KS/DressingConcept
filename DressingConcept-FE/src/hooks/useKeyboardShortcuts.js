@@ -38,6 +38,7 @@ const useKeyboardShortcuts = () => {
         'ut': '/usertype',
         'm': '/salary',
         'us': '/usersettings',
+        'oa': '/online-address',
     };
 
     const toggleFullscreen = () => {

@@ -35,7 +35,15 @@ class Product(db.Model):
 
 
     def calculate_values(self):
-        base_price = self.mrp or self.sell_price or 0
+        # Determine effective selling price
+        if (self.sell_price is None or self.sell_price == 0) and self.discount_amount and self.discount_amount > 0:
+            self.sell_price = float(self.discount_amount)
+        elif self.sell_price is None:
+            self.sell_price = float(self.mrp or self.buy_price or 0)
+
+        # Base price (MRP if available, else selling price, else buy price)
+        base_price = self.mrp if (self.mrp and self.mrp > 0) else (self.sell_price if (self.sell_price and self.sell_price > 0) else (self.buy_price or 0))
+        
         disc_amt = float(self.discount_amount) if getattr(self, 'discount_amount', None) is not None else 0
 
         if disc_amt > 0 and base_price > 0:
@@ -45,9 +53,6 @@ class Product(db.Model):
             self.discount_amount = round(base_price * (self.discount_percent / 100), 2)
         else:
             self.discount_amount = round(disc_amt, 2)
-
-        discount = self.discount_percent or 0
-        self.net_price = round((self.sell_price or 0) - ((self.sell_price or 0) * discount / 100), 2)
 
         # Normal Profit = Selling Price - Buy Price
         sell_price_val = self.sell_price if (self.sell_price is not None and self.sell_price > 0) else (self.discount_amount if (self.discount_amount is not None and self.discount_amount > 0) else (self.mrp or 0))
@@ -72,7 +77,9 @@ class Product(db.Model):
         else:
             self.profit_percent = 0
 
-        self.amount = round((self.net_price or self.sell_price or 0) * self.quantity, 2)
+        # Total Value (Amount) = (MRP if available, else Selling Price, else Buy Price) * Quantity
+        unit_val = self.mrp if (self.mrp and self.mrp > 0) else (sell_price_val if (sell_price_val and sell_price_val > 0) else (self.buy_price or 0))
+        self.amount = round((unit_val or 0) * (self.quantity or 0), 2)
 
     def to_dict(self):
         # Ensure values are calculated

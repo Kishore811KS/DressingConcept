@@ -84,44 +84,14 @@ const BillItemsPage = () => {
     setError('');
 
     try {
-      // First fetch all bills
-      const response = await api.get(`/billing/bills`);
+      // Fetch all stock out items in a single optimized request
+      const response = await api.get(`/billing/stock-out`);
 
-      let billsData = [];
-      if (response.data && Array.isArray(response.data.bills)) {
-        billsData = response.data.bills;
-      } else if (Array.isArray(response.data)) {
-        billsData = response.data;
-      }
-
-      // Extract all items from bills
       let allItems = [];
-
-      for (const bill of billsData) {
-        try {
-          const detailResponse = await api.get(`/billing/bills/${bill.id}`);
-          const detailedBill = detailResponse.data;
-
-          if (detailedBill.items && Array.isArray(detailedBill.items)) {
-            const itemsWithBillInfo = detailedBill.items.map(item => ({
-              id: item.id,
-              product_id: item.product_id || item.productId,
-              product_code: (item.productCode || item.product_code || '').replace(/^DEL-/, ''),
-              product_name: (item.productName || item.product_name || item.name || item.description || '').replace(/^___DELETED___/, ''),
-              product_model: item.productModel || item.product_model || item.model,
-              product_type: item.productType || item.product_type || item.type,
-              sell_price: item.sellPrice ?? item.sell_price ?? item.unitPrice ?? item.unit_price ?? item.price ?? 0,
-              quantity: item.quantity || 0,
-              total: item.total ?? ((item.quantity || 0) * (item.sellPrice || item.sell_price || 0)),
-              billNumber: detailedBill.billNumber || detailedBill.bill_number,
-              billId: detailedBill.id,
-              billDate: detailedBill.createdAt || detailedBill.created_at
-            }));
-            allItems = [...allItems, ...itemsWithBillInfo];
-          }
-        } catch (err) {
-          console.error(`Error fetching details for bill ${bill.id}:`, err);
-        }
+      if (response.data && Array.isArray(response.data.items)) {
+        allItems = response.data.items;
+      } else if (Array.isArray(response.data)) {
+        allItems = response.data;
       }
 
       setItems(allItems);
@@ -137,6 +107,13 @@ const BillItemsPage = () => {
   };
 
   const fetchItemDetails = async (itemId, billId) => {
+    const tableItem = items.find(i => (i.id === itemId || String(i.id) === String(itemId)) && (!billId || i.billId === billId));
+    if (tableItem) {
+      setSelectedItem(tableItem);
+      setShowItemModal(true);
+      return;
+    }
+
     try {
       const response = await api.get(`/billing/bills/${billId}`);
       const bill = response.data;
@@ -158,23 +135,11 @@ const BillItemsPage = () => {
         setSelectedItem(normalizedItem);
         setShowItemModal(true);
       } else {
-        const tableItem = items.find(i => i.id === itemId && i.billId === billId);
-        if (tableItem) {
-          setSelectedItem(tableItem);
-          setShowItemModal(true);
-        } else {
-          showMessage("error", "Item not found");
-        }
+        showMessage("error", "Item not found");
       }
     } catch (err) {
       console.error('Error fetching item details:', err);
-      const tableItem = items.find(i => i.id === itemId);
-      if (tableItem) {
-        setSelectedItem(tableItem);
-        setShowItemModal(true);
-      } else {
-        showMessage("error", "Failed to load item details");
-      }
+      showMessage("error", "Failed to load item details");
     }
   };
 

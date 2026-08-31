@@ -367,7 +367,7 @@ const Salary = () => {
       // Dressing Concept Title on top (centered)
       doc.setFontSize(22);
       doc.setFont("helvetica", "bold");
-      doc.text("Dressing Concept", 105, 16, null, null, "center");
+      doc.text("Dressing Concepts", 105, 16, null, null, "center");
 
       doc.setFontSize(13);
       doc.setFont("helvetica", "normal");
@@ -501,7 +501,7 @@ const Salary = () => {
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 58, 138);
-      doc.text("For Dressing Concept", 190, sealY, null, null, "right");
+      doc.text("For Dressing Concepts", 190, sealY, null, null, "right");
 
       // Space left for signature
       doc.setFontSize(9);

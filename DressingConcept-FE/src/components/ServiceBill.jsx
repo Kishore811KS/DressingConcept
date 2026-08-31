@@ -90,10 +90,10 @@ const ServiceBill = () => {
 
 
   const shopDetails = {
-    name: 'Dressing Concept',
-    phone: '+91 98848 58576',
-    address: '88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082',
-    gst: '33ABCDE1234F1Z5'
+    name: 'Dressing Concepts',
+    phone: '9840669687',
+    address: 'NO.88/70 S.R.P KOVIL STREET, AGARAM, PERAMBUR, CHENNAI - 600 082',
+    gst: '33BQEPD0068G1ZD'
   };
 
   // Refs
@@ -1501,7 +1501,7 @@ const ServiceBill = () => {
         <body>
           <div id="billPaper">
             <div class="bill-header">
-              <img src="/Dressing_Concept.png" class="bill-logo" alt="Dressing Concept Logo">
+              <img src="/Dressing_Concept.png" class="bill-logo" alt="Dressing Concepts Logo">
               <h1>${shopDetails.name}</h1>
               <p>${shopDetails.address}</p>
               <p>${shopDetails.city}</p>
@@ -1777,7 +1777,7 @@ const ServiceBill = () => {
     const due = calculateDue();
     const activeServices = manualServices.filter(s => s.quantity > 0);
 
-    let message = `*Dressing Concept - SERVICE BILL*\n`;
+    let message = `*Dressing Concepts - SERVICE BILL*\n`;
     message += `${shopDetails.address}\n`;
     message += `${shopDetails.city}\n`;
     message += `Ph: ${shopDetails.phone}\n`;
@@ -1804,7 +1804,7 @@ const ServiceBill = () => {
     message += `Status: ${paymentStatus.toUpperCase()}\n`;
     if (due > 0) message += `Due: ₹${due.toFixed(2)}\n`;
     message += `================\n`;
-    message += `Thank you for choosing Dressing Concept!\n`;
+    message += `Thank you for choosing Dressing Concepts!\n`;
     message += `For service support, call ${shopDetails.phone}`;
 
     const encodedMessage = encodeURIComponent(message);
@@ -1926,7 +1926,7 @@ const ServiceBill = () => {
     <div style={baseStyles.container}>
       {/* Left Panel - Manual Service Entry */}
       <div style={baseStyles.productPanel} className="no-print">
-        <h2 style={baseStyles.productPanelTitle}>🔧 Create Service Bill - Dressing Concept</h2>
+        <h2 style={baseStyles.productPanelTitle}>🔧 Create Service Bill - Dressing Concepts</h2>
 
         {error && (
           <div style={{ ...baseStyles.alert, ...baseStyles.alertError }}>
@@ -2113,7 +2113,7 @@ const ServiceBill = () => {
             ref={billPaperRef}
           >
             <div className="bill-header">
-              <img src="/Dressing_Concept.png" alt="Dressing Concept Logo" style={{ maxWidth: '100px', marginBottom: '5px', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
+              <img src="/Dressing_Concept.png" alt="Dressing Concepts Logo" style={{ maxWidth: '100px', marginBottom: '5px', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
               <h1 style={baseStyles.billHeaderH1}>{shopDetails.name}</h1>
               <p style={baseStyles.billHeaderP}>{shopDetails.address}</p>
               <p style={baseStyles.billHeaderP}>{shopDetails.city}</p>

@@ -131,16 +131,19 @@ const Dashboard = () => {
       );
 
       const lowStockResponse = await api.get(
-        `/products?per_page=100`
+        `/products?page=1&per_page=1000`
       );
 
       const productStats = productStatsResponse.data;
       const billingStats = billingStatsResponse.data;
 
-      const allProducts = lowStockResponse.data.items || [];
+      const rawItems = lowStockResponse.data.items || (Array.isArray(lowStockResponse.data) ? lowStockResponse.data : []);
+      const allProducts = rawItems.filter(
+        item => !String(item.name || "").startsWith("___DELETED___")
+      );
       const lowStockProducts = allProducts
-        .filter(product => product.quantity <= 5)
-        .sort((a, b) => a.quantity - b.quantity)
+        .filter(product => (Number(product.quantity) || 0) <= 10)
+        .sort((a, b) => (Number(a.quantity) || 0) - (Number(b.quantity) || 0))
         .slice(0, 10);
 
       const totalPayments = (billingStats.paymentMethods || []).reduce(
@@ -152,7 +155,7 @@ const Dashboard = () => {
         products: {
           total: productStats.total_products || 0,
           totalQuantity: productStats.total_quantity || 0,
-          lowStock: lowStockProducts.length,
+          lowStock: productStats.low_stock_count !== undefined ? productStats.low_stock_count : lowStockProducts.length,
         },
         billing: {
           today: billingStats.today || { bills: 0, sales: 0, average: 0 },
@@ -749,7 +752,12 @@ const Dashboard = () => {
         )}
 
         <div style={styles.cards}>
-          <div className="card" style={styles.card}>
+          <div
+            className="card"
+            style={styles.card}
+            onClick={() => navigate(hasPermission('admin_product') || userType?.toLowerCase() === 'admin' ? '/admin-product' : '/employee-product')}
+            title="Click to view Products"
+          >
             <FaBoxes style={{ ...styles.icon, color: "#3b82f6" }} />
             <div style={styles.cardContent}>
               <div style={styles.cardLabel}>Total Products</div>

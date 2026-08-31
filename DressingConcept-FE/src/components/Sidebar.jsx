@@ -37,6 +37,7 @@ import {
   FaKeyboard,
   FaUndo,
   FaBook,
+  FaShippingFast,
 } from "react-icons/fa";
 
 import axios from 'axios';
@@ -108,6 +109,8 @@ const Sidebar = ({ isOpen }) => {
       '/enquiry': 'N',
       '/customer': 'F',
       '/usersettings': 'US',
+      '/online-address': 'OA',
+      '/onlineaddress': 'OA',
     };
     return shortcuts[path] || '';
   };
@@ -244,7 +247,7 @@ const Sidebar = ({ isOpen }) => {
       <style>{scrollbarStyles}</style>
       <div style={styles.sidebar} className="sidebar">
         <div style={styles.logoSection}>
-          {isOpen ? "Dressing Concept" : "DC"}
+          {isOpen ? "Dressing Concepts" : "DC"}
         </div>
 
         <div style={styles.navContainer}>
@@ -279,9 +282,9 @@ const Sidebar = ({ isOpen }) => {
           )} */}
 
           {/* Billing Section */}
-          {isSectionVisible(["create_bill", "bill_reports", "ledger_book", "sale_return", "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount"]) && (
+          {isSectionVisible(["create_bill", "bill_reports", "ledger_book", "sale_return", "service_bill", "service_bills", "sales_bills", "quotations", "invoices", "discount", "online_address"]) && (
             <>
-              <div style={styles.sectionTitle}>Billing</div>
+              <div style={styles.sectionTitle}>Billing & Orders</div>
               {hasPermission("create_bill") && renderLink("/bill", <FaReceipt style={styles.icon} />, "Create Bill")}
               {hasPermission("bill_reports") && renderLink("/billreport", <FaChartLine style={styles.icon} />, "Bill Reports")}
               {(hasPermission("bill_reports") || hasPermission("sale_return")) && renderLink("/salereturn", <FaUndo style={styles.icon} />, "Sale Return")}
@@ -291,6 +294,7 @@ const Sidebar = ({ isOpen }) => {
               {/* {hasPermission("sales_bills") && renderLink("/employeebill", <FaUserCircle style={styles.icon} />, "SalesBill(emp)")} */}
               {hasPermission("quotations") && renderLink("/quotation", <FaClipboardList style={styles.icon} />, "Quotations")}
               {/* {hasPermission("discount") && renderLink("/discount", <FaPercent style={styles.icon} />, "Discount")} */}
+              {(hasPermission("create_bill") || hasPermission("online_address") || true) && renderLink("/online-address", <FaShippingFast style={styles.icon} />, "Online Address")}
             </>
           )}
 

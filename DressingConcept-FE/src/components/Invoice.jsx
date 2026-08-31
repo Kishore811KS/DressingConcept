@@ -48,10 +48,10 @@ const InvoicePage = () => {
 
   // Company details
   const companyDetails = {
-    name: "Dressing Concept",
-    address: "88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082",
-    phone: "98848 58576",
-    email: "hiprintsolutions@gmail.com",
+    name: "Dressing Concepts",
+    address: "NO.88/70 S.R.P KOVIL STREET, AGARAM, PERAMBUR, CHENNAI - 600 082",
+    phone: "9840669687",
+    email: "",
     gstin: "33BQEPD0068G1ZD"
   };
 
@@ -845,10 +845,10 @@ const InvoicePage = () => {
         </head>
         <body>
           <div class="header">
-            <img src="/Dressing_Concept.png" alt="Dressing Concept Logo" style="max-width: 150px; margin-bottom: 10px;">
-            <div class="company-name">Dressing Concept</div>
-            <div class="company-details">No.71, M.T.H.road (Opp padi post office), Padi, Chennai - 600 050</div>
-            <div class="company-details">Phone: 98657 09626 | Email: hiprintsolutions@gmail.com | GST: 33ABCDE1234F1Z5</div>
+            <img src="/Dressing_Concept.png" alt="Dressing Concepts Logo" style="max-width: 150px; margin-bottom: 10px;">
+            <div class="company-name">Dressing Concepts</div>
+            <div class="company-details">NO.88/70 S.R.P KOVIL STREET, AGARAM, PERAMBUR, CHENNAI - 600 082</div>
+            <div class="company-details">Phone: 9840669687 | GSTIN: 33BQEPD0068G1ZD</div>
           </div>
           
           <div class="document-title">TAX INVOICE</div>

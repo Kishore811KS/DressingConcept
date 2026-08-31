@@ -314,27 +314,35 @@ def get_product_statistics():
     try:
         from sqlalchemy import func
         
-        # Get statistics from Item (Stock In) table to keep them synchronized
+        active_filter = ~Product.name.startswith("___DELETED___")
+        
+        # Get statistics from Product table excluding soft-deleted products
         stats = db.session.query(
-            func.count(Item.id).label('total_products'),
-            func.sum(Item.quantity).label('total_quantity'),
-            func.avg(Item.sell_price).label('avg_sell_price'),
-            func.avg(Item.buy_price).label('avg_buy_price'),
-            func.sum(Item.buy_price * Item.quantity).label('total_value')
-        ).first()
+            func.count(Product.id).label('total_products'),
+            func.sum(Product.quantity).label('total_quantity'),
+            func.avg(Product.sell_price).label('avg_sell_price'),
+            func.avg(Product.buy_price).label('avg_buy_price'),
+            func.sum(Product.buy_price * Product.quantity).label('total_value')
+        ).filter(active_filter).first()
+        
+        # Get low stock count (<= 10)
+        low_stock_count = db.session.query(
+            func.count(Product.id)
+        ).filter(active_filter, Product.quantity <= 10).scalar() or 0
         
         # Get counts by type
         type_counts = db.session.query(
             Product.type,
             func.count(Product.id).label('count')
-        ).group_by(Product.type).all()
+        ).filter(active_filter).group_by(Product.type).all()
         
         return jsonify({
             'total_products': stats.total_products or 0,
             'total_quantity': stats.total_quantity or 0,
-            'average_sell_price': round(stats.avg_sell_price or 0, 2),
-            'average_buy_price': round(stats.avg_buy_price or 0, 2),
-            'total_inventory_value': round(stats.total_value or 0, 2),
+            'low_stock_count': low_stock_count,
+            'average_sell_price': round(stats.avg_sell_price or 0, 2) if stats.avg_sell_price else 0,
+            'average_buy_price': round(stats.avg_buy_price or 0, 2) if stats.avg_buy_price else 0,
+            'total_inventory_value': round(stats.total_value or 0, 2) if stats.total_value else 0,
             'products_by_type': [{'type': t[0] or 'Uncategorized', 'count': t[1]} for t in type_counts]
         }), 200
         

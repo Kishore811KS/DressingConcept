@@ -2391,7 +2391,7 @@ export default function Bill() {
         deductFromSalary: false,
         paidBefore: paymentTotals.previous,
         contact: mobileNumber || contactNumber || memberId || "",
-        createdByName: [salesPerson, ...new Set(rows.filter(r => r.salesPerson && r.productId).map(r => r.salesPerson))].filter(Boolean).join(", ") || counter,
+        createdByName: Array.from(new Set([salesPerson, ...rows.filter(r => r.salesPerson && r.productId).map(r => r.salesPerson)].filter(Boolean))).join(", ") || counter,
         rewardPointsEarned: Math.floor(Math.max(0, totals.billValue - Number(paymentTotals.salesReturn || 0)) / 100),
         rewardPointsRedeemed: Number(redeemedPoints) || 0,
         isClassic: classicCustomer,
@@ -2946,7 +2946,7 @@ export default function Bill() {
         </div>
 
         {isSaleReturnMode && (
-          <div style={{
+          <div className="no-print" style={{
             backgroundColor: '#dc2626',
             color: '#ffffff',
             padding: '10px 20px',

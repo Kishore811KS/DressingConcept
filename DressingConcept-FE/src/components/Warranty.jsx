@@ -66,12 +66,12 @@ const Warranty = () => {
 
   // Company/Shop Details from Backend
   const [companyDetails, setCompanyDetails] = useState({
-    name: "Dressing Concept",
-    address: "88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082",
-    city: "Padi, Chennai - 600 050",
-    phone: "98848 58576",
+    name: "Dressing Concepts",
+    address: "NO.88/70 S.R.P KOVIL STREET, AGARAM, PERAMBUR, CHENNAI - 600 082",
+    city: "Chennai - 600 082",
+    phone: "9840669687",
     email: "",
-    gst: "",
+    gst: "33BQEPD0068G1ZD",
     logo: null,
     logoUrl: null
   });
@@ -115,7 +115,7 @@ const Warranty = () => {
         await fetchCompanyDetails(firstCompany.id);
       } else {
         setCompanyDetails({
-          name: "Dressing Concept",
+          name: "Dressing Concepts",
           address: "",
           city: "",
           phone: "",
@@ -128,7 +128,7 @@ const Warranty = () => {
     } catch (err) {
       console.error('Error fetching companies:', err);
       setCompanyDetails({
-        name: "Dressing Concept",
+        name: "Dressing Concepts",
         address: "",
         city: "",
         phone: "",
@@ -145,7 +145,7 @@ const Warranty = () => {
       const response = await api.get(`/companies/${companyId}`);
       const company = response.data;
       setCompanyDetails({
-        name: company.name || "Dressing Concept",
+        name: company.name || "Dressing Concepts",
         address: company.address || "",
         city: company.city || "",
         phone: company.phone || "",
@@ -528,7 +528,7 @@ const Warranty = () => {
         </head>
         <body>
           <div class="header">
-            <img src="/Dressing_Concept.png" alt="Dressing Concept Logo" style="max-width: 150px; margin-bottom: 10px;">
+            <img src="/Dressing_Concept.png" alt="Dressing Concepts Logo" style="max-width: 150px; margin-bottom: 10px;">
             <h1>${companyDetails.name}</h1>
             <h2 style="color: #6b7280; font-size: 18px; margin-top: 0;">Warranty Report</h2>
           </div>

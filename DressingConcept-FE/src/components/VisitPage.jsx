@@ -90,6 +90,12 @@ const cleanBillNo = (numStr) => {
   return str.includes("/") ? str.split("/").pop() : str;
 };
 
+const formatSalesPerson = (name) => {
+  if (!name) return "";
+  const parts = String(name).split(",").map(s => s.trim()).filter(Boolean);
+  return Array.from(new Set(parts)).join(", ");
+};
+
 const parseBillDate = (dateInput, timeInput) => {
   if (!dateInput && !timeInput) return new Date();
   if (dateInput instanceof Date) return dateInput;
@@ -345,12 +351,12 @@ const VisitBillPage = () => {
 
   // Company/Shop Details from Backend
   const [companyDetails, setCompanyDetails] = useState({
-    name: "Dressing Concept",
-    address: "88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082",
-    city: "Chennai",
-    phone: "98848 58576",
+    name: "Dressing Concepts",
+    address: "NO.88/70 S.R.P KOVIL STREET, AGARAM, PERAMBUR, CHENNAI - 600 082",
+    city: "Chennai - 600 082",
+    phone: "9840669687",
     email: "",
-    gst: "",
+    gst: "33BQEPD0068G1ZD",
     logo: null,
     logoUrl: null
   });
@@ -579,12 +585,12 @@ const VisitBillPage = () => {
         await fetchCompanyDetails(firstCompany.id);
       } else {
         setCompanyDetails({
-          name: "Dressing Concept",
-          address: "88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082",
-          city: "Chennai",
-          phone: "98848 58576",
+          name: "Dressing Concepts",
+          address: "NO.88/70 S.R.P KOVIL STREET, AGARAM, PERAMBUR, CHENNAI - 600 082",
+          city: "Chennai - 600 082",
+          phone: "9840669687",
           email: "",
-          gst: "",
+          gst: "33BQEPD0068G1ZD",
           logo: null,
           logoUrl: null
         });
@@ -593,12 +599,12 @@ const VisitBillPage = () => {
       console.error('Error fetching companies:', err);
       showMessage("error", "❌ Failed to fetch company details");
       setCompanyDetails({
-        name: "Dressing Concept",
-        address: "88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082",
-        city: "Chennai",
-        phone: "98848 58576",
+        name: "Dressing Concepts",
+        address: "NO.88/70 S.R.P KOVIL STREET, AGARAM, PERAMBUR, CHENNAI - 600 082",
+        city: "Chennai - 600 082",
+        phone: "9840669687",
         email: "",
-        gst: "",
+        gst: "33BQEPD0068G1ZD",
         logo: null,
         logoUrl: null
       });
@@ -616,12 +622,12 @@ const VisitBillPage = () => {
 
       const company = response.data;
       setCompanyDetails({
-        name: company.name || "Dressing Concept",
-        address: company.address || "88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082",
-        city: company.city || "Chennai",
-        phone: company.phone || "98848 58576",
+        name: company.name || "Dressing Concepts",
+        address: company.address || "NO.88/70 S.R.P KOVIL STREET, AGARAM, PERAMBUR, CHENNAI - 600 082",
+        city: company.city || "Chennai - 600 082",
+        phone: company.phone || "9840669687",
         email: company.email || "",
-        gst: company.gst_number || company.gst || "",
+        gst: company.gst_number || company.gst || "33BQEPD0068G1ZD",
         logo: company.logo || null,
         logoUrl: company.logo_url || null
       });
@@ -724,7 +730,7 @@ const VisitBillPage = () => {
           customerAddress: bill.customerAddress || bill.customer_address || '',
           customerType: bill.customerType || bill.customer_type || bill.customer?.type || 'external',
           memberId: bill.memberId || bill.member_id || '',
-          salesPerson: bill.createdByName || bill.salesPerson || bill.sales_person || '',
+          salesPerson: formatSalesPerson(bill.createdByName || bill.salesPerson || bill.sales_person || ''),
           contact: bill.customerPhone || bill.customer_phone || bill.contact || '',
           counter: bill.counter || '',
           isClassicCustomer: Boolean(bill.isClassicCustomer || bill.is_classic_customer),
@@ -733,8 +739,7 @@ const VisitBillPage = () => {
           noRewards: Boolean(bill.noRewards || bill.no_rewards),
           rewardPointsAvailable: parseFloat(bill.rewardPointsAvailable || bill.reward_points_available || 0),
           rewardPointsRedeemed: parseFloat(bill.rewardPointsRedeemed || bill.reward_points_redeemed || 0),
-          rewardPointsEarned: parseFloat(bill.rewardPointsEarned || bill.reward_points_earned || 0),
-          rewardPointsBalance: parseFloat(bill.rewardPointsBalance || bill.reward_points_balance || 0),
+          rewardPointsEarned: parseFloat(bill.rewardPointsEarned !== undefined && bill.rewardPointsEarned !== null ? bill.rewardPointsEarned : Math.floor((bill.total || 0) / 100)),
           amountGiven: parseFloat(bill.amountGiven || bill.amount_given || bill.paidAmount || bill.paid_amount || 0),
           balanceReturned: parseFloat(bill.balanceReturned || bill.balance_returned || bill.changeAmount || bill.change_amount || 0),
           subtotal: subtotal,
@@ -874,7 +879,7 @@ const VisitBillPage = () => {
         customerAddress: billData.customerAddress || billData.customer_address || '',
         customerType: billData.customerType || billData.customer_type || billData.customer?.type || 'external',
         memberId: billData.memberId || billData.member_id || '',
-        salesPerson: billData.createdByName || billData.salesPerson || billData.sales_person || '',
+        salesPerson: formatSalesPerson(billData.createdByName || billData.salesPerson || billData.sales_person || ''),
         contact: billData.customerPhone || billData.customer_phone || billData.contact || '',
         counter: billData.counter || '',
         isClassicCustomer: Boolean(billData.isClassicCustomer || billData.is_classic_customer),
@@ -883,8 +888,7 @@ const VisitBillPage = () => {
         noRewards: Boolean(billData.noRewards || billData.no_rewards),
         rewardPointsAvailable: parseFloat(billData.rewardPointsAvailable || billData.reward_points_available || 0),
         rewardPointsRedeemed: parseFloat(billData.rewardPointsRedeemed || billData.reward_points_redeemed || 0),
-        rewardPointsEarned: parseFloat(billData.rewardPointsEarned || billData.reward_points_earned || 0),
-        rewardPointsBalance: parseFloat(billData.rewardPointsBalance || billData.reward_points_balance || 0),
+        rewardPointsEarned: parseFloat(billData.rewardPointsEarned !== undefined && billData.rewardPointsEarned !== null ? billData.rewardPointsEarned : Math.floor((billData.total || 0) / 100)),
         amountGiven: parseFloat(billData.amountGiven || billData.amount_given || billData.paidAmount || billData.paid_amount || 0),
         balanceReturned: parseFloat(billData.balanceReturned || billData.balance_returned || billData.changeAmount || billData.change_amount || 0),
         subtotal: subtotal,
@@ -1193,7 +1197,7 @@ const VisitBillPage = () => {
 
     try {
       const digitalBillLink = `${window.location.origin}/digital-bill?billNo=${billNumber}`;
-      const messageText = `Hi ${customerName}, we are delighted! Thank you for shopping at Dressing Concept. Click the link to get your Digital Bill: ${digitalBillLink}\n\nHappy Shopping!`;
+      const messageText = `Hi ${customerName}, we are delighted! Thank you for shopping at Dressing Concepts. Click the link to get your Digital Bill: ${digitalBillLink}\n\nHappy Shopping!`;
 
       const response = await api.post(`/billing/send-digital-bill`, {
         phoneNumber,
@@ -1521,7 +1525,7 @@ const VisitBillPage = () => {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.setTextColor(100, 116, 139);
-      const compName = companyDetails?.name || 'Dressing Concept';
+      const compName = companyDetails?.name || 'Dressing Concepts';
       const compAddr = companyDetails?.address || '';
       const compCity = companyDetails?.city || '';
       doc.text(`${compName}`, 14, 24);
@@ -3031,7 +3035,7 @@ const VisitBillPage = () => {
                   )}
                   {selectedBill.salesPerson && (
                     <p style={styles.modalText}>
-                      <strong>Sales Person:</strong> {selectedBill.salesPerson}
+                      <strong>Sales Person:</strong> {formatSalesPerson(selectedBill.salesPerson)}
                     </p>
                   )}
                   {selectedBill.counter && (
@@ -3082,9 +3086,8 @@ const VisitBillPage = () => {
                 </div>
                 <div style={{ borderLeft: '1px solid #374151', paddingLeft: '15px' }}>
                   <p style={styles.modalText}><strong>Available Points:</strong> {(selectedBill.rewardPointsAvailable || 0).toFixed(2)}</p>
-                  <p style={styles.modalText}><strong>Earned Points:</strong> {(selectedBill.rewardPointsEarned || 0).toFixed(2)}</p>
+                  <p style={styles.modalText}><strong>Earned Points:</strong> {((selectedBill.rewardPointsEarned !== undefined && selectedBill.rewardPointsEarned !== null) ? selectedBill.rewardPointsEarned : Math.floor((selectedBill.total || 0) / 100)).toFixed(2)}</p>
                   <p style={styles.modalText}><strong>Redeemed Points:</strong> {(selectedBill.rewardPointsRedeemed || 0).toFixed(2)}</p>
-                  <p style={styles.modalText}><strong>Remaining Points:</strong> {(selectedBill.rewardPointsBalance || 0).toFixed(2)}</p>
                 </div>
               </div>
             </div>

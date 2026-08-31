@@ -7,7 +7,7 @@ from app.models.sale_return import SaleReturn
 from app import db
 from sqlalchemy import or_, and_, func, text
 from datetime import datetime, timedelta
-import traceback,re 
+import traceback, re, os
 import random
 import string
 from dateutil.relativedelta import relativedelta  # Add this import for warranty calculation
@@ -1627,6 +1627,12 @@ def get_all_bills():
                 item_status='pending'
             ).count()
             
+            cust_phone = bill.customer_phone or bill.contact
+            rewards = CustomerRewards.query.filter_by(phone=cust_phone).first() if cust_phone else None
+            bill_earned = int((bill.total or 0) / 100) if not (bill.bill_number and (bill.bill_number.endswith('R') or bill.bill_number.endswith('r'))) else 0
+            available_pts = round(float(rewards.current_balance or 0), 2) if rewards else 0.0
+            redeemed_pts = round(float(rewards.total_points_redeemed or 0), 2) if rewards else 0.0
+            
             bills.append({
                 'id': bill.id,
                 'billNumber': bill.bill_number.split('/', 1)[-1] if (bill.bill_number and '/' in bill.bill_number) else bill.bill_number,
@@ -1648,6 +1654,9 @@ def get_all_bills():
                 'paidAmount': round(bill.paid_amount or 0, 2),
                 'paymentMethod': bill.payment_method,
                 'paymentStatus': bill.payment_status,
+                'rewardPointsAvailable': available_pts,
+                'rewardPointsEarned': bill_earned,
+                'rewardPointsRedeemed': redeemed_pts,
                 'itemCount': len(bill.items),
                 'totalQuantity': sum(int(item.quantity or 1) for item in bill.items) if bill.items else max(1, len(bill.items)),
                 'items': [item.to_dict() for item in bill.items],
@@ -1684,6 +1693,12 @@ def get_bill_by_id(bill_id):
         # Get all items with their status
         items = [item.to_dict() for item in bill.items]
         
+        cust_phone = bill.customer_phone or bill.contact
+        rewards = CustomerRewards.query.filter_by(phone=cust_phone).first() if cust_phone else None
+        bill_earned = int((bill.total or 0) / 100) if not (bill.bill_number and (bill.bill_number.endswith('R') or bill.bill_number.endswith('r'))) else 0
+        available_pts = round(float(rewards.current_balance or 0), 2) if rewards else 0.0
+        redeemed_pts = round(float(rewards.total_points_redeemed or 0), 2) if rewards else 0.0
+
         bill_dict = bill.to_dict()
         bill_dict['items'] = items
         bill_dict['payments'] = [p.to_dict() for p in payments]
@@ -1691,6 +1706,9 @@ def get_bill_by_id(bill_id):
         bill_dict['vehicleNumber'] = bill.vehicle_number
         bill_dict['createdBy'] = bill.created_by
         bill_dict['createdByName'] = bill.created_by_name
+        bill_dict['rewardPointsAvailable'] = available_pts
+        bill_dict['rewardPointsEarned'] = bill_earned
+        bill_dict['rewardPointsRedeemed'] = redeemed_pts
         
         # Add company details to response
         bill_dict['company'] = {
@@ -1754,10 +1772,19 @@ def get_bill_by_number(bill_number):
         # Get all items with their status
         items = [item.to_dict() for item in bill.items]
         
+        cust_phone = bill.customer_phone or bill.contact
+        rewards = CustomerRewards.query.filter_by(phone=cust_phone).first() if cust_phone else None
+        bill_earned = int((bill.total or 0) / 100) if not (bill.bill_number and (bill.bill_number.endswith('R') or bill.bill_number.endswith('r'))) else 0
+        available_pts = round(float(rewards.current_balance or 0), 2) if rewards else 0.0
+        redeemed_pts = round(float(rewards.total_points_redeemed or 0), 2) if rewards else 0.0
+
         bill_dict = bill.to_dict()
         bill_dict['items'] = items
         bill_dict['vehicleName'] = bill.vehicle_name
         bill_dict['vehicleNumber'] = bill.vehicle_number
+        bill_dict['rewardPointsAvailable'] = available_pts
+        bill_dict['rewardPointsEarned'] = bill_earned
+        bill_dict['rewardPointsRedeemed'] = redeemed_pts
         bill_dict['createdBy'] = bill.created_by
         bill_dict['createdByName'] = bill.created_by_name
         
@@ -2360,6 +2387,155 @@ def check_product_warranty(product_id, bill_id):
         return jsonify({'error': str(e)}), 500
 
 
+# ------------------ SMS / DIGITAL BILL HELPERS ------------------
+class SmsValidationError(Exception):
+    """Custom exception raised when SMS validation fails."""
+    pass
+
+
+class MockSmsMessage:
+    def __init__(self, sid="mock_sid", status="sent"):
+        self.sid = sid
+        self.status = status
+
+
+def validate_phone_number(raw_phone):
+    """
+    Validates and normalizes phone number.
+    Accepts 10-digit numbers or numbers with leading country code (e.g. +91, 91, 0).
+    """
+    if not raw_phone:
+        raise SmsValidationError("Phone number is required.")
+    cleaned = re.sub(r'[\s\-\(\)\+]', '', str(raw_phone).strip())
+    if len(cleaned) == 12 and cleaned.startswith('91'):
+        cleaned = cleaned[2:]
+    elif len(cleaned) == 11 and cleaned.startswith('0'):
+        cleaned = cleaned[1:]
+    
+    if not cleaned.isdigit() or len(cleaned) != 10:
+        raise SmsValidationError(f"Invalid phone number '{raw_phone}'. Must be a valid 10-digit number.")
+    return cleaned
+
+
+def build_digital_bill_url(bill_number):
+    """
+    Builds the URL for digital bill.
+    """
+    frontend_base = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+    return f"{frontend_base.rstrip('/')}/digital-bill?billNo={bill_number}"
+
+
+def build_digital_bill_sms(customer_name, digital_bill_link):
+    """
+    Builds the SMS message text.
+    """
+    cname = customer_name.strip() if customer_name else 'Customer'
+    return f"Hi {cname}, we are delighted! Thank you for shopping at Dressing Concepts. Click the link to get your Digital Bill: {digital_bill_link}\n\nHappy Shopping!"
+
+
+def get_messenger_config():
+    """
+    Returns SMS / Messenger configuration.
+    """
+    fast2sms_key = os.environ.get('FAST2SMS_API_KEY', '').strip()
+    twilio_sid = os.environ.get('TWILIO_ACCOUNT_SID', '').strip()
+    
+    if fast2sms_key:
+        return {'provider': 'Fast2SMS', 'mode': 'production', 'enabled': True}
+    elif twilio_sid:
+        return {'provider': 'Twilio', 'mode': 'production', 'enabled': True}
+    return {'provider': 'mock', 'mode': 'test', 'enabled': False}
+
+
+def send_sms(phone_number, message_text, bill_number=None):
+    """
+    Sends SMS using configured provider or falls back to mock/logging mode.
+    """
+    phone_number = validate_phone_number(phone_number)
+    fast2sms_key = os.environ.get('FAST2SMS_API_KEY', '').strip()
+    twilio_sid = os.environ.get('TWILIO_ACCOUNT_SID', '').strip()
+    twilio_token = os.environ.get('TWILIO_AUTH_TOKEN', '').strip()
+    twilio_from = os.environ.get('TWILIO_PHONE_NUMBER', '').strip()
+
+    if fast2sms_key:
+        try:
+            import urllib.request
+            import json as json_lib
+
+            url = "https://www.fast2sms.com/dev/bulkV2"
+            payload = {
+                "route": "q",
+                "message": message_text,
+                "language": "english",
+                "flash": 0,
+                "numbers": phone_number,
+            }
+            req = urllib.request.Request(
+                url,
+                data=json_lib.dumps(payload).encode('utf-8'),
+                headers={
+                    "authorization": fast2sms_key,
+                    "Content-Type": "application/json"
+                }
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                res_data = json_lib.loads(resp.read().decode('utf-8'))
+                if res_data.get('return'):
+                    return MockSmsMessage(sid=res_data.get('request_id', 'fast2sms_ok'), status='sent'), 'production'
+                else:
+                    raise Exception(res_data.get('message', 'Fast2SMS sending failed'))
+        except Exception as e:
+            raise Exception(f"Fast2SMS error: {str(e)}")
+
+    elif twilio_sid and twilio_token and twilio_from:
+        try:
+            import urllib.request
+            import urllib.parse
+            import base64
+            import json as json_lib
+
+            url = f"https://api.twilio.com/2010-04-01/Accounts/{twilio_sid}/Messages.json"
+            target = f"+91{phone_number}" if not phone_number.startswith('+') else phone_number
+            data = urllib.parse.urlencode({
+                "From": twilio_from,
+                "To": target,
+                "Body": message_text
+            }).encode('utf-8')
+
+            auth_str = f"{twilio_sid}:{twilio_token}"
+            b64_auth = base64.b64encode(auth_str.encode('utf-8')).decode('utf-8')
+
+            req = urllib.request.Request(
+                url,
+                data=data,
+                headers={
+                    "Authorization": f"Basic {b64_auth}",
+                    "Content-Type": "application/x-www-form-urlencoded"
+                }
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                res_data = json_lib.loads(resp.read().decode('utf-8'))
+                return MockSmsMessage(sid=res_data.get('sid', 'twilio_ok'), status=res_data.get('status', 'sent')), 'production'
+        except Exception as e:
+            raise Exception(f"Twilio error: {str(e)}")
+
+    print(f"[SMS MOCK / TEST MODE] To: {phone_number} | Bill: {bill_number} | Message: {message_text}")
+    return MockSmsMessage(sid=f"mock_sid_{bill_number or 'test'}", status="sent"), "test"
+
+
+def phones_match_bill(bill, phone_number):
+    """
+    Checks if given phone number matches the bill's customer phone.
+    """
+    if not bill or not bill.customer_phone:
+        return False
+    bill_p = re.sub(r'\D', '', str(bill.customer_phone))
+    req_p = re.sub(r'\D', '', str(phone_number))
+    if not bill_p or not req_p:
+        return False
+    return bill_p[-10:] == req_p[-10:]
+
+
 # ------------------ MESSENGER / SMS CONFIG ------------------
 @billing_bp.route("/billing/messenger-config", methods=["GET"])
 def messenger_config():
@@ -2620,4 +2796,51 @@ def get_ledger_book_data():
         print(f"Ledger book error: {str(e)}")
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
+
+
+# ------------------ GET ALL STOCK OUT / BILL ITEMS ------------------
+@billing_bp.route("/billing/stock-out", methods=["GET"])
+@billing_bp.route("/billing/bill-items", methods=["GET"])
+def get_all_stock_out_items():
+    """Get all bill items for Stock Out section in a single fast query"""
+    try:
+        # Join BillItem with Bill in a single query
+        items_query = db.session.query(BillItem, Bill).join(Bill, BillItem.bill_id == Bill.id).order_by(Bill.created_at.desc(), BillItem.id.desc()).all()
+        
+        result = []
+        for item, bill in items_query:
+            display_bill_number = bill.bill_number.split('/', 1)[-1] if (bill.bill_number and '/' in bill.bill_number) else bill.bill_number
+            clean_name = (item.product_name or '').replace('___DELETED___', '')
+            clean_code = (item.product_code or (item.product.product_code if item.product else '') or str(item.product_id)).replace('DEL-', '')
+            
+            result.append({
+                'id': item.id,
+                'product_id': item.product_id,
+                'product_code': clean_code,
+                'product_name': clean_name,
+                'product_model': item.product_model or (item.product.model if item.product else '') or '',
+                'product_type': item.product_type or (item.product.type if item.product else '') or '',
+                'tax': round(getattr(item, 'tax', 0) or (item.product.tax if item.product and hasattr(item.product, 'tax') else 0) or 5.0, 2),
+                'sell_price': round(item.sell_price or 0, 2),
+                'buy_price': round(item.buy_price or 0, 2),
+                'quantity': item.quantity or 0,
+                'total': round(item.total or ((item.quantity or 0) * (item.sell_price or 0)), 2),
+                'profit': round(item.profit or 0, 2),
+                'item_status': item.item_status or 'completed',
+                'billNumber': display_bill_number,
+                'rawBillNumber': bill.bill_number,
+                'billId': bill.id,
+                'billDate': bill.created_at.isoformat() if bill.created_at else None,
+                'customerName': bill.customer_name,
+                'customerPhone': bill.customer_phone
+            })
+            
+        return jsonify({
+            'items': result,
+            'total': len(result)
+        }), 200
+        
+    except Exception as e:
+        print(f"Stock out error: {str(e)}")
+        return jsonify({"error": str(e)}), 400
 

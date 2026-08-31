@@ -50,10 +50,10 @@ const QuotationPage = () => {
 
   // Company details
   const companyDetails = {
-    name: "Dressing Concept",
-    address: "88/70, Sundaraj Perumal Koil St S, Agaram, Perambur, Chennai, Tamil Nadu 600082",
-    phone: "98848 58576",
-    email: "hiprintsolutions@gmail.com",
+    name: "Dressing Concepts",
+    address: "NO.88/70 S.R.P KOVIL STREET, AGARAM, PERAMBUR, CHENNAI - 600 082",
+    phone: "9840669687",
+    email: "",
     gstin: "33BQEPD0068G1ZD"
   };
 
@@ -709,10 +709,10 @@ const QuotationPage = () => {
     if (printWindow) {
       const itemsHtml = quotation.items.map(item => `
         <tr>
-          <td style="padding: 8px; border: 1px solid #ddd;">${item.productName} ${item.productModel ? `(${item.productModel})` : ''}</td>
-          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${item.quantity}</td>
-          <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">₹${item.price.toFixed(2)}</td>
-          <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">₹${item.total.toFixed(2)}</td>
+          <td style="padding: 6px 8px; border: 1px solid #ddd;">${item.productName} ${item.productModel ? `(${item.productModel})` : ''}</td>
+          <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;">${item.quantity}</td>
+          <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right;">₹${item.price.toFixed(2)}</td>
+          <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right;">₹${item.total.toFixed(2)}</td>
         </tr>
       `).join('');
 
@@ -722,44 +722,66 @@ const QuotationPage = () => {
         <head>
           <title>Quotation ${quotation.quotationNumber}</title>
           <style>
+            @page {
+              size: A4 portrait;
+              margin: 8mm 12mm;
+            }
+            @media print {
+              html, body {
+                height: 100%;
+                margin: 0 !important;
+                padding: 0 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .quotation-wrapper {
+                page-break-inside: avoid !important;
+                page-break-after: avoid !important;
+              }
+            }
+            * {
+              box-sizing: border-box;
+            }
             body { 
               font-family: Arial, sans-serif; 
-              margin: 30px; 
+              margin: 0; 
+              padding: 10px 15px; 
               color: #333;
-              line-height: 1.6;
+              line-height: 1.35;
             }
             .header { 
               text-align: center; 
-              margin-bottom: 30px; 
-              border-bottom: 2px solid #3b82f6;
-              padding-bottom: 20px;
+              margin-bottom: 8px; 
+              padding-bottom: 4px;
             }
             .company-logo {
-              max-width: 150px;
-              max-height: 80px;
-              margin-bottom: 10px;
+              max-width: 120px;
+              max-height: 60px;
+              margin-bottom: 4px;
               object-fit: contain;
             }
             .company-name { 
-              font-size: 28px; 
+              font-size: 22px; 
               font-weight: bold; 
-              color: #3b82f6;
-              margin-bottom: 5px;
+              color: #1e3a8a;
+              margin-bottom: 2px;
             }
             .company-details {
-              font-size: 14px;
-              color: #666;
+              font-size: 11px;
+              color: #555;
+              line-height: 1.3;
             }
             .document-title {
-              font-size: 24px;
-              font-weight: bold;
-              text-align: center;
-              margin: 20px 0;
+              font-size: 18px;
+              font-weight: bold; 
+              letter-spacing: 0.5px;
+              text-align: center; 
+              margin: 8px 0 10px 0; 
               color: #1e293b;
             }
             .details-table {
               width: 100%;
-              margin: 20px 0;
+              margin: 6px 0 10px 0;
               border-spacing: 0;
             }
             .details-table td {
@@ -771,174 +793,189 @@ const QuotationPage = () => {
             }
             .detail-box {
               background: #f8fafc;
-              padding: 15px;
-              border-radius: 8px;
+              padding: 8px 12px;
+              border-radius: 6px;
               border: 1px solid #e2e8f0;
+              font-size: 12px;
             }
             .detail-box h3 {
               margin-top: 0;
-              margin-bottom: 10px;
-              color: #3b82f6;
-              font-size: 16px;
+              margin-bottom: 6px;
+              color: #1e3a8a;
+              font-size: 13px;
             }
-            table { 
+            .detail-box p {
+              margin: 2px 0;
+            }
+            table.items-table { 
               width: 100%; 
               border-collapse: collapse; 
-              margin: 20px 0; 
+              margin: 8px 0; 
+              font-size: 12px;
             }
-            th { 
-              background-color: #3b82f6; 
-              color: white; 
-              padding: 10px; 
+            table.items-table th { 
+              background-color: #f1f5f9; 
+              color: #334155; 
+              padding: 6px 8px; 
               text-align: left; 
-              font-size: 14px;
+              font-size: 12px;
+              border: 1px solid #cbd5e1;
             }
-            td { 
-              padding: 8px; 
-              border: 1px solid #ddd; 
+            table.items-table td { 
+              padding: 6px 8px; 
+              border: 1px solid #e2e8f0; 
             }
             .summary { 
-              margin: 20px 0; 
+              margin: 6px 0; 
               text-align: right; 
             }
             .summary-item {
-              margin-bottom: 5px;
+              margin-bottom: 3px;
+              font-size: 12px;
             }
             .total { 
-              font-size: 18px; 
+              font-size: 15px; 
               font-weight: bold; 
-              color: #22c55e; 
-              margin-top: 10px;
-              padding-top: 10px;
+              color: #16a34a; 
+              margin-top: 4px;
+              padding-top: 4px;
               border-top: 2px solid #333;
             }
             .notes {
-              margin-top: 30px;
-              padding: 15px;
+              margin-top: 8px;
+              padding: 8px 12px;
               background: #f8fafc;
-              border-left: 4px solid #3b82f6;
+              border-left: 3px solid #3b82f6;
+              font-size: 11px;
             }
-            .footer { 
-              margin-top: 50px; 
-              text-align: center; 
-              font-size: 12px; 
-              color: #666;
-              border-top: 1px solid #ddd;
-              padding-top: 20px;
+            .notes h4 {
+              margin: 0 0 4px 0;
+              color: #1e3a8a;
+              font-size: 12px;
             }
             .signature {
               display: flex;
               justify-content: space-between;
-              margin-top: 40px;
+              margin-top: 16px;
+              font-size: 11px;
             }
             .signature-line {
-              width: 200px;
+              width: 160px;
               border-bottom: 1px solid #333;
-              margin-top: 5px;
+              margin-top: 20px;
+            }
+            .footer { 
+              margin-top: 10px; 
+              text-align: center; 
+              font-size: 10px; 
+              color: #777;
+              border-top: 1px solid #eee;
+              padding-top: 6px;
             }
           </style>
         </head>
         <body>
-          <div class="header">
-            <img src="/Dressing_Concept.png" class="company-logo" alt="Dressing Concept Logo">
-            <div class="company-name">Dressing Concept</div>
-            <div class="company-details">No.71, M.T.H.road (Opp padi post office), Padi, Chennai - 600 050</div>
-            <div class="company-details">Phone: 98657 09626 | Email: hiprintsolutions@gmail.com | GST: 33ABCDE1234F1Z5</div>
-          </div>       
-          
-          <div class="document-title">QUOTATION</div>
-          
-          <table class="details-table">
-            <tr>
-              <td style="width: 48%;">
-                <div class="detail-box">
-                  <h3>Bill To:</h3>
-                  <p><strong>${quotation.customerName}</strong></p>
-                  <p>Phone: ${quotation.customerPhone}</p>
-                  ${quotation.customerEmail ? `<p>Email: ${quotation.customerEmail}</p>` : ''}
-                  ${quotation.customerAddress ? `<p>Address: ${quotation.customerAddress}</p>` : ''}
-                  ${quotation.customerGstin ? `<p>GSTIN: ${quotation.customerGstin}</p>` : ''}
-                </div>
-              </td>
-              <td style="width: 4%;"></td>
-              <td style="width: 48%;">
-                <div class="detail-box">
-                  <h3>Quotation Details:</h3>
-                  <p><strong>Quotation No:</strong> ${quotation.quotationNumber}</p>
-                  <p><strong>Date:</strong> ${new Date(quotation.quotationDate).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
-                  <p><strong>Valid Until:</strong> ${new Date(quotation.validUntil).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
-                  <p><strong>Prepared By:</strong> ${JSON.parse(localStorage.getItem('user'))?.username || 'Admin'}</p>
-                </div>
-              </td>
-            </tr>
-          </table>
-          
-          <table>
-            <thead>
+          <div class="quotation-wrapper">
+            <div class="header">
+              <img src="/Dressing_Concept.png" class="company-logo" alt="Dressing Concepts Logo">
+              <div class="company-name">Dressing Concepts</div>
+              <div class="company-details">NO.88/70 S.R.P KOVIL STREET, AGARAM, PERAMBUR, CHENNAI - 600 082</div>
+              <div class="company-details">Phone: 9840669687 | GSTIN: 33BQEPD0068G1ZD</div>
+            </div>       
+            
+            <div class="document-title">QUOTATION</div>
+            
+            <table class="details-table">
               <tr>
-                <th style="padding: 10px; border: 1px solid #ddd;">Product Description</th>
-                <th style="padding: 10px; border: 1px solid #ddd; text-align: center; width: 60px;">Qty</th>
-                <th style="padding: 10px; border: 1px solid #ddd; text-align: right; width: 100px;">Unit Price</th>
-                <th style="padding: 10px; border: 1px solid #ddd; text-align: right; width: 120px;">Total</th>
+                <td style="width: 48%;">
+                  <div class="detail-box">
+                    <h3>Bill To:</h3>
+                    <p><strong>${quotation.customerName}</strong></p>
+                    <p>Phone: ${quotation.customerPhone}</p>
+                    ${quotation.customerEmail ? `<p>Email: ${quotation.customerEmail}</p>` : ''}
+                    ${quotation.customerAddress ? `<p>Address: ${quotation.customerAddress}</p>` : ''}
+                    ${quotation.customerGstin ? `<p>GSTIN: ${quotation.customerGstin}</p>` : ''}
+                  </div>
+                </td>
+                <td style="width: 4%;"></td>
+                <td style="width: 48%;">
+                  <div class="detail-box">
+                    <h3>Quotation Details:</h3>
+                    <p><strong>Quotation No:</strong> ${quotation.quotationNumber}</p>
+                    <p><strong>Date:</strong> ${new Date(quotation.quotationDate).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+                    <p><strong>Valid Until:</strong> ${new Date(quotation.validUntil).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+                    <p><strong>Prepared By:</strong> ${JSON.parse(localStorage.getItem('user'))?.username || 'Admin'}</p>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-          </table>
-          
-          <div class="summary">
-            <div style="width: 250px; margin-left: auto;">
-              <div class="summary-item">
-                <span style="display: inline-block; width: 120px; text-align: left;"><strong>Subtotal:</strong></span>
-                <span style="display: inline-block; width: 100px; text-align: right;">₹${quotation.subtotal.toFixed(2)}</span>
+            </table>
+            
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th style="padding: 6px 8px; border: 1px solid #cbd5e1;">Product Description</th>
+                  <th style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: center; width: 50px;">Qty</th>
+                  <th style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: right; width: 90px;">Unit Price</th>
+                  <th style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: right; width: 100px;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+            
+            <div class="summary">
+              <div style="width: 220px; margin-left: auto;">
+                <div class="summary-item">
+                  <span style="display: inline-block; width: 100px; text-align: left;"><strong>Subtotal:</strong></span>
+                  <span style="display: inline-block; width: 90px; text-align: right;">₹${quotation.subtotal.toFixed(2)}</span>
+                </div>
+                ${quotation.discount > 0 ? `
+                <div class="summary-item">
+                  <span style="display: inline-block; width: 100px; text-align: left;"><strong>Discount:</strong></span>
+                  <span style="display: inline-block; width: 90px; text-align: right; color: #ef4444;">-₹${quotation.discount.toFixed(2)}</span>
+                </div>` : ''}
+                <div class="total">
+                  <span style="display: inline-block; width: 100px; text-align: left;"><strong>Total:</strong></span>
+                  <span style="display: inline-block; width: 90px; text-align: right;">₹${quotation.total.toFixed(2)}</span>
+                </div>
+                <div style="font-size: 9px; margin-top: 3px; color: #666; font-style: italic;">(Inclusive of all taxes)</div>
               </div>
-              ${quotation.discount > 0 ? `
-              <div class="summary-item">
-                <span style="display: inline-block; width: 120px; text-align: left;"><strong>Discount:</strong></span>
-                <span style="display: inline-block; width: 100px; text-align: right; color: #ef4444;">-₹${quotation.discount.toFixed(2)}</span>
-              </div>` : ''}
-              <div class="total">
-                <span style="display: inline-block; width: 120px; text-align: left;"><strong>Total:</strong></span>
-                <span style="display: inline-block; width: 100px; text-align: right;">₹${quotation.total.toFixed(2)}</span>
+            </div>
+            
+            ${quotation.notes ? `
+              <div class="notes">
+                <h4>Terms & Conditions:</h4>
+                <p style="margin:0;">${quotation.notes}</p>
               </div>
-              <div style="font-size: 10px; margin-top: 5px; color: #666; font-style: italic;">(Inclusive of all taxes)</div>
+            ` : `
+              <div class="notes">
+                <h4>Terms & Conditions:</h4>
+                <ul style="margin:0; padding-left:18px;">
+                  <li>Quotation valid for 7 days from the date of issue</li>
+                  <li>Prices are subject to change without prior notice</li>
+                  <li>Payment terms: 100% advance or as agreed</li>
+                  <li>Delivery: As per availability</li>
+                </ul>
+              </div>
+            `}
+            
+            <div class="signature">
+              <div>
+                <p style="margin:0;"><strong>For Dressing Concepts</strong></p>
+                <div class="signature-line"></div>
+                <p style="margin:2px 0 0;">Authorized Signatory</p>
+              </div>
+              <div>
+                <p style="margin:0;"><strong>Customer Signature</strong></p>
+                <div class="signature-line"></div>
+              </div>
             </div>
-          </div>
-          </div>
-          
-          ${quotation.notes ? `
-            <div class="notes">
-              <h4 style="margin-top:0; color:#3b82f6;">Terms & Conditions:</h4>
-              <p>${quotation.notes}</p>
+            
+            <div class="footer">
+              <p style="margin:2px 0;">This is a computer generated quotation. Valid until specified date.</p>
+              <p style="margin:2px 0;">Thank you for your business!</p>
             </div>
-          ` : `
-            <div class="notes">
-              <h4 style="margin-top:0; color:#3b82f6;">Terms & Conditions:</h4>
-              <ul style="margin:0; padding-left:20px;">
-                <li>Quotation valid for 7 days from the date of issue</li>
-                <li>Prices are subject to change without prior notice</li>
-                <li>Payment terms: 100% advance or as agreed</li>
-                <li>Delivery: As per availability</li>
-              </ul>
-            </div>
-          `}
-          
-          <div class="signature">
-            <div>
-              <p><strong>For Avva Inventory</strong></p>
-              <div class="signature-line"></div>
-              <p>Authorized Signatory</p>
-            </div>
-            <div>
-              <p><strong>Customer Signature</strong></p>
-              <div class="signature-line"></div>
-            </div>
-          </div>
-          
-          <div class="footer">
-            <p>This is a computer generated quotation. Valid until specified date.</p>
-            <p>Thank you for your business!</p>
           </div>
           <script>
             window.onload = function() {
@@ -1194,7 +1231,7 @@ const QuotationPage = () => {
             <div style={styles.modalContent}>
               {/* Company Header */}
               <div style={styles.viewCompanyHeader}>
-                <img src="/Dressing_Concept.png" alt="Dressing Concept Logo" style={{ maxWidth: '120px', marginBottom: '10px' }} />
+                <img src="/Dressing_Concept.png" alt="Dressing Concepts Logo" style={{ maxWidth: '120px', marginBottom: '10px' }} />
                 <h3 style={{ color: '#3b82f6', margin: 0 }}>{companyDetails.name}</h3>
                 <p style={{ margin: '5px 0', color: '#94a3b8' }}>{companyDetails.address}</p>
                 <p style={{ margin: 0, color: '#94a3b8' }}>Phone: {companyDetails.phone} | Email: {companyDetails.email}</p>

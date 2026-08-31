@@ -41,7 +41,7 @@ const toNumber = (value) => Number(value) || 0;
 
 const calculateProduct = (product) => {
   const mrp = toNumber(product.mrp);
-  const purchaseRate = toNumber(product.purchaseRate);
+  const purchaseRate = toNumber(product.purchaseRate !== undefined ? product.purchaseRate : product.buyPrice);
   const classicPrice = toNumber(product.classicCustomer);
   const quantity = parseInt(product.quantity, 10) || 0;
 
@@ -63,14 +63,17 @@ const calculateProduct = (product) => {
   const normalProfit = sellPrice - purchaseRate;
   const classicProfit = classicPrice > 0 ? (classicPrice - purchaseRate) : 0;
 
+  const unitValue = mrp > 0 ? mrp : (sellPrice > 0 ? sellPrice : purchaseRate);
+  const totalAmount = unitValue * quantity;
+
   return {
     ...product,
-    discountAmount: discountAmount.toFixed(2),
+    discountAmount: discountAmount > 0 ? discountAmount.toFixed(2) : (product.discountAmount !== undefined && product.discountAmount !== "" ? product.discountAmount : ""),
     discountPercent,
     normalProfit: normalProfit.toFixed(2),
     classicProfit: classicProfit.toFixed(2),
     quantity,
-    amount: (mrp * quantity).toFixed(2),
+    amount: totalAmount.toFixed(2),
   };
 };
 

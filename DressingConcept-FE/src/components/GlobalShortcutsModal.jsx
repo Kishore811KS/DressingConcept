@@ -9,11 +9,11 @@ const API_BASE_URL = `${BASE_URL}/api`;
 const API = `${BASE_URL}/api`;
 
 const api = axios.create({
-    baseURL: `${BASE_URL}/api`,
-    withCredentials: true,
-    headers: {
-        'Content-Type': 'application/json'
-    }
+  baseURL: `${BASE_URL}/api`,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
 });
 
 const GlobalShortcutsModal = () => {
@@ -71,7 +71,8 @@ const GlobalShortcutsModal = () => {
                 { keys: "SB", description: "Service Bills" },
                 { keys: "SE", description: "Sales Bill (Employee)" },
                 { keys: "Q", description: "Quotations" },
-                { keys: "DI", description: "Discount" }
+                { keys: "DI", description: "Discount" },
+                { keys: "OA", description: "Online Address" }
             ]
         },
         {

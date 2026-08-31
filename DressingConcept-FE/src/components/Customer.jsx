@@ -1,17 +1,24 @@
 // CustomerDetailsPage.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 
+import axios from 'axios';
+
 const BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = `${BASE_URL}/api`;
+const API = `${BASE_URL}/api`;
+
 const api = axios.create({
   baseURL: `${BASE_URL}/api`,
   withCredentials: true,
-  headers: { 'Content-Type': 'application/json' }
+  headers: {
+    'Content-Type': 'application/json'
+  }
 });
+
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 const formatDate = (d) => {
@@ -95,7 +102,7 @@ function exportBillsToExcel(bills, filename = 'customer_bills.xlsx') {
 }
 
 /* ─── Professional PDF Generator (jsPDF + autoTable) ───────────── */
-function exportToPDF(customersList, companyName = 'Dressing Concept') {
+function exportToPDF(customersList, companyName = 'Dressing Concepts') {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
