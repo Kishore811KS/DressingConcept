@@ -15,7 +15,8 @@ import {
   FaChevronUp,
   FaPlus,
   FaTrash,
-  FaCoins
+  FaCoins,
+  FaGift
 } from "react-icons/fa";
 
 import axios from 'axios';
@@ -59,6 +60,11 @@ const Salary = () => {
   const [incentiveEmp, setIncentiveEmp] = useState(null);
   const [incentiveInput, setIncentiveInput] = useState("");
 
+  // Allowance Modal state
+  const [showAllowanceModal, setShowAllowanceModal] = useState(false);
+  const [allowanceEmp, setAllowanceEmp] = useState(null);
+  const [allowanceItemsList, setAllowanceItemsList] = useState([]);
+
   const openIncentiveModal = (emp) => {
     setIncentiveEmp(emp);
     setIncentiveInput(emp.incentive_amount ? String(emp.incentive_amount) : "");
@@ -81,6 +87,133 @@ const Salary = () => {
       calculateSalaries();
     } catch (err) {
       showToast(err.response?.data?.error || "Failed to update incentive amount", true);
+    }
+  };
+
+  const openAllowanceModal = (emp) => {
+    setAllowanceEmp(emp);
+    let details = emp.allowance_details;
+    if (typeof details === 'string') {
+      try {
+        details = JSON.parse(details);
+      } catch (e) {
+        details = [];
+      }
+    }
+
+    let list = [];
+    if (details && Array.isArray(details) && details.length > 0) {
+      list = details
+        .filter(item => item && (parseFloat(item.amount) > 0 || (item.title && item.title.trim())))
+        .map((item, idx) => ({
+          id: `allow_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
+          title: item.title || '',
+          type: item.type === 'deducted' ? 'deducted' : 'given',
+          amount: item.amount !== undefined ? String(item.amount) : ''
+        }));
+    } else if (emp.allowance_amount && Number(emp.allowance_amount) !== 0) {
+      list = [{
+        id: `allow_${Date.now()}_0_${Math.random().toString(36).substring(2, 7)}`,
+        title: 'Special Allowance',
+        type: Number(emp.allowance_amount) >= 0 ? 'given' : 'deducted',
+        amount: String(Math.abs(emp.allowance_amount))
+      }];
+    }
+
+    if (list.length === 0) {
+      list = [{ id: `allow_${Date.now()}_0_${Math.random().toString(36).substring(2, 7)}`, title: '', type: 'given', amount: '' }];
+    }
+    setAllowanceItemsList(list);
+    setShowAllowanceModal(true);
+  };
+
+  const handleAllowanceRowChange = (index, field, value) => {
+    setAllowanceItemsList(prev => {
+      const updated = [...prev];
+      if (updated[index]) {
+        updated[index] = { ...updated[index], [field]: value };
+      }
+      return updated;
+    });
+  };
+
+  const handleAddAllowanceRow = () => {
+    setAllowanceItemsList(prev => [
+      ...prev,
+      { id: `allow_${Date.now()}_${prev.length}_${Math.random().toString(36).substring(2, 7)}`, title: '', type: 'given', amount: '' }
+    ]);
+  };
+
+  const handleRemoveAllowanceRow = (index) => {
+    setAllowanceItemsList(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveAllowance = async () => {
+    if (!allowanceEmp) return;
+    try {
+      const formattedItems = allowanceItemsList
+        .filter(row => row && !isNaN(parseFloat(row.amount)) && parseFloat(row.amount) > 0)
+        .map(row => ({
+          title: (row.title && row.title.trim()) ? row.title.trim() : 'Allowance',
+          type: row.type === 'deducted' ? 'deducted' : 'given',
+          amount: parseFloat(row.amount) || 0
+        }));
+
+      let netAllow = 0;
+      formattedItems.forEach(item => {
+        if (item.type === 'deducted') netAllow -= item.amount;
+        else netAllow += item.amount;
+      });
+
+      const empId = allowanceEmp.employee_id || allowanceEmp.id;
+
+      await api.put('/salary/update-allowance', {
+        salary_id: allowanceEmp.id,
+        employee_id: empId,
+        month: month,
+        year: year,
+        allowance_details: formattedItems,
+        allowance_amount: netAllow
+      });
+
+      // Synchronize local state immediately so UI and selectedEmp reflect the updated allowance and net salary instantly
+      setSalaries(prev => prev.map(s => {
+        if ((s.employee_id || s.id) === empId || s.id === allowanceEmp.id) {
+          const gross = s.calculated_salary || 0;
+          const adv = s.advance_amount || 0;
+          const pur = s.purchases_amount || 0;
+          const inc = s.incentive_amount || 0;
+          return {
+            ...s,
+            allowance_amount: netAllow,
+            allowance_details: formattedItems,
+            net_salary: Math.max(0, gross + inc + netAllow - adv - pur)
+          };
+        }
+        return s;
+      }));
+
+      setSelectedEmp(prev => {
+        if (prev && ((prev.employee_id || prev.id) === empId || prev.id === allowanceEmp.id)) {
+          const gross = prev.calculated_salary || 0;
+          const adv = prev.advance_amount || 0;
+          const pur = prev.purchases_amount || 0;
+          const inc = prev.incentive_amount || 0;
+          return {
+            ...prev,
+            allowance_amount: netAllow,
+            allowance_details: formattedItems,
+            net_salary: Math.max(0, gross + inc + netAllow - adv - pur)
+          };
+        }
+        return prev;
+      });
+
+      showToast("Allowance details updated successfully");
+      setShowAllowanceModal(false);
+      calculateSalaries();
+    } catch (err) {
+      showToast(err.response?.data?.error || "Failed to update allowance details", true);
     }
   };
 
@@ -148,12 +281,14 @@ const Salary = () => {
       if ((s.employee_id || s.id) === empId) {
         const gross = s.calculated_salary || 0;
         const adv = s.advance_amount || 0;
+        const inc = s.incentive_amount || 0;
+        const allow = s.allowance_amount || 0;
         return {
           ...s,
           purchases_amount: totalSum,
           purchased_bills: manualPurchasesList,
           purchased_items: manualPurchasesList,
-          net_salary: Math.max(0, gross - adv - totalSum)
+          net_salary: Math.max(0, gross + inc + allow - adv - totalSum)
         };
       }
       return s;
@@ -163,12 +298,14 @@ const Salary = () => {
       setSelectedEmp(prev => {
         const gross = prev?.calculated_salary || 0;
         const adv = prev?.advance_amount || 0;
+        const inc = prev?.incentive_amount || 0;
+        const allow = prev?.allowance_amount || 0;
         return {
           ...prev,
           purchases_amount: totalSum,
           purchased_bills: manualPurchasesList,
           purchased_items: manualPurchasesList,
-          net_salary: Math.max(0, gross - adv - totalSum)
+          net_salary: Math.max(0, gross + inc + allow - adv - totalSum)
         };
       });
     }
@@ -196,10 +333,12 @@ const Salary = () => {
         if ((s.employee_id || s.id) === empId && s.status !== 'paid') {
           const gross = s.calculated_salary || 0;
           const pur = s.purchases_amount || 0;
+          const inc = s.incentive_amount || 0;
+          const allow = s.allowance_amount || 0;
           return {
             ...s,
             advance_amount: pendingTotal,
-            net_salary: Math.max(0, gross - pendingTotal - pur)
+            net_salary: Math.max(0, gross + inc + allow - pendingTotal - pur)
           };
         }
         return s;
@@ -209,10 +348,12 @@ const Salary = () => {
         setSelectedEmp(prev => {
           const gross = prev?.calculated_salary || 0;
           const pur = prev?.purchases_amount || 0;
+          const inc = prev?.incentive_amount || 0;
+          const allow = prev?.allowance_amount || 0;
           return {
             ...prev,
             advance_amount: pendingTotal,
-            net_salary: Math.max(0, gross - pendingTotal - pur)
+            net_salary: Math.max(0, gross + inc + allow - pendingTotal - pur)
           };
         });
       }
@@ -317,7 +458,8 @@ const Salary = () => {
           const gross = empSalary.calculated_salary || 0;
           const adv = empSalary.advance_amount || 0;
           const inc = empSalary.incentive_amount || 0;
-          const net = Math.max(0, gross + inc - adv - purchasesTotal);
+          const allow = empSalary.allowance_amount || 0;
+          const net = Math.max(0, gross + inc + allow - adv - purchasesTotal);
 
           return {
             ...empSalary,
@@ -330,12 +472,13 @@ const Salary = () => {
           const gross = empSalary.calculated_salary || 0;
           const adv = empSalary.advance_amount || 0;
           const inc = empSalary.incentive_amount || 0;
+          const allow = empSalary.allowance_amount || 0;
           return {
             ...empSalary,
             purchases_amount: 0,
             purchased_items: [],
             purchased_bills: [],
-            net_salary: Math.max(0, gross + inc - adv)
+            net_salary: Math.max(0, gross + inc + allow - adv)
           };
         }
       }));
@@ -410,7 +553,8 @@ const Salary = () => {
       const advance = Number(emp.advance_amount) || 0;
       const purchasesAmount = Number(emp.purchases_amount) || 0;
       const incentive = Number(emp.incentive_amount) || 0;
-      const netTakeHome = Math.max(0, (emp.calculated_salary || 0) + incentive - advance - purchasesAmount);
+      const allowance = Number(emp.allowance_amount) || 0;
+      const netTakeHome = Math.max(0, (emp.calculated_salary || 0) + incentive + allowance - advance - purchasesAmount);
 
       doc.setFontSize(11);
       doc.text(`Gross Salary:`, 20, row2Y + 12);
@@ -421,6 +565,45 @@ const Salary = () => {
         doc.text(`Incentive / Bonus:`, 20, currentLineY);
         doc.setTextColor(2, 132, 199);
         doc.text(`+ Rs. ${incentive.toLocaleString()}`, 140, currentLineY);
+        doc.setTextColor(0, 0, 0);
+        currentLineY += 9;
+      }
+
+      let allowDetails = emp.allowance_details;
+      if (typeof allowDetails === 'string') {
+        try {
+          allowDetails = JSON.parse(allowDetails);
+        } catch (e) {
+          allowDetails = [];
+        }
+      }
+
+      if (allowDetails && Array.isArray(allowDetails) && allowDetails.length > 0) {
+        allowDetails.forEach(item => {
+          const itemAmt = Number(item.amount) || 0;
+          if (itemAmt > 0) {
+            const isDed = item.type === 'deducted';
+            doc.text(`${item.title || 'Allowance'}:`, 20, currentLineY);
+            if (isDed) {
+              doc.setTextColor(200, 0, 0);
+              doc.text(`- Rs. ${itemAmt.toLocaleString()}`, 140, currentLineY);
+            } else {
+              doc.setTextColor(16, 185, 129);
+              doc.text(`+ Rs. ${itemAmt.toLocaleString()}`, 140, currentLineY);
+            }
+            doc.setTextColor(0, 0, 0);
+            currentLineY += 9;
+          }
+        });
+      } else if (allowance !== 0) {
+        doc.text(`Allowance:`, 20, currentLineY);
+        if (allowance < 0) {
+          doc.setTextColor(200, 0, 0);
+          doc.text(`- Rs. ${Math.abs(allowance).toLocaleString()}`, 140, currentLineY);
+        } else {
+          doc.setTextColor(16, 185, 129);
+          doc.text(`+ Rs. ${allowance.toLocaleString()}`, 140, currentLineY);
+        }
         doc.setTextColor(0, 0, 0);
         currentLineY += 9;
       }
@@ -439,18 +622,25 @@ const Salary = () => {
       doc.setTextColor(194, 24, 91);
       doc.text(`- Rs. ${purchasesAmount.toLocaleString()}`, 140, currentLineY);
       doc.setTextColor(0, 0, 0);
-      currentLineY += 7;
+      currentLineY += 6;
 
+      // Top line of Net Take-Home
+      doc.setLineWidth(0.3);
       doc.line(20, currentLineY, 190, currentLineY);
 
+      // Net Take-Home text nicely vertically aligned
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
-      doc.text(`Net Take-Home:`, 20, currentLineY + 11);
+      doc.text(`Net Take-Home:`, 20, currentLineY + 7.5);
       doc.setTextColor(0, 150, 0);
-      doc.text(`Rs. ${netTakeHome.toLocaleString()}`, 140, currentLineY + 11);
+      doc.text(`Rs. ${netTakeHome.toLocaleString()}`, 140, currentLineY + 7.5);
       doc.setTextColor(0, 0, 0);
 
-      let currentY = row2Y + 70;
+      // Bottom line of Net Take-Home
+      currentLineY += 11.5;
+      doc.line(20, currentLineY, 190, currentLineY);
+
+      currentLineY += 8;
       const purchasesToDisplay = [];
       if (emp.purchased_bills && emp.purchased_bills.length > 0) {
         emp.purchased_bills.forEach(b => {
@@ -475,24 +665,22 @@ const Salary = () => {
       }
 
       if (purchasesToDisplay.length > 0) {
-        doc.line(20, currentY, 190, currentY);
-        currentY += 8;
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(180, 0, 0);
-        doc.text("NOTE: Purchased Products", 20, currentY);
+        doc.text("NOTE: Purchased Products", 20, currentLineY);
         doc.setTextColor(0, 0, 0);
-        currentY += 6;
+        currentLineY += 6;
 
         doc.setFontSize(9);
         doc.setFont("helvetica", "normal");
         purchasesToDisplay.forEach((p, idx) => {
-          if (currentY > 230) {
+          if (currentLineY > 230) {
             doc.addPage();
-            currentY = 20;
+            currentLineY = 20;
           }
-          doc.text(`${idx + 1}. Bill #${p.bill_number}  |  Date: ${p.date}  |  Total Amount: Rs. ${p.total.toLocaleString()}`, 25, currentY);
-          currentY += 5.5;
+          doc.text(`${idx + 1}. Bill #${p.bill_number}  |  Date: ${p.date}  |  Total Amount: Rs. ${p.total.toLocaleString()}`, 25, currentLineY);
+          currentLineY += 5.5;
         });
       }
 
@@ -900,7 +1088,7 @@ const Salary = () => {
                     </td>
                     <td style={styles.td}>
                       <strong style={{ color: "#34d399" }}>
-                        ₹{(s.net_salary !== undefined ? s.net_salary : Math.max(0, (s.calculated_salary || 0) - (s.advance_amount || 0) - (s.purchases_amount || 0))).toLocaleString()}
+                        ₹{(s.net_salary !== undefined ? s.net_salary : Math.max(0, (s.calculated_salary || 0) + (s.incentive_amount || 0) + (s.allowance_amount || 0) - (s.advance_amount || 0) - (s.purchases_amount || 0))).toLocaleString()}
                       </strong>
                     </td>
                     <td style={styles.td}>
@@ -964,6 +1152,25 @@ const Salary = () => {
                           title="Set / Edit Salesperson Incentive"
                         >
                           <FaCoins /> Incentive
+                        </button>
+                        <button
+                          onClick={() => openAllowanceModal(s)}
+                          style={{
+                            padding: "5px 9px",
+                            borderRadius: "6px",
+                            border: "1px solid rgba(16, 185, 129, 0.3)",
+                            backgroundColor: "rgba(16, 185, 129, 0.15)",
+                            color: "#34d399",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px"
+                          }}
+                          title="Set / Edit Allowance (Manual)"
+                        >
+                          <FaGift /> Allowance
                         </button>
                         <button
                           onClick={() => downloadPayslip(s)}
@@ -1063,6 +1270,20 @@ const Salary = () => {
                   </div>
                 </div>
                 <div style={styles.summaryCard()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={styles.detailLabel}>Allowance</div>
+                    <button
+                      onClick={() => openAllowanceModal(selectedEmp)}
+                      style={{ background: 'none', border: 'none', color: '#34d399', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', textDecoration: 'underline' }}
+                    >
+                      Edit
+                    </button>
+                  </div>
+                  <div style={{ ...styles.detailValue, fontSize: "15px", marginTop: "4px", color: (selectedEmp.allowance_amount || 0) < 0 ? "#f87171" : "#34d399" }}>
+                    {(selectedEmp.allowance_amount || 0) < 0 ? `-₹${Math.abs(selectedEmp.allowance_amount || 0).toLocaleString()}` : `+₹${(selectedEmp.allowance_amount || 0).toLocaleString()}`}
+                  </div>
+                </div>
+                <div style={styles.summaryCard()}>
                   <div style={styles.detailLabel}>Advance Deducted</div>
                   <div style={{ ...styles.detailValue, fontSize: "15px", marginTop: "4px", color: "#fbbf24" }}>
                     -₹{(selectedEmp.advance_amount || 0).toLocaleString()}
@@ -1085,7 +1306,7 @@ const Salary = () => {
               <div style={{ ...styles.summaryCard('net'), marginTop: "12px", display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ ...styles.detailLabel, color: "#34d399", fontSize: "13px", fontWeight: "600" }}>Net Take-Home</div>
                 <div style={{ ...styles.detailValue, fontSize: "20px", color: "#34d399" }}>
-                  ₹{(selectedEmp.net_salary !== undefined ? selectedEmp.net_salary : Math.max(0, (selectedEmp.calculated_salary || 0) + (selectedEmp.incentive_amount || 0) - (selectedEmp.advance_amount || 0) - (selectedEmp.purchases_amount || 0))).toLocaleString()}
+                  ₹{(selectedEmp.net_salary !== undefined ? selectedEmp.net_salary : Math.max(0, (selectedEmp.calculated_salary || 0) + (selectedEmp.incentive_amount || 0) + (selectedEmp.allowance_amount || 0) - (selectedEmp.advance_amount || 0) - (selectedEmp.purchases_amount || 0))).toLocaleString()}
                 </div>
               </div>
 
@@ -1273,7 +1494,7 @@ const Salary = () => {
               <div style={{ backgroundColor: "rgba(16, 185, 129, 0.15)", padding: "12px 14px", borderRadius: "10px", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
                 <span style={{ fontSize: "12px", color: "#34d399", fontWeight: "600" }}>Net Salary Take-Home</span>
                 <h4 style={{ fontSize: "20px", fontWeight: "bold", color: "#34d399", margin: "4px 0 0 0" }}>
-                  ₹{(advanceEmp.net_salary !== undefined ? advanceEmp.net_salary : Math.max(0, (advanceEmp.calculated_salary || 0) - (advanceEmp.advance_amount || 0) - (advanceEmp.purchases_amount || 0))).toLocaleString()}
+                  ₹{(advanceEmp.net_salary !== undefined ? advanceEmp.net_salary : Math.max(0, (advanceEmp.calculated_salary || 0) + (advanceEmp.incentive_amount || 0) + (advanceEmp.allowance_amount || 0) - (advanceEmp.advance_amount || 0) - (advanceEmp.purchases_amount || 0))).toLocaleString()}
                 </h4>
                 <span style={{ fontSize: "10px", color: "#10b981" }}>Gross minus deductions</span>
               </div>
@@ -1443,6 +1664,150 @@ const Salary = () => {
                   Save Incentive
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Allowance Modal */}
+      {showAllowanceModal && allowanceEmp && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }}>
+          <div style={{ backgroundColor: "#1e293b", border: "1px solid #334155", color: "#f8fafc", borderRadius: "16px", width: "90%", maxWidth: "620px", maxHeight: "90vh", overflowY: "auto", padding: "24px", boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #334155", paddingBottom: "12px", marginBottom: "16px" }}>
+              <h3 style={{ margin: 0, fontSize: "16px", color: "#34d399", display: "flex", alignItems: "center", gap: "8px" }}>
+                <FaGift style={{ color: "#34d399" }} /> Employee Allowances & Deductions ({month}/{year})
+              </h3>
+              <button style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#94a3b8" }} onClick={() => setShowAllowanceModal(false)}>✕</button>
+            </div>
+
+            <p style={{ fontSize: "13px", color: "#cbd5e1", marginTop: 0, marginBottom: "16px" }}>
+              Specify allowances or deductions for <strong style={{ color: "#f8fafc" }}>{allowanceEmp.employee_name || 'Employee'}</strong>. Select whether each item is <strong>Given (+)</strong> or <strong>Deducted (-)</strong>:
+            </p>
+
+            <div style={{ overflowX: "auto", maxHeight: "280px", marginBottom: "16px" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ backgroundColor: "#0f172a", textAlign: "left" }}>
+                    <th style={{ padding: "8px 10px", borderBottom: "1px solid #334155", color: "#94a3b8" }}>Allowance / Deduction Type</th>
+                    <th style={{ padding: "8px 10px", borderBottom: "1px solid #334155", color: "#94a3b8", width: "130px" }}>Action Type</th>
+                    <th style={{ padding: "8px 10px", borderBottom: "1px solid #334155", color: "#94a3b8", width: "110px" }}>Amount (₹)</th>
+                    <th style={{ padding: "8px 10px", borderBottom: "1px solid #334155", color: "#94a3b8", textAlign: "center", width: "45px" }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allowanceItemsList.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" style={{ padding: "20px", textAlign: "center", color: "#94a3b8", fontStyle: "italic" }}>
+                        No allowances or deductions. Click "+ Add Allowance / Deduction Row" below to add one.
+                      </td>
+                    </tr>
+                  ) : (
+                    allowanceItemsList.map((row, idx) => (
+                      <tr key={row.id || idx} style={{ borderBottom: "1px solid #334155" }}>
+                        <td style={{ padding: "8px 10px" }}>
+                          <input
+                            type="text"
+                            value={row.title}
+                            onChange={(e) => handleAllowanceRowChange(idx, 'title', e.target.value)}
+                            placeholder="e.g. Food, Travel, Medical..."
+                            style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #334155", backgroundColor: "#0f172a", color: "#f8fafc", fontSize: "13px", boxSizing: "border-box" }}
+                          />
+                        </td>
+                        <td style={{ padding: "8px 10px" }}>
+                          <select
+                            value={row.type}
+                            onChange={(e) => handleAllowanceRowChange(idx, 'type', e.target.value)}
+                            style={{
+                              width: "100%",
+                              padding: "7px 8px",
+                              borderRadius: "6px",
+                              border: row.type === 'deducted' ? "1px solid rgba(239, 68, 68, 0.4)" : "1px solid rgba(16, 185, 129, 0.4)",
+                              backgroundColor: row.type === 'deducted' ? "rgba(239, 68, 68, 0.15)" : "rgba(16, 185, 129, 0.15)",
+                              color: row.type === 'deducted' ? "#f87171" : "#34d399",
+                              fontSize: "12px",
+                              fontWeight: "700",
+                              outline: "none",
+                              cursor: "pointer",
+                              boxSizing: "border-box"
+                            }}
+                          >
+                            <option value="given" style={{ backgroundColor: "#1e293b", color: "#34d399" }}>+ Given (Add)</option>
+                            <option value="deducted" style={{ backgroundColor: "#1e293b", color: "#f87171" }}>- Deducted (Cut)</option>
+                          </select>
+                        </td>
+                        <td style={{ padding: "8px 10px" }}>
+                          <input
+                            type="number"
+                            min="0"
+                            value={row.amount}
+                            onChange={(e) => handleAllowanceRowChange(idx, 'amount', e.target.value)}
+                            placeholder="0.00"
+                            style={{
+                              width: "100%",
+                              padding: "7px 10px",
+                              borderRadius: "6px",
+                              border: "1px solid #334155",
+                              backgroundColor: "#0f172a",
+                              color: row.type === 'deducted' ? "#f87171" : "#34d399",
+                              fontSize: "13px",
+                              fontWeight: "bold",
+                              boxSizing: "border-box"
+                            }}
+                          />
+                        </td>
+                        <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAllowanceRow(idx)}
+                            style={{ background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#f87171", borderRadius: "6px", padding: "6px 9px", cursor: "pointer", fontSize: "12px" }}
+                            title="Remove item"
+                          >
+                            <FaTrash />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px", flexWrap: "wrap", gap: "10px" }}>
+              <button
+                onClick={handleAddAllowanceRow}
+                style={{ padding: "7px 14px", borderRadius: "6px", border: "1px solid rgba(52, 211, 153, 0.4)", backgroundColor: "rgba(52, 211, 153, 0.1)", color: "#34d399", fontSize: "12px", fontWeight: "600", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <FaPlus /> Add Allowance / Deduction Row
+              </button>
+              
+              {(() => {
+                const totalGiven = allowanceItemsList
+                  .filter(r => r.type !== 'deducted')
+                  .reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+                const totalDeducted = allowanceItemsList
+                  .filter(r => r.type === 'deducted')
+                  .reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+                const netEffect = totalGiven - totalDeducted;
+
+                return (
+                  <div style={{ display: "flex", gap: "14px", fontSize: "12px", alignItems: "center" }}>
+                    <span style={{ color: "#34d399" }}>Given: <strong>+₹{totalGiven.toLocaleString()}</strong></span>
+                    <span style={{ color: "#f87171" }}>Deducted: <strong>-₹{totalDeducted.toLocaleString()}</strong></span>
+                    <span style={{ color: netEffect >= 0 ? "#34d399" : "#f87171", fontWeight: "bold", fontSize: "13px" }}>
+                      Net: {netEffect >= 0 ? `+₹${netEffect.toLocaleString()}` : `-₹${Math.abs(netEffect).toLocaleString()}`}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", borderTop: "1px solid #334155", paddingTop: "14px" }}>
+              <button onClick={() => setShowAllowanceModal(false)} style={{ padding: "9px 16px", borderRadius: "8px", border: "1px solid #334155", backgroundColor: "#374151", color: "#f8fafc", cursor: "pointer", fontWeight: "600" }}>
+                Cancel
+              </button>
+              <button onClick={handleSaveAllowance} style={{ padding: "9px 20px", borderRadius: "8px", border: "none", backgroundColor: "#059669", color: "#fff", fontWeight: "700", cursor: "pointer" }}>
+                Save Allowances
+              </button>
             </div>
           </div>
         </div>

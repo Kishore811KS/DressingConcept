@@ -3,6 +3,7 @@ from app import db
 from app.models.usertype import UserType
 from sqlalchemy import func
 import traceback
+import json
 
 # Create blueprint
 user_type_bp = Blueprint('user_type', __name__, url_prefix='/api')

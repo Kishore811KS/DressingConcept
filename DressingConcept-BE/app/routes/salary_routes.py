@@ -7,6 +7,8 @@ from app.models import Salary, Employee, Attendance, HRConfig, AdvanceSalary, Bi
 from sqlalchemy import func, text
 import logging
 
+import json
+
 salary_bp = Blueprint('salary', __name__)
 logger = logging.getLogger(__name__)
 
@@ -20,6 +22,18 @@ def _ensure_salary_columns():
     try:
         with db.engine.connect() as conn:
             conn.execute(text("ALTER TABLE salaries ADD COLUMN incentive_amount FLOAT DEFAULT 0.0"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE salaries ADD COLUMN allowance_amount FLOAT DEFAULT 0.0"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE salaries ADD COLUMN allowance_details TEXT NULL"))
             conn.commit()
     except Exception:
         pass
@@ -99,6 +113,7 @@ def calculate_salaries():
                     calculated_salary=round(calculated_salary, 2),
                     advance_amount=round(advance_amount, 2),
                     incentive_amount=0.0,
+                    allowance_amount=0.0,
                     status='pending'
                 )
                 db.session.add(salary_record)
@@ -228,6 +243,7 @@ def update_salary_incentive():
                 month=month,
                 year=year,
                 incentive_amount=max(0.0, incentive_amount),
+                allowance_amount=0.0,
                 status='pending'
             )
             db.session.add(salary_record)
@@ -241,6 +257,78 @@ def update_salary_incentive():
         
     except Exception as e:
         logger.error(f"Salary incentive update error: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@salary_bp.route('/update-allowance', methods=['PUT'])
+def update_salary_allowance():
+    """Update allowance items manually for an employee's salary record"""
+    _ensure_salary_columns()
+    try:
+        data = request.get_json()
+        salary_id = data.get('salary_id')
+        employee_id = data.get('employee_id')
+        month = data.get('month')
+        year = data.get('year')
+        
+        # allowance_details is a list of { title: 'Food', type: 'given'|'deducted', amount: 1500 }
+        allowance_details = data.get('allowance_details', [])
+        
+        # If frontend sent details list, compute net allowance: given (+) minus deducted (-)
+        if isinstance(allowance_details, list):
+            total_allow = 0.0
+            valid_details = []
+            for item in allowance_details:
+                amt = float(item.get('amount', 0.0) or 0.0)
+                if amt > 0:
+                    item_type = item.get('type', 'given')
+                    title = (item.get('title') or 'Allowance').strip()
+                    if item_type == 'deducted':
+                        total_allow -= amt
+                    else:
+                        total_allow += amt
+                    valid_details.append({
+                        'title': title,
+                        'type': item_type,
+                        'amount': amt
+                    })
+            allowance_amount = round(total_allow, 2)
+            allowance_details_json = json.dumps(valid_details) if valid_details else None
+        else:
+            allowance_amount = float(data.get('allowance_amount', 0.0) or 0.0)
+            allowance_details_json = None
+        
+        salary_record = None
+        if salary_id:
+            try:
+                salary_record = Salary.query.get(int(salary_id))
+            except Exception:
+                pass
+        if not salary_record and employee_id and month and year:
+            salary_record = Salary.query.filter_by(employee_id=int(employee_id), month=int(month), year=int(year)).first()
+
+        if not salary_record and employee_id and month and year:
+            salary_record = Salary(
+                employee_id=int(employee_id),
+                month=int(month),
+                year=int(year),
+                incentive_amount=0.0,
+                allowance_amount=allowance_amount,
+                allowance_details=allowance_details_json,
+                status='pending'
+            )
+            db.session.add(salary_record)
+        elif salary_record:
+            salary_record.allowance_amount = allowance_amount
+            salary_record.allowance_details = allowance_details_json
+        else:
+            return jsonify({'error': 'Salary record not found'}), 404
+
+        db.session.commit()
+        return jsonify(salary_record.to_dict()), 200
+        
+    except Exception as e:
+        logger.error(f"Salary allowance update error: {str(e)}")
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
