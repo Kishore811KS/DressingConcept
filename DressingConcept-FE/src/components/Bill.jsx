@@ -158,7 +158,7 @@ export default function Bill() {
       salesPerson: "",
     }],
     billDate: getTodayDateStr(),
-    billNo: currentBillNo || billNo || "",
+    billNo: currentBillNo || "",
     counter: "counter_1",
     customerName: "",
     memberId: "",
